@@ -1,3 +1,3 @@
 ---
 
-NestForge Docs | [Home](./Home.md) | [Quick Start](./Quick-Start.md) | [Project Structure](./Project-Structure.md) | [GitHub Repo](https://github.com/vernonthedev/nestforge)
+NestForge Docs | [Home](Home) | [Quick Start](Quick-Start) | [Project Structure](Project-Structure) | [GitHub Repo](https://github.com/vernonthedev/nestforge)

@@ -2,14 +2,14 @@
 
 ## Start here
 
-1. [Quick Start](./Quick-Start.md)
-2. [Project Structure](./Project-Structure.md)
-3. [Core Concepts](./Core-Concepts.md)
-4. [Macros](./Macros.md)
-5. [CLI Guide](./Cli-Guide.md)
-6. [Example App Walkthrough](./Example-app.md)
-7. [Example API Endpoints](./Example-Api.md)
-8. [Full File Map](./File-map.md)
+1. [Quick Start](Quick-Start)
+2. [Project Structure](Project-Structure)
+3. [Core Concepts](Core-Concepts)
+4. [Macros](Macros)
+5. [CLI Guide](Cli-Guide)
+6. [Example App Walkthrough](Example-app)
+7. [Example API Endpoints](Example-Api)
+8. [Full File Map](File-map)
 
 ## Goal
 

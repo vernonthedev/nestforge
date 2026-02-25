@@ -1,5 +1,5 @@
 use axum::{extract::State, response::Json, routing::get, Router};
-use nestforge::{Container, ControllerDefinition};
+use nestforge::{Container, ControllerDefinition, HttpException};
 
 use crate::{dto::UserDto, services::UsersService};
 
@@ -20,13 +20,17 @@ impl UsersController {
     - get Container from state
     - resolve UsersService from DI
     - return JSON list
+    - return HttpException if service isn't registered
     */
-    async fn list_users(State(container): State<Container>) -> Json<Vec<UserDto>> {
-        let users = match container.resolve::<UsersService>() {
-            Ok(service) => service.find_all(),
-            Err(_) => Vec::new(),
-        };
+    async fn list_users(
+        State(container): State<Container>,
+    ) -> Result<Json<Vec<UserDto>>, HttpException> {
+        let service = container.resolve::<UsersService>().map_err(|_| {
+            HttpException::internal_server_error(
+                "[UsersController] UsersService is not registered in the container",
+            )
+        })?;
 
-        Json(users)
+        Ok(Json(service.find_all()))
     }
 }

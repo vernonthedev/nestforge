@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::dto::{CreateUserDto, UserDto};
+use crate::dto::{CreateUserDto, UpdateUserDto, UserDto};
 
 /*
 UsersService = business logic + in-memory storage (for now)
@@ -62,5 +62,24 @@ impl UsersService {
 
         users.push(user.clone());
         user
+    }
+
+     /*
+    Update a user and return the updated record.
+    Returns None if user doesn't exist.
+    */
+    pub fn update(&self, id: u64, dto: UpdateUserDto) -> Option<UserDto> {
+        let mut users = self.users.write().ok()?;
+        let user = users.iter_mut().find(|u| u.id == id)?;
+
+        if let Some(name) = dto.name {
+            user.name = name;
+        }
+
+        if let Some(email) = dto.email {
+            user.email = email;
+        }
+
+        Some(user.clone())
     }
 }

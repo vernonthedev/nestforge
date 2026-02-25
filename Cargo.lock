@@ -275,6 +275,8 @@ version = "0.1.0-alpha"
 dependencies = [
  "anyhow",
  "axum",
+ "http",
+ "serde",
  "thiserror",
 ]
 

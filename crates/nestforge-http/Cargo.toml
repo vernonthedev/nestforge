@@ -5,13 +5,8 @@ edition = { workspace = true }
 license = { workspace = true }
 
 [dependencies]
-# axum is the HTTP engine under the hood.
-axum = { workspace = true }
-# tokio runs the async server.
-tokio = { workspace = true }
-# anyhow for simple Result returns while we build the foundation.
-anyhow = { workspace = true }
-# tower-http gives us middleware (like request tracing).
-tower-http = { workspace = true }
-# local core crate (DI container + traits).
-nestforge-core = { path = "../nestforge-core" }
+axum = { workspace = true } # axum is the HTTP engine under the hood.
+tokio = { workspace = true } # tokio runs the async server.
+anyhow = { workspace = true } # anyhow for simple Result returns while we build the foundation.
+tower-http = { workspace = true } # tower-http gives us middleware (like request tracing).
+nestforge-core = { path = "../nestforge-core" } # local core crate (DI container + traits).

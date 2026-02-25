@@ -6,8 +6,8 @@ edition = { workspace = true }
 license = { workspace = true }
 
 [dependencies]
-# anyhow = easy error handling for now.
-anyhow = { workspace = true }
-# thiserror = cleaner custom errors later.
-thiserror = { workspace = true }
+anyhow = { workspace = true } # anyhow = easy error handling for now.
+thiserror = { workspace = true } # thiserror = cleaner custom errors later.
 axum = { workspace = true }
+serde = { workspace = true }
+http = { workspace = true }

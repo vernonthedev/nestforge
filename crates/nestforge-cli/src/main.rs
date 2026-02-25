@@ -384,6 +384,8 @@ axum = "0.8"
 tokio = {{ version = "1", features = ["full"] }}
 serde = {{ version = "1", features = ["derive"] }}
 anyhow = "1"
+
+[workspace]
 "#
     )
 }

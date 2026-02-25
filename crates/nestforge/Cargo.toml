@@ -7,5 +7,6 @@ license = { workspace = true }
 [dependencies]
 nestforge-core = { path = "../nestforge-core" }
 nestforge-http = { path = "../nestforge-http" }
+nestforge-macros = { path = "../nestforge-macros" }
 tokio = { workspace = true }
 anyhow = { workspace = true }

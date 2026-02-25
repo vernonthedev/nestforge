@@ -4,7 +4,7 @@ members = [
   "crates/nestforge-http",
   "crates/nestforge",
   "examples/hello-nestforge"
-]
+, "crates/nestforge-macros"]
 resolver = "2"
 
 [workspace.package]

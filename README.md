@@ -17,7 +17,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 
 > [!IMPORTANT]
 > **Beta Software**
-> NestForge is currently in **Beta**. The API is not yet stable and may undergo breaking changes before the 1.0.0 release. It is not recommended for production use quite yet. 🧪
+> 🧪 NestForge is currently in **Beta**. The API is not yet stable and may undergo breaking changes before the 1.0.0 release. It is not recommended for production use quite yet.
 
 ## ✨ Features
 

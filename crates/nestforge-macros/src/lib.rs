@@ -95,7 +95,7 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
     let name = &input.ident;
 
     let controller_calls = args.controllers.iter().map(|ty| {
-        quote! { #ty::router() }
+        quote! { <#ty as nestforge::ControllerDefinition>::router() }
     });
 
     let provider_regs = args.providers.iter().map(|expr| {

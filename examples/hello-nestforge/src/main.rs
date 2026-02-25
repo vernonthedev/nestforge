@@ -1,6 +1,4 @@
 /* 
-main.rs should stay super small.
-
 Its job:
 - load app modules/files
 - boot the framework
@@ -16,8 +14,5 @@ use nestforge::NestForgeFactory;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    /*
-    Framework boot using AppModule
-    */
     NestForgeFactory::<AppModule>::create()?.listen(3000).await
 }

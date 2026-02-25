@@ -1,29 +1,14 @@
-use axum::Router;
-use nestforge::{Container, ControllerDefinition, ModuleDefinition};
+use nestforge::module;
 
 use crate::{
     controllers::{AppController, HealthController, UsersController},
     services::{AppConfig, UsersService},
 };
-
+#[module(
+    controllers = [AppController, HealthController, UsersController],
+    providers = [
+        AppConfig { app_name: "NestForge".to_string() },
+        UsersService::new()
+    ]
+)]
 pub struct AppModule;
-
-impl ModuleDefinition for AppModule {
-    fn register(container: &Container) -> anyhow::Result<()> {
-        container.register(AppConfig {
-            app_name: "NestForge".to_string(),
-        })?;
-
-        container.register(UsersService::new())?;
-
-        Ok(())
-    }
-
-    fn controllers() -> Vec<Router<Container>> {
-        vec![
-            AppController::router(),
-            HealthController::router(),
-            UsersController::router(),
-        ]
-    }
-}

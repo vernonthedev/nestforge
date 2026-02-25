@@ -21,9 +21,13 @@ pub trait ControllerDefinition: Send + Sync + 'static {
 * 2) return controller routers to be mounted by the factory.
 */
 pub trait ModuleDefinition: Send + Sync + 'static {
-    /**
-    * Called by the factory when the app starts.
-    * The module gets access to the DI container and can register what it needs.
-    */
     fn register(container: &Container) -> Result<()>;
+
+    /*
+    Controllers exposed by this module.
+    For now it's just a Vec of routers (manual style).
+    */
+    fn controllers() -> Vec<Router<Container>> {
+        Vec::new()
+    }
 }

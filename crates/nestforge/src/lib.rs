@@ -5,5 +5,5 @@
 * use nestforge::{NestForgeFactory, ModuleDefinition, Container};
 */
 
-pub use nestforge_core::{Container, ModuleDefinition};
+pub use nestforge_core::{Container, ControllerDefinition, ModuleDefinition};
 pub use nestforge_http::NestForgeFactory;

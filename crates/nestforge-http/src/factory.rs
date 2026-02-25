@@ -1,48 +1,31 @@
 use std::net::SocketAddr;
 
 use anyhow::Result;
-use axum::{routing::get, Router};
+use axum::Router;
 use nestforge_core::{Container, ModuleDefinition};
 use tower_http::trace::TraceLayer;
 
-/**
-* NestForgeFactory = the app bootstrapper.
-* 
-* This is the equivalent vibe of:
-* NestFactory.create(AppModule) in NestJS
-* 
-* Right now it:
-* - creates a container.
-* - asks the module to register providers.
-* - starts an axum server.
+/*
+NestForgeFactory = app bootstrapper.
+
+This is the NestFactory.create(AppModule) vibe.
+
+Now it:
+- builds DI container
+- asks the module to register providers
+- asks the module for controllers
+- merges controller routers into one app router
 */
 pub struct NestForgeFactory<M: ModuleDefinition> {
-    /**
-    * PhantomData tells Rust:
-    * "This struct is logically tied to M"
-    * even though we don’t store an actual M value inside.
-    */
     _marker: std::marker::PhantomData<M>,
-
-    /**
-    * Shared app container (services/configs live here).
-    */
     container: Container,
 }
 
 impl<M: ModuleDefinition> NestForgeFactory<M> {
-    /**
-    * create() prepares the app before the server starts.
-    *
-    * What happens here:
-    * 1) create the DI container.
-    * 2) let the AppModule register services/providers.
-    * 3) return the factory ready to listen
-    */
     pub fn create() -> Result<Self> {
         let container = Container::new();
 
-        /* AppModule registers providers/services here. */
+        /* Let the module register providers/services into DI */
         M::register(&container)?;
 
         Ok(Self {
@@ -51,55 +34,34 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         })
     }
 
-    /**
-    * listen(port) starts the HTTP server.
-    *
-    * - routes are hardcoded here just to prove everything works for now.
-    * - later we’ll move routes into controller definitions.
-    */
     pub async fn listen(self, port: u16) -> Result<()> {
-        let app = Router::new()
-            /* homepage route. */
-            .route("/", get(root))
-            /* health-check route. */
-            .route("/health", get(health))
-            /*
-            TraceLayer logs requests in the console.
-            */
-            .layer(TraceLayer::new_for_http())
-            /*
-            Attach the container as app state.
-            Later controllers/handlers can access it.
-            */
-            .with_state(self.container);
+        /*
+        Build a router that EXPECTS Container state.
+        We don't attach the actual state yet.
+        */
+        let mut app: Router<Container> = Router::new();
+
+        /*
+        Mount all controller routers (they are also Router<Container>)
+        */
+        for controller_router in M::controllers() {
+            app = app.merge(controller_router);
+        }
+
+        /*
+        Now attach the real Container state.
+        After this, the router becomes ready to run.
+        */
+        let app = app
+            .with_state(self.container.clone())
+            .layer(TraceLayer::new_for_http());
 
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
-
-        /*
-        Bind a TCP listener (actual network socket).
-        */
         let listener = tokio::net::TcpListener::bind(addr).await?;
 
-        println!("NestForge running on http://{}", addr);
+        println!("🦀 NestForge running on http://{}", addr);
 
-        /*
-        Start serving requests forever (until app stops).
-        */
         axum::serve(listener, app).await?;
         Ok(())
     }
-}
-
-/**
-* Simple route handler for "/"
-*/
-async fn root() -> &'static str {
-    "Welcome to NestForge 🦀"
-}
-
-/**
-* Simple route handler for "/health"
-*/
-async fn health() -> &'static str {
-    "OK"
 }

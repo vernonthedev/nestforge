@@ -1,84 +1,53 @@
-use axum::{
-    extract::{Path, State},
-    response::Json,
-    routing::{get},
-    Router,
-};
-use nestforge::{Container, ControllerDefinition, HttpException, Inject};
+use axum::Json;
+use nestforge::{controller, routes, Body, HttpException, Inject, Param};
 
 use crate::dto::{CreateUserDto, UpdateUserDto, UserDto};
 use crate::services::UsersService;
 
+#[controller("/users")]
 pub struct UsersController;
 
-impl ControllerDefinition for UsersController {
-    fn router() -> Router<Container> {
-        Router::new()
-            .route("/users", get(Self::list_users).post(Self::create_user))
-            .route("/users/{id}", get(Self::get_user_by_id).put(Self::update_user))
-    }
-}
-
+#[routes]
 impl UsersController {
-    async fn list_users(
-        State(container): State<Container>,
+    #[get("/")]
+    async fn list(
+        users: Inject<UsersService>,
     ) -> Result<Json<Vec<UserDto>>, HttpException> {
-        let users_service = Inject::<UsersService>::from(&container).map_err(|_| {
-            HttpException::internal_server_error("UsersService is not registered in the container")
-        })?;
-
-        Ok(Json(users_service.find_all()))
+        Ok(Json(users.find_all()))
     }
 
-    async fn get_user_by_id(
-        Path(id): Path<u64>,
-        State(container): State<Container>,
+    #[get("/{id}")]
+    async fn get_user(
+        id: Param<u64>,
+        users: Inject<UsersService>,
     ) -> Result<Json<UserDto>, HttpException> {
-        let users_service = Inject::<UsersService>::from(&container).map_err(|_| {
-            HttpException::internal_server_error("UsersService is not registered in the container")
-        })?;
-
-        let user = users_service
-            .find_by_id(id)
-            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", id)))?;
+        let user = users
+            .find_by_id(*id)
+            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", *id)))?;
 
         Ok(Json(user))
     }
 
-    async fn create_user(
-        State(container): State<Container>,
-        Json(dto): Json<CreateUserDto>,
+    #[post("/")]
+    async fn create(
+        users: Inject<UsersService>,
+        body: Body<CreateUserDto>,
     ) -> Result<Json<UserDto>, HttpException> {
-        dto.validate().map_err(HttpException::bad_request)?;
-
-        let users_service = Inject::<UsersService>::from(&container).map_err(|_| {
-            HttpException::internal_server_error("UsersService is not registered in the container")
-        })?;
-
-        let created = users_service.create(dto);
-        Ok(Json(created))
+        body.validate().map_err(HttpException::bad_request)?;
+        Ok(Json(users.create(body.into_inner())))
     }
 
-    /*
-    PUT /users/:id
-    - validates request body
-    - updates if found
-    - returns 404 if user missing
-    */
-    async fn update_user(
-        Path(id): Path<u64>,
-        State(container): State<Container>,
-        Json(dto): Json<UpdateUserDto>,
+    #[put("/{id}")]
+    async fn update(
+        id: Param<u64>,
+        users: Inject<UsersService>,
+        body: Body<UpdateUserDto>,
     ) -> Result<Json<UserDto>, HttpException> {
-        dto.validate().map_err(HttpException::bad_request)?;
+        body.validate().map_err(HttpException::bad_request)?;
 
-        let users_service = Inject::<UsersService>::from(&container).map_err(|_| {
-            HttpException::internal_server_error("UsersService is not registered in the container")
-        })?;
-
-        let updated = users_service
-            .update(id, dto)
-            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", id)))?;
+        let updated = users
+            .update(*id, body.into_inner())
+            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", *id)))?;
 
         Ok(Json(updated))
     }

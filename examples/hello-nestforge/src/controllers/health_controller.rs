@@ -1,18 +1,11 @@
-use axum::{routing::get, Router};
-use nestforge::{Container, ControllerDefinition};
+use nestforge::{controller, routes};
 
-/*
-HealthController = handles "/health"
-*/
+#[controller("")]
 pub struct HealthController;
 
-impl ControllerDefinition for HealthController {
-    fn router() -> Router<Container> {
-        Router::new().route("/health", get(Self::health))
-    }
-}
-
+#[routes]
 impl HealthController {
+    #[get("/health")]
     async fn health() -> &'static str {
         "OK"
     }

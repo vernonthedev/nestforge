@@ -1,0 +1,103 @@
+use std::{
+    any::{Any, TypeId},
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+
+use anyhow::{anyhow, Result};
+
+/**
+* Container = our tiny dependency injection store (v1).
+* 
+* What it does:
+* - stores values by type (TypeId).
+* - lets us register services/config once.
+* - lets us resolve them later.
+* 
+* Why Arc?
+* - so multiple parts of the app can share the same service safely.
+* 
+* Why RwLock?
+* - allows safe reads/writes across threads.
+* - write when registering.
+* - read when resolving.
+*/
+
+#[derive(Clone, Default)]
+pub struct Container {
+    inner: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+}
+
+impl Container {
+    /**
+    * Nice helper constructor.
+    * Same as Default, just cleaner to read in app code.
+    */
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /**
+    * Register a value/service into the container.
+    * 
+    * Example:
+    * container.register(AppConfig { ... })?;
+    * 
+    * Rules:
+    * - T must be thread-safe (Send + Sync).
+    * - T must be 'static because we store it for the app lifetime.
+    */
+    pub fn register<T>(&self, value: T) -> Result<()>
+    where
+        T: Send + Sync + 'static,
+    {
+        let mut map = self
+            .inner
+            .write()
+            .map_err(|_| anyhow!("Container write lock poisoned"))?;
+
+        let type_id = TypeId::of::<T>();
+
+        /* Prevent accidental duplicate registration of the same type. */
+        if map.contains_key(&type_id) {
+            return Err(anyhow!(
+                "Type already registered: {}",
+                std::any::type_name::<T>()
+            ));
+        }
+
+         /* Store as Arc<dyn Any> so we can keep different types in one map. */
+        map.insert(type_id, Arc::new(value));
+        Ok(())
+    }
+
+    /**
+    * Resolve (get back) a registered value/service by type.
+    * 
+    * Example:
+    * let config = container.resolve::<AppConfig>()?;
+    * 
+    * Returns Arc<T> so the caller can clone/share it cheaply.
+    */
+    pub fn resolve<T>(&self) -> Result<Arc<T>>
+    where
+        T: Send + Sync + 'static,
+    {
+        let map = self
+            .inner
+            .read()
+            .map_err(|_| anyhow!("Container read lock poisoned"))?;
+
+        let value = map
+            .get(&TypeId::of::<T>())
+            .ok_or_else(|| anyhow!("Type not registered: {}", std::any::type_name::<T>()))?
+            .clone();
+
+        /*
+        * We stored the value as dyn Any, so now we downcast it back to the real type T.
+        * If downcast fails, the type in the map doesn’t match what we asked for.
+        */
+        value.downcast::<T>()
+            .map_err(|_| anyhow!("Failed to downcast: {}", std::any::type_name::<T>()))
+    }
+}

@@ -8,11 +8,13 @@ members = [
 resolver = "2"
 
 [workspace.package]
+# Shared package settings for all crates in this workspace.
 edition = "2021"
 license = "MIT"
 version = "0.1.0-alpha"
 
 [workspace.dependencies]
+# Shared dependencies so we define versions once and reuse everywhere.
 axum = "0.8"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
 serde = { version = "1", features = ["derive"] }

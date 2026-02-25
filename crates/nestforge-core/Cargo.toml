@@ -1,9 +1,12 @@
 [package]
 name = "nestforge-core"
+# Inherit version/edition/license from root workspace.
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 
 [dependencies]
+# anyhow = easy error handling for now.
 anyhow = { workspace = true }
+# thiserror = cleaner custom errors later.
 thiserror = { workspace = true }

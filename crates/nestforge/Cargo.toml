@@ -5,6 +5,7 @@ edition = { workspace = true }
 license = { workspace = true }
 
 [dependencies]
+# Public crate re-exports stuff from these internal crates.
 nestforge-core = { path = "../nestforge-core" }
 nestforge-http = { path = "../nestforge-http" }
 tokio = { workspace = true }

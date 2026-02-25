@@ -1,14 +1,17 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+/**
+* This is the entry file for nestforge-core.
+* 
+* Think of this crate as the framework "brain":
+* - DI container
+* - module traits
+* - (later) controller/provider metadata
+*/
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod container;
+pub mod module;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+/**
+ * Re-export these so other crates can import from nestforge_core nicely.
+ */
+pub use container::Container;
+pub use module::ModuleDefinition;

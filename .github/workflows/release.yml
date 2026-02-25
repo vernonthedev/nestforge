@@ -1,0 +1,54 @@
+name: Semantic Release
+
+on:
+  workflow_run:
+    workflows:
+      - Sync Docs To Wiki
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run semantic-release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          semantic_version: 24
+          extra_plugins: |
+            @semantic-release/changelog@6.0.3
+            @semantic-release/git@10.0.1
+            conventional-changelog-conventionalcommits@8.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attach changelog and wiki link to release
+        if: steps.semantic.outputs.new_release_published == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.semantic.outputs.new_release_git_tag }}
+          append_body: true
+          body: |
+            ---
+            ### Documentation
+            - Wiki: https://github.com/${{ github.repository }}/wiki
+          files: |
+            CHANGELOG.md

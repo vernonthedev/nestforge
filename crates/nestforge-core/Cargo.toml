@@ -10,3 +10,4 @@ license = { workspace = true }
 anyhow = { workspace = true }
 # thiserror = cleaner custom errors later.
 thiserror = { workspace = true }
+axum = { workspace = true }

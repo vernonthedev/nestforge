@@ -1,22 +1,28 @@
 use anyhow::Result;
+use axum::Router;
 
 use crate::Container;
 
 /**
-* ModuleDefinition = the first Nest-like concept in NestForge.
+* ControllerDefinition = manual controller contract (pre-macros).
 * 
-* For now it only does one job:
-* - register providers/services into the container at startup.
+* Each controller returns an axum Router<Container> with its routes.
+* Later our macros will generate this automatically.
+*/
+pub trait ControllerDefinition: Send + Sync + 'static {
+    fn router() -> Router<Container>;
+}
+
+/**
+* ModuleDefinition = first Nest-like concept in NestForge.
 * 
-* Later this trait will grow to also include:
-* - controllers
-* - imported modules
-* - exported providers
+* Now it does two jobs:
+* 1) register providers/services into DI
+* 2) return controller routers to be mounted by the factory.
 */
 pub trait ModuleDefinition: Send + Sync + 'static {
     /**
     * Called by the factory when the app starts.
-    * 
     * The module gets access to the DI container and can register what it needs.
     */
     fn register(container: &Container) -> Result<()>;

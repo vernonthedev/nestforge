@@ -14,4 +14,4 @@ pub mod module;
  * Re-export these so other crates can import from nestforge_core nicely.
  */
 pub use container::Container;
-pub use module::ModuleDefinition;
+pub use module::{ControllerDefinition, ModuleDefinition};

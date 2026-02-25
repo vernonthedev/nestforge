@@ -94,7 +94,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
 * Simple route handler for "/"
 */
 async fn root() -> &'static str {
-    "Welcome to NestForge"
+    "Welcome to NestForge 🦀"
 }
 
 /**

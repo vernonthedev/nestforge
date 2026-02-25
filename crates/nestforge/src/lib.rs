@@ -13,6 +13,8 @@ pub use nestforge_core::{
     ModuleDefinition,
     Param,
     RouteBuilder,
+    Identifiable,
+    InMemoryStore,
 };
 
 pub use nestforge_http::NestForgeFactory;

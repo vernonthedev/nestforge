@@ -27,14 +27,35 @@ NestForge is a high-performance backend framework designed for developers who cr
 - 🛡️ **Type Safety**: Leverage Rust's type system to catch errors at compile time.
 - 🌐 **HTTP First**: A robust HTTP layer with support for routing, middleware, and more.
 
+## 🚀 Getting Started
+
+```bash
+# Ensure Cargo is installed before you run these commands.
+cargo check  # Check for any linting errors and warnings.
+cargo run   # Run the application in development mode.
+```
+
+You should be able to see the following output:
+
+```text
+🦀 NestForge running on http://[IP_ADDRESS]
+```
+
+## 🗃️ NestForge CLI Setup
+
+```bash
+cargo run -p nestforge-cli -- new demo-api  # Create a new NestForge application.
+cargo run --manifest-path ../../crates/nestforge-cli/Cargo.toml -- g resource users  # Generate a new resource.
+```
+
 ## 🤝 Contributing
 
 Contributions are welcome!
-For support or questions, please open an issue or join our Discord server.
+For support or questions, please open an issue.
 
 ## 🙏 Acknowledgments
 
-- **NestJS**: For the inspiration and architectural patterns
-- **Axum**: For the high-performance HTTP framework
-- **Tokio**: For the asynchronous runtime
-- **Tower**: For the middleware ecosystem
+- **NestJS**: For the inspiration and architectural patterns.
+- **Axum**: For the high-performance HTTP framework.
+- **Tokio**: For the asynchronous runtime.
+- **Tower**: For the middleware ecosystem.

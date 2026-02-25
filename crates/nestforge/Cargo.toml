@@ -3,10 +3,16 @@ name = "nestforge"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "NestJS-inspired modular backend framework for Rust"
+keywords = ["rust", "framework", "backend", "di", "axum"]
+categories = ["web-programming", "web-programming::http-server"]
 
 [dependencies]
-nestforge-core = { path = "../nestforge-core" }
-nestforge-http = { path = "../nestforge-http" }
-nestforge-macros = { path = "../nestforge-macros" }
+nestforge-core = { version = "0.1.0-alpha", path = "../nestforge-core" }
+nestforge-http = { version = "0.1.0-alpha", path = "../nestforge-http" }
+nestforge-macros = { version = "0.1.0-alpha", path = "../nestforge-macros" }
 tokio = { workspace = true }
 anyhow = { workspace = true }

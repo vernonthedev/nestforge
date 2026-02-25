@@ -56,7 +56,7 @@ fn print_help() {
 ------------------------------ */
 
 fn create_new_app(app_name: &str) -> Result<()> {
-    let app_dir = PathBuf::from("examples").join(app_name);
+    let app_dir = env::current_dir()?.join(app_name);
 
     if app_dir.exists() {
         bail!("App `{}` already exists at {}", app_name, app_dir.display());
@@ -103,8 +103,6 @@ fn create_new_app(app_name: &str) -> Result<()> {
     println!("Created NestForge app at {}", app_dir.display());
     println!();
     println!("Next:");
-    println!("  cargo run -p {}    # if it's added to workspace", app_name);
-    println!("  OR");
     println!("  cd {}", app_dir.display());
     println!("  cargo run");
     println!();
@@ -372,6 +370,8 @@ fn patch_app_module_providers_only(app_root: &Path, pascal_plural: &str) -> Resu
 ------------------------------ */
 
 fn template_app_cargo_toml(app_name: &str) -> String {
+    let framework_version = env!("CARGO_PKG_VERSION");
+
     format!(
         r#"[package]
 name = "{app_name}"
@@ -379,13 +379,11 @@ version = "0.1.0-alpha"
 edition = "2021"
 
 [dependencies]
-nestforge = {{ path = "../../crates/nestforge" }}
+nestforge = "{framework_version}"
 axum = "0.8"
 tokio = {{ version = "1", features = ["full"] }}
 serde = {{ version = "1", features = ["derive"] }}
 anyhow = "1"
-
-[workspace]
 "#
     )
 }
@@ -709,7 +707,7 @@ fn write_file(path: &Path, content: &str) -> Result<()> {
 fn detect_app_root() -> Result<PathBuf> {
     let cwd = env::current_dir()?;
 
-    /* If user is in examples/my-app */
+    /* If user is inside an app folder */
     if cwd.join("src").exists() && cwd.join("Cargo.toml").exists() {
         return Ok(cwd);
     }

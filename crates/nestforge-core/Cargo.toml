@@ -4,6 +4,12 @@ name = "nestforge-core"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "Core traits and utilities for the NestForge framework"
+keywords = ["rust", "framework", "di", "backend", "nestforge"]
+categories = ["web-programming", "web-programming::http-server"]
 
 [dependencies]
 anyhow = { workspace = true } # anyhow = easy error handling for now.

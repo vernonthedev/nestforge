@@ -3,6 +3,12 @@ name = "nestforge-macros"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "Procedural macros for NestForge modules and controllers"
+keywords = ["rust", "macro", "proc-macro", "framework", "nestforge"]
+categories = ["development-tools", "web-programming"]
 
 [lib]
 proc-macro = true

@@ -3,10 +3,16 @@ name = "nestforge-http"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "HTTP runtime and app factory for NestForge"
+keywords = ["rust", "framework", "http", "axum", "nestforge"]
+categories = ["web-programming", "web-programming::http-server"]
 
 [dependencies]
 axum = { workspace = true } # axum is the HTTP engine under the hood.
 tokio = { workspace = true } # tokio runs the async server.
 anyhow = { workspace = true } # anyhow for simple Result returns while we build the foundation.
 tower-http = { workspace = true } # tower-http gives us middleware (like request tracing).
-nestforge-core = { path = "../nestforge-core" } # local core crate (DI container + traits).
+nestforge-core = { version = "0.1.0-alpha", path = "../nestforge-core" } # local core crate (DI container + traits).

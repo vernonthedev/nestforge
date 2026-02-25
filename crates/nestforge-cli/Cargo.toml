@@ -3,6 +3,16 @@ name = "nestforge-cli"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "CLI to scaffold and generate NestForge applications"
+keywords = ["rust", "cli", "scaffold", "generator", "nestforge"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "nestforge"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }

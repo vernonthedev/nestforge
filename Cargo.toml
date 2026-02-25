@@ -13,7 +13,10 @@ resolver = "2"
 # Shared package settings for all crates in this workspace.
 edition = "2021"
 license = "MIT"
-version = "0.1.0-alpha"
+version = "1.0.0"
+repository = "https://github.com/vernonthedev/nestforge"
+homepage = "https://github.com/vernonthedev/nestforge"
+readme = "README.md"
 
 [workspace.dependencies]
 # Shared dependencies so we define versions once and reuse everywhere.

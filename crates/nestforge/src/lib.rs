@@ -18,4 +18,4 @@ pub use nestforge_core::{
 };
 
 pub use nestforge_http::NestForgeFactory;
-pub use nestforge_macros::{controller, get, post, put, routes};
+pub use nestforge_macros::{controller, get, post, put, routes, module};

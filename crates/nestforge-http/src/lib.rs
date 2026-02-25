@@ -1,14 +1,13 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+/**
+* This crate wraps the actual HTTP server setup (axum + tokio stuff).
+* 
+* Goal:
+* Hide Rust web setup complexity from the NestForge user.
+*/
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod factory;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+/**
+* Re-export the app factory so the public crate can expose it.
+*/
+pub use factory::NestForgeFactory;

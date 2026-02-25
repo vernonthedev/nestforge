@@ -1,15 +1,14 @@
-use std::sync::{Arc, RwLock};
+use nestforge::InMemoryStore;
 
 use crate::dto::{CreateUserDto, UpdateUserDto, UserDto};
 
 /*
-UsersService = business logic + in-memory storage (for now)
-
-This is still simple, but now POST /users actually persists in app memory.
+UsersService = business logic layer
+Now storage internals are handled by NestForge's InMemoryStore.
 */
 #[derive(Clone)]
 pub struct UsersService {
-    users: Arc<RwLock<Vec<UserDto>>>,
+    store: InMemoryStore<UserDto>,
 }
 
 impl UsersService {
@@ -28,58 +27,37 @@ impl UsersService {
         ];
 
         Self {
-            users: Arc::new(RwLock::new(seed)),
+            store: InMemoryStore::with_seed(seed),
         }
     }
 
     pub fn find_all(&self) -> Vec<UserDto> {
-        self.users
-            .read()
-            .map(|users| users.clone())
-            .unwrap_or_default()
+        self.store.find_all()
     }
 
     pub fn find_by_id(&self, id: u64) -> Option<UserDto> {
-        self.users
-            .read()
-            .ok()
-            .and_then(|users| users.iter().find(|u| u.id == id).cloned())
+        self.store.find_by_id(id)
     }
 
     pub fn create(&self, dto: CreateUserDto) -> UserDto {
-        let mut users = self
-            .users
-            .write()
-            .expect("users write lock poisoned");
-
-        let next_id = users.iter().map(|u| u.id).max().unwrap_or(0) + 1;
-
         let user = UserDto {
-            id: next_id,
+            id: 0, /* framework store sets the real id */
             name: dto.name,
             email: dto.email,
         };
 
-        users.push(user.clone());
-        user
+        self.store.create(user)
     }
 
-     /*
-    Update a user and return the updated record.
-    Returns None if user doesn't exist.
-    */
     pub fn update(&self, id: u64, dto: UpdateUserDto) -> Option<UserDto> {
-        let mut users = self.users.write().ok()?;
-        let user = users.iter_mut().find(|u| u.id == id)?;
+        self.store.update_by_id(id, |user| {
+            if let Some(name) = dto.name.clone() {
+                user.name = name;
+            }
 
-        if let Some(name) = dto.name {
-            user.name = name;
-        }
-
-        if let Some(email) = dto.email {
-            user.email = email;
-        }
-
-        Some(user.clone())
+            if let Some(email) = dto.email.clone() {
+                user.email = email;
+            }
+        })
     }
 }

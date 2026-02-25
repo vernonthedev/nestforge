@@ -1,14 +1,9 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+/**
+* This is the crate users will import.
+* 
+* It re-exports the internal pieces so the public API feels clean:
+* use nestforge::{NestForgeFactory, ModuleDefinition, Container};
+*/
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use nestforge_core::{Container, ModuleDefinition};
+pub use nestforge_http::NestForgeFactory;

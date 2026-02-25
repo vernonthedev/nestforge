@@ -122,7 +122,7 @@ dependencies = [
 
 [[package]]
 name = "hello-nestforge"
-version = "0.1.0-alpha"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -261,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge"
-version = "0.1.0-alpha"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "nestforge-core",
@@ -272,14 +272,14 @@ dependencies = [
 
 [[package]]
 name = "nestforge-cli"
-version = "0.1.0-alpha"
+version = "1.0.0"
 dependencies = [
  "anyhow",
 ]
 
 [[package]]
 name = "nestforge-core"
-version = "0.1.0-alpha"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -290,7 +290,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-http"
-version = "0.1.0-alpha"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -301,7 +301,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-macros"
-version = "0.1.0-alpha"
+version = "1.0.0"
 dependencies = [
  "proc-macro2",
  "quote",

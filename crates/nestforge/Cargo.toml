@@ -11,8 +11,8 @@ keywords = ["rust", "framework", "backend", "di", "axum"]
 categories = ["web-programming", "web-programming::http-server"]
 
 [dependencies]
-nestforge-core = { version = "0.1.0-alpha", path = "../nestforge-core" }
-nestforge-http = { version = "0.1.0-alpha", path = "../nestforge-http" }
-nestforge-macros = { version = "0.1.0-alpha", path = "../nestforge-macros" }
+nestforge-core = { version = "1.0.0", path = "../nestforge-core" }
+nestforge-http = { version = "1.0.0", path = "../nestforge-http" }
+nestforge-macros = { version = "1.0.0", path = "../nestforge-macros" }
 tokio = { workspace = true }
 anyhow = { workspace = true }

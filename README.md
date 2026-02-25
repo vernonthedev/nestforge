@@ -44,8 +44,10 @@ You should be able to see the following output:
 ## 🗃️ NestForge CLI Setup
 
 ```bash
-cargo run -p nestforge-cli -- new demo-api  # Create a new NestForge application.
-cargo run --manifest-path ../../crates/nestforge-cli/Cargo.toml -- g resource users  # Generate a new resource.
+# Create a new NestForge application in the examples directory.
+cargo run -p nestforge-cli -- new demo-api
+# Generate a new resource.
+cargo run --manifest-path ../../crates/nestforge-cli/Cargo.toml -- g resource users
 ```
 
 ## 🤝 Contributing

@@ -6,6 +6,6 @@
 - [Core Concepts](Core-Concepts)
 - [Macros](Macros)
 - [CLI Guide](Cli-Guide)
-- [Example App](Example-app)
+- [Example App](Example-App)
 - [Example API](Example-Api)
-- [File Map](File-map)
+- [File Map](File-Map)

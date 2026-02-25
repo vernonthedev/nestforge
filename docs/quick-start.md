@@ -33,7 +33,15 @@ cargo test
 ## Create a new app with CLI
 
 ```bash
-cargo run -p nestforge-cli -- new demo-api
+cargo install nestforge-cli
+nestforge new demo-api
+cd demo-api
+cargo run
 ```
 
-Then move into the app and run it with Cargo.
+## Add NestForge to an existing project
+
+```toml
+[dependencies]
+nestforge = "1.0.0"
+```

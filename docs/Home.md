@@ -7,9 +7,9 @@
 3. [Core Concepts](Core-Concepts)
 4. [Macros](Macros)
 5. [CLI Guide](Cli-Guide)
-6. [Example App Walkthrough](Example-app)
+6. [Example App Walkthrough](Example-App)
 7. [Example API Endpoints](Example-Api)
-8. [Full File Map](File-map)
+8. [Full File Map](File-Map)
 
 ## Goal
 

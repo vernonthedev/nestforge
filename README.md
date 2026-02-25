@@ -16,8 +16,8 @@
 NestForge is a high-performance backend framework designed for developers who crave the modularity and **Dependency Injection (DI)** of NestJS but want the memory safety and blazing speed of the Rust ecosystem.
 
 > [!IMPORTANT]
-> **Beta Software**
-> 🧪 NestForge is currently in **Beta**. The API is not yet stable and may undergo breaking changes before the 1.0.0 release. It is not recommended for production use quite yet.
+> **Stable Release**
+> NestForge **1.0.0** is now published on crates.io.
 
 ## ✨ Features
 
@@ -31,8 +31,10 @@ NestForge is a high-performance backend framework designed for developers who cr
 
 ```bash
 # Ensure Cargo is installed before you run these commands.
-cargo check  # Check for any linting errors and warnings.
-cargo run   # Run the application in development mode.
+git clone https://github.com/vernonthedev/nestforge.git
+cd nestforge
+cargo check
+cargo run -p hello-nestforge
 ```
 
 You should be able to see the following output:
@@ -44,11 +46,29 @@ You should be able to see the following output:
 ## 🗃️ NestForge CLI Setup
 
 ```bash
-# Create a new NestForge application in the examples directory.
-cargo run -p nestforge-cli -- new demo-api
-# Generate a new resource.
-cargo run --manifest-path ../../crates/nestforge-cli/Cargo.toml -- g resource users
+# Install CLI
+cargo install nestforge-cli
+
+# Create a new NestForge application
+nestforge new demo-api
+cd demo-api
+cargo run
+
+# Generate a new resource (inside app folder)
+nestforge g resource users
 ```
+
+## Use NestForge In Your App
+
+```toml
+[dependencies]
+nestforge = "1.0.0"
+```
+
+## Documentation
+
+- Wiki: [https://github.com/vernonthedev/nestforge/wiki](https://github.com/vernonthedev/nestforge/wiki)
+- Project docs: [https://vernonthedev.github.io/nestforge/docs/Home.md](https://vernonthedev.github.io/nestforge/docs/Home.md)
 
 ## 🤝 Contributing
 

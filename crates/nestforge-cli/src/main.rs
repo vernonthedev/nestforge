@@ -375,7 +375,7 @@ fn template_app_cargo_toml(app_name: &str) -> String {
     format!(
         r#"[package]
 name = "{app_name}"
-version = "0.1.0-alpha"
+version = "0.1.0"
 edition = "2021"
 
 [dependencies]

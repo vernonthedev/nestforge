@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     response::Json,
-    routing::{get, post, put},
+    routing::{get},
     Router,
 };
 use nestforge::{Container, ControllerDefinition, HttpException, Inject};

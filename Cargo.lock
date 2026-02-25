@@ -271,6 +271,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nestforge-cli"
+version = "0.1.0-alpha"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
 name = "nestforge-core"
 version = "0.1.0-alpha"
 dependencies = [

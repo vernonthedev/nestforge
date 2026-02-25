@@ -3,8 +3,10 @@ members = [
   "crates/nestforge-core",
   "crates/nestforge-http",
   "crates/nestforge",
-  "examples/hello-nestforge"
-, "crates/nestforge-macros"]
+  "examples/hello-nestforge",
+  "crates/nestforge-macros", 
+  "crates/nestforge-cli",
+  ]
 resolver = "2"
 
 [workspace.package]

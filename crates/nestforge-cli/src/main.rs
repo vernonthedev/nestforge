@@ -401,8 +401,8 @@ use nestforge::NestForgeFactory;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    NestForgeFactory::create::<AppModule>()
-        .listen("127.0.0.1:3000")
+    NestForgeFactory::<AppModule>::create()?
+        .listen(3000)
         .await
 }
 "#

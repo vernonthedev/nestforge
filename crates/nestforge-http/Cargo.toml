@@ -1,6 +1,12 @@
 [package]
 name = "nestforge-http"
-version = "0.1.0"
-edition = "2024"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tower-http = { workspace = true }
+nestforge-core = { path = "../nestforge-core" }

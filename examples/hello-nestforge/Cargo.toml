@@ -1,6 +1,11 @@
 [package]
 name = "hello-nestforge"
-version = "0.1.0"
-edition = "2024"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
 
 [dependencies]
+nestforge = { path = "../../crates/nestforge" }
+axum = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }

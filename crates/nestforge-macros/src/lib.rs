@@ -162,7 +162,12 @@ fn extract_route_meta(method: &mut ImplItemFn) -> Option<(String, String)> {
 }
 
 fn parse_route_attr(attr: &Attribute) -> Option<(String, String)> {
-    let ident = attr.path().get_ident()?.to_string();
+    /*
+    Support both:
+    - #[get("/")]
+    - #[nestforge::get("/")]
+    */
+    let ident = attr.path().segments.last()?.ident.to_string();
 
     if ident != "get" && ident != "post" && ident != "put" {
         return None;

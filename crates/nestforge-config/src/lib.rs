@@ -14,6 +14,37 @@ pub enum ConfigError {
     MissingKey { key: String },
 }
 
+#[derive(Clone, Debug)]
+pub struct ConfigOptions {
+    pub env_file_path: String,
+    pub include_process_env: bool,
+}
+
+impl Default for ConfigOptions {
+    fn default() -> Self {
+        Self {
+            env_file_path: ".env".to_string(),
+            include_process_env: true,
+        }
+    }
+}
+
+impl ConfigOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn env_file(mut self, path: impl Into<String>) -> Self {
+        self.env_file_path = path.into();
+        self
+    }
+
+    pub fn without_process_env(mut self) -> Self {
+        self.include_process_env = false;
+        self
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct EnvStore {
     values: HashMap<String, String>,
@@ -21,12 +52,20 @@ pub struct EnvStore {
 
 impl EnvStore {
     pub fn load() -> Result<Self, ConfigError> {
-        Self::load_from_file(".env")
+        Self::load_with_options(&ConfigOptions::default())
     }
 
     pub fn load_from_file(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
-        let path_ref = path.as_ref();
-        let mut values = env::vars().collect::<HashMap<_, _>>();
+        Self::load_with_options(&ConfigOptions::new().env_file(path.as_ref().display().to_string()))
+    }
+
+    pub fn load_with_options(options: &ConfigOptions) -> Result<Self, ConfigError> {
+        let path_ref = Path::new(&options.env_file_path);
+        let mut values = if options.include_process_env {
+            env::vars().collect::<HashMap<_, _>>()
+        } else {
+            HashMap::new()
+        };
 
         if path_ref.exists() {
             let content =
@@ -54,6 +93,12 @@ impl EnvStore {
         Ok(Self { values })
     }
 
+    pub fn from_pairs(pairs: impl IntoIterator<Item = (String, String)>) -> Self {
+        Self {
+            values: pairs.into_iter().collect(),
+        }
+    }
+
     pub fn get(&self, key: &str) -> Option<&str> {
         self.values.get(key).map(String::as_str)
     }
@@ -72,4 +117,17 @@ pub trait FromEnv: Sized {
 pub fn load_config<T: FromEnv>() -> Result<T, ConfigError> {
     let env = EnvStore::load()?;
     T::from_env(&env)
+}
+
+pub struct ConfigModule;
+
+impl ConfigModule {
+    pub fn for_root<T: FromEnv>(options: ConfigOptions) -> Result<T, ConfigError> {
+        let env = EnvStore::load_with_options(&options)?;
+        T::from_env(&env)
+    }
+
+    pub fn env(options: ConfigOptions) -> Result<EnvStore, ConfigError> {
+        EnvStore::load_with_options(&options)
+    }
 }

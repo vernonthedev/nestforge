@@ -1,4 +1,4 @@
-use nestforge::{module, Db, DbConfig};
+use nestforge::{module, ConfigModule, ConfigOptions, Db, DbConfig};
 
 use crate::{
     controllers::{
@@ -8,7 +8,7 @@ use crate::{
 };
 
 fn load_app_config() -> anyhow::Result<AppConfig> {
-    Ok(nestforge::load_config::<AppConfig>()?)
+    Ok(ConfigModule::for_root::<AppConfig>(ConfigOptions::new().env_file(".env"))?)
 }
 
 fn connect_db() -> anyhow::Result<Db> {

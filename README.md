@@ -19,15 +19,15 @@ NestForge is a high-performance backend framework designed for developers who cr
 > **Stable Release**
 > NestForge **1.0.0** is now published on crates.io.
 
-## ✨ Features
+## Features
 
-- 🚀 **Blazing Fast**: Built on top of **Axum** and **Tokio**, NestForge delivers top-tier performance out of the box.
-- 🧩 **Modular Architecture**: Organize your code into **Modules**, **Controllers**, and **Services** for better maintainability.
-- 💉 **Dependency Injection**: A powerful DI system to manage your application's dependencies.
-- 🛡️ **Type Safety**: Leverage Rust's type system to catch errors at compile time.
-- 🌐 **HTTP First**: A robust HTTP layer with support for routing, middleware, and more.
+- **Blazing Fast**: Built on top of **Axum** and **Tokio**, NestForge delivers top-tier performance out of the box.
+- **Modular Architecture**: Organize your code into **Modules**, **Controllers**, and **Services** for better maintainability.
+- **Dependency Injection**: A powerful DI system to manage your application's dependencies.
+- **Type Safety**: Leverage Rust's type system to catch errors at compile time.
+- **HTTP First**: A robust HTTP layer with support for routing, middleware, and more.
 
-## 🚀 Getting Started
+## Getting Started
 
 ```bash
 # Ensure Cargo is installed before you run these commands.
@@ -43,7 +43,7 @@ You should be able to see the following output:
 🦀 NestForge running on http://[IP_ADDRESS]
 ```
 
-## 🗃️ NestForge CLI Setup
+## NestForge CLI Setup
 
 ```bash
 # Install CLI
@@ -70,12 +70,12 @@ nestforge = "1.0.0"
 - Wiki: [https://github.com/vernonthedev/nestforge/wiki](https://github.com/vernonthedev/nestforge/wiki)
 - Project docs: [https://vernonthedev.github.io/nestforge/docs/Home.md](https://vernonthedev.github.io/nestforge/docs/Home.md)
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome!
 For support or questions, please open an issue.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **NestJS**: For the inspiration and architectural patterns.
 - **Axum**: For the high-performance HTTP framework.

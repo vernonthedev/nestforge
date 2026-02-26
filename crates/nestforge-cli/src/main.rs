@@ -814,7 +814,7 @@ edition = "2021"
 members = []
 
 [dependencies]
-nestforge = "{framework_version}"
+nestforge = {{ version = "{framework_version}", features = ["config"] }}
 axum = "0.8"
 tokio = {{ version = "1", features = ["full"] }}
 serde = {{ version = "1", features = ["derive"] }}
@@ -853,12 +853,16 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn template_app_module_rs() -> String {
-    r#"use nestforge::module;
+    r#"use nestforge::{module, ConfigModule, ConfigOptions};
 
 use crate::{
     controllers::{AppController, HealthController},
     services::{AppConfig},
 };
+
+fn load_app_config() -> anyhow::Result<AppConfig> {
+    Ok(ConfigModule::for_root::<AppConfig>(ConfigOptions::new().env_file(".env"))?)
+}
 
 #[module(
     imports = [
@@ -870,7 +874,7 @@ use crate::{
         /* nestforge:controllers */
     ],
     providers = [
-        AppConfig { app_name: "NestForge App".to_string() },
+        load_app_config()?,
         /* nestforge:providers */
     ],
     exports = []
@@ -950,6 +954,13 @@ fn template_app_config_rs() -> String {
     r#"#[derive(Clone)]
 pub struct AppConfig {
     pub app_name: String,
+}
+
+impl nestforge::FromEnv for AppConfig {
+    fn from_env(env: &nestforge::EnvStore) -> Result<Self, nestforge::ConfigError> {
+        let app_name = env.get("APP_NAME").unwrap_or("NestForge").to_string();
+        Ok(Self { app_name })
+    }
 }
 "#
     .to_string()

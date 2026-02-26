@@ -8,6 +8,7 @@ members = [
   "crates/nestforge-cli",
   "crates/nestforge-testing",
   "crates/nestforge-db",
+  "crates/nestforge-orm",
   ]
 resolver = "2"
 

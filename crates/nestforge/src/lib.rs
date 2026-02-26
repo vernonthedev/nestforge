@@ -28,8 +28,10 @@ pub use nestforge_core::{
 };
 
 pub use nestforge_http::NestForgeFactory;
-pub use nestforge_macros::{controller, get, post, put, routes, module};
+pub use nestforge_macros::{controller, entity, get, id, module, post, put, routes};
 #[cfg(feature = "testing")]
 pub use nestforge_testing::{TestFactory, TestingModule};
 #[cfg(feature = "db")]
 pub use nestforge_db::{Db, DbConfig, DbError, DbTransaction};
+#[cfg(feature = "orm")]
+pub use nestforge_orm::{EntityMeta, OrmError, Repo, RepoFuture, SqlRepo, SqlRepoBuilder};

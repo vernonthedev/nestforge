@@ -16,6 +16,7 @@ nestforge-http = { version = "1.0.0", path = "../nestforge-http" }
 nestforge-macros = { version = "1.0.0", path = "../nestforge-macros" }
 nestforge-testing = { version = "1.0.0", path = "../nestforge-testing", optional = true }
 nestforge-db = { version = "1.0.0", path = "../nestforge-db", optional = true }
+nestforge-orm = { version = "1.0.0", path = "../nestforge-orm", optional = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 
@@ -23,3 +24,4 @@ anyhow = { workspace = true }
 default = []
 testing = ["dep:nestforge-testing"]
 db = ["dep:nestforge-db"]
+orm = ["dep:nestforge-orm", "db"]

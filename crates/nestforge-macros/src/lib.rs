@@ -5,7 +5,7 @@ use syn::{
     bracketed,
     parse::{Parse, ParseStream},
     parse_macro_input, punctuated::Punctuated,
-    Attribute, Expr, Ident, ImplItem, ImplItemFn, ItemImpl, ItemStruct, LitStr, Meta, Token, Type,
+    Attribute, Expr, Field, Fields, Ident, ImplItem, ImplItemFn, ItemImpl, ItemStruct, LitStr, Meta, Token, Type,
 };
 
 /*
@@ -161,6 +161,52 @@ pub fn put(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+#[proc_macro_attribute]
+pub fn entity(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as EntityArgs);
+    let mut input = parse_macro_input!(item as ItemStruct);
+
+    let name = &input.ident;
+    let Some((id_field_name, id_field_ty)) = extract_id_field(&mut input.fields) else {
+        return syn::Error::new(
+            input.ident.span(),
+            "#[entity(...)] requires exactly one field annotated with #[id]",
+        )
+        .to_compile_error()
+        .into();
+    };
+
+    let table_name = args.table.value();
+    let id_column = id_field_name.to_string();
+
+    let expanded = quote! {
+        #input
+
+        impl nestforge::EntityMeta for #name {
+            type Id = #id_field_ty;
+
+            fn table_name() -> &'static str {
+                #table_name
+            }
+
+            fn id_column() -> &'static str {
+                #id_column
+            }
+
+            fn id_value(&self) -> &Self::Id {
+                &self.#id_field_name
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+#[proc_macro_attribute]
+pub fn id(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 /* -------- helpers -------- */
 
 fn extract_route_meta(method: &mut ImplItemFn) -> Option<(String, String)> {
@@ -209,6 +255,25 @@ struct ModuleArgs {
     controllers: Vec<Type>,
     providers: Vec<Expr>,
     exports: Vec<Type>,
+}
+
+struct EntityArgs {
+    table: LitStr,
+}
+
+impl Parse for EntityArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let key: Ident = input.parse()?;
+        if key != "table" {
+            return Err(syn::Error::new(
+                key.span(),
+                "Unsupported entity key. Use `table = \"...\"`.",
+            ));
+        }
+        input.parse::<Token![=]>()?;
+        let table = input.parse::<LitStr>()?;
+        Ok(Self { table })
+    }
 }
 
 impl Parse for ModuleArgs {
@@ -292,4 +357,52 @@ fn is_provider_builder_expr(expr: &Expr) -> bool {
     };
 
     provider.ident == "Provider"
+}
+
+fn extract_id_field(fields: &mut Fields) -> Option<(Ident, Type)> {
+    let Fields::Named(named_fields) = fields else {
+        return None;
+    };
+
+    let mut found: Option<(Ident, Type)> = None;
+
+    for field in &mut named_fields.named {
+        let has_id_attr = remove_id_attr(field);
+        if !has_id_attr {
+            continue;
+        }
+
+        let field_name = field.ident.clone()?;
+        let field_ty = field.ty.clone();
+
+        if found.is_some() {
+            return None;
+        }
+
+        found = Some((field_name, field_ty));
+    }
+
+    found
+}
+
+fn remove_id_attr(field: &mut Field) -> bool {
+    let mut kept = Vec::new();
+    let mut has_id = false;
+
+    for attr in field.attrs.drain(..) {
+        let is_id = attr
+            .path()
+            .segments
+            .last()
+            .map(|seg| seg.ident == "id")
+            .unwrap_or(false);
+        if is_id {
+            has_id = true;
+        } else {
+            kept.push(attr);
+        }
+    }
+
+    field.attrs = kept;
+    has_id
 }

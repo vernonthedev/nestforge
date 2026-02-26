@@ -111,15 +111,16 @@ pub struct DbModule;
 
 ## Phase 3 - Tier 2 Relational ORM (`nestforge-orm`)
 
-- [ ] Add `crates/nestforge-orm`
-- [ ] Add `#[entity(table = \"...\")]`
-- [ ] Add `#[id]` support
-- [ ] Add `Repo<T>` CRUD:
-  - [ ] `find_all`
-  - [ ] `find_by_id`
-  - [ ] `create`
-  - [ ] `update_by_id`
-  - [ ] `delete_by_id`
+- [x] Add `crates/nestforge-orm`
+- [x] Add `#[entity(table = \"...\")]`
+- [x] Add `#[id]` support
+- [x] Add `Repo<T>` CRUD contracts:
+  - [x] `find_all`
+  - [x] `find_by_id`
+  - [x] `create`
+  - [x] `update_by_id`
+  - [x] `delete_by_id`
+- [x] Add `SqlRepoBuilder<T>` adapter on top of `nestforge-db` (incremental pre-query-builder stage)
 - [ ] Add migration format and execution support
 - [ ] CLI commands:
   - [ ] `nestforge db init`

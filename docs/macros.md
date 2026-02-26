@@ -1,39 +1,74 @@
 # Macros
 
-## `#[module(...)]`
+## Controller Macros
 
-Adds `ModuleDefinition` implementation for a struct.
+### `#[controller("/base")]`
 
-Inputs:
+Sets a base path for the controller.
 
-- `controllers = [ControllerA, ControllerB]`
-- `providers = [ServiceA::new(), AppConfig { ... }]`
+### `#[routes]`
 
-Output:
+Builds Axum routes from methods in the `impl` block.
 
-- registers providers in the container
-- returns controller routers
+### HTTP Method Attributes
 
-## `#[controller("/base")]`
-
-Adds base-path metadata for a controller struct.
-
-## `#[routes]`
-
-Reads method attributes inside `impl` and builds router mappings.
-
-Supported method attrs:
-
-- `#[get("/path")]`
-- `#[post("/path")]`
-- `#[put("/path")]`
-
-Also supports namespaced style:
+Supported route attributes:
 
 - `#[nestforge::get("/path")]`
 - `#[nestforge::post("/path")]`
 - `#[nestforge::put("/path")]`
+- `#[nestforge::delete("/path")]`
 
-## What gets generated
+## Route Metadata Macros
 
-`#[routes]` implements `ControllerDefinition::router()` and uses `RouteBuilder` under the hood.
+### `#[nestforge::version("1")]`
+
+Adds route version prefix (for example `/v1`).
+
+### `#[nestforge::use_guard(MyGuard)]`
+
+Adds a route-level guard.
+
+### `#[nestforge::use_interceptor(MyInterceptor)]`
+
+Adds a route-level interceptor.
+
+## Module Macro
+
+### `#[module(...)]`
+
+Defines module wiring and generates `ModuleDefinition`.
+
+Supported keys:
+
+- `imports = [UsersModule, AuthModule]`
+- `controllers = [UsersController]`
+- `providers = [Provider::value(...), Provider::factory(...)]`
+- `exports = [UsersService]`
+
+## DTO Convenience Macros
+
+NestForge also provides DTO helpers:
+
+- `#[nestforge::dto]`
+- `nestforge::impl_identifiable!(Type, id_field)`
+
+These keep DTO boilerplate small while remaining explicit.
+
+## Guard And Interceptor Short Macros
+
+### `nestforge::guard!(Name)`
+
+Creates a default allow guard quickly.
+
+### `nestforge::guard!(Name, |ctx| { ... })`
+
+Creates a custom guard with inline logic.
+
+### `nestforge::interceptor!(Name)`
+
+Creates a pass-through interceptor.
+
+### `nestforge::interceptor!(Name, |ctx, req, next| { ... })`
+
+Creates a custom interceptor inline.

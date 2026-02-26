@@ -9,9 +9,7 @@
 
 ```
 
-# 🦀 NestForge
-
-**The performance of Rust. The structure of NestJS.**
+# NestForge
 
 NestForge is a high-performance backend framework designed for developers who crave the modularity and **Dependency Injection (DI)** of NestJS but want the memory safety and blazing speed of the Rust ecosystem.
 
@@ -19,51 +17,113 @@ NestForge is a high-performance backend framework designed for developers who cr
 > **Stable Release**
 > NestForge **1.0.0** is now published on crates.io.
 
-## Features
+## What You Get
 
-- **Blazing Fast**: Built on top of **Axum** and **Tokio**, NestForge delivers top-tier performance out of the box.
-- **Modular Architecture**: Organize your code into **Modules**, **Controllers**, and **Services** for better maintainability.
-- **Dependency Injection**: A powerful DI system to manage your application's dependencies.
-- **Type Safety**: Leverage Rust's type system to catch errors at compile time.
-- **HTTP First**: A robust HTTP layer with support for routing, middleware, and more.
+- Module system with `imports` and `exports`
+- Dependency Injection with simple provider registration
+- Controller macros (`#[controller]`, `#[routes]`, `#[get]`, `#[post]`, `#[put]`, `#[delete]`)
+- Request extractors (`Inject<T>`, `Param<T>`, `Body<T>`, `ValidatedBody<T>`)
+- Built-in HTTP error type (`HttpException`)
+- Guard and interceptor pipeline (global + route-level)
+- Route versioning (`#[nestforge::version("1")]`)
+- Global prefix support (`.with_global_prefix("api")`)
+- Config module with env loading and schema validation
+- Data layer crates (`nestforge-db`, `nestforge-orm`, `nestforge-data`)
+- CLI for scaffolding, generators, DB migrations, docs skeleton, formatting
 
-## Getting Started
+## Workspace Layout
+
+- `crates/nestforge`: public crate users import
+- `crates/nestforge-core`: DI, module graph, route builder, validation, resource service
+- `crates/nestforge-http`: app bootstrap factory
+- `crates/nestforge-macros`: framework macros
+- `crates/nestforge-cli`: `nestforge` CLI binary
+- `crates/nestforge-config`: env/config loading and validation
+- `crates/nestforge-db`: DB wrapper and migrations support
+- `crates/nestforge-orm`: relational ORM abstraction layer
+- `crates/nestforge-data`: non-relational data abstractions
+- `examples/hello-nestforge`: full example app
+
+## Quick Start (Repo)
 
 ```bash
-# Ensure Cargo is installed before you run these commands.
 git clone https://github.com/vernonthedev/nestforge.git
 cd nestforge
-cargo check
+cargo check --workspace
 cargo run -p hello-nestforge
 ```
 
-You should be able to see the following output:
+Server runs on:
 
 ```text
-🦀 NestForge running on http://[IP_ADDRESS]
+http://127.0.0.1:3000
 ```
 
-## NestForge CLI Setup
+## Quick Start (CLI)
+
+Install locally from this workspace:
 
 ```bash
-# Install CLI
-cargo install nestforge-cli
+cargo install --path crates/nestforge-cli
+```
 
-# Create a new NestForge application
+Create an app:
+
+```bash
 nestforge new demo-api
 cd demo-api
 cargo run
-
-# Generate a new resource (inside app folder)
-nestforge g resource users
 ```
 
-## Use NestForge In Your App
+Generate code:
 
-```toml
-[dependencies]
-nestforge = "1.0.0"
+```bash
+nestforge g module users
+nestforge g resource users --module users
+nestforge g guard auth
+nestforge g interceptor logging
 ```
+
+DB commands:
+
+```bash
+nestforge db init
+nestforge db generate create_users_table
+nestforge db migrate
+nestforge db status
+```
+
+Utilities:
+
+```bash
+nestforge docs
+nestforge fmt
+```
+
+## Minimal App Bootstrap
+
+```rust
+use nestforge::NestForgeFactory;
+
+NestForgeFactory::<AppModule>::create()?
+    .with_global_prefix("api")
+    .use_guard::<AllowAllGuard>()
+    .use_interceptor::<LoggingInterceptor>()
+    .listen(3000)
+    .await?;
+```
+
+## Example App Features
+
+`examples/hello-nestforge` demonstrates:
+
+- Root controllers (`AppController`, `HealthController`) at app root
+- Feature modules (`users`, `settings`, `versioning`) in Nest-style folders
+- CRUD controllers + services with `ResourceService<T>`
+- Validation via `ValidatedBody<T>`
+- Guard/interceptor usage at route level
+- Config loading with `ConfigModule::for_root`
+- Versioned routes (`v1`, `v2`)
 
 ## Documentation
 
@@ -72,12 +132,8 @@ nestforge = "1.0.0"
 
 ## Contributing
 
-Contributions are welcome!
-For support or questions, please open an issue.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Acknowledgments
+## License
 
-- **NestJS**: For the inspiration and architectural patterns.
-- **Axum**: For the high-performance HTTP framework.
-- **Tokio**: For the asynchronous runtime.
-- **Tower**: For the middleware ecosystem.
+Apache-2.0 ([LICENSE](LICENSE)).

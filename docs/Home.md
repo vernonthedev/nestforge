@@ -1,16 +1,24 @@
 # NestForge Docs
 
-## Start here
+This folder explains how NestForge works with simple language and practical examples.
 
-1. [Quick Start](Quick-Start)
-2. [Project Structure](Project-Structure)
-3. [Core Concepts](Core-Concepts)
-4. [Macros](Macros)
-5. [CLI Guide](Cli-Guide)
-6. [Example App Walkthrough](Example-App)
-7. [Example API Endpoints](Example-Api)
-8. [Full File Map](File-Map)
+## Read In This Order
 
-## Goal
+1. [Quick Start](quick-start.md)
+2. [Core Concepts](core-concepts.md)
+3. [Module System](module-system.md)
+4. [Guards And Interceptors](guards-interceptors.md)
+5. [Config Module](config-module.md)
+6. [Resource Service Patterns](resource-service-patterns.md)
+7. [Macros](macros.md)
+8. [CLI Guide](cli-guide.md)
+9. [Project Structure](project-structure.md)
+10. [Example App Walkthrough](example-app.md)
+11. [Example API Endpoints](example-api.md)
+12. [File Map](file-map.md)
 
-This folder explains what each part of NestForge does, in simple language.
+## Who This Is For
+
+- New users learning NestForge
+- Teams moving from NestJS to Rust
+- Contributors working on framework internals

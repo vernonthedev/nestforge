@@ -20,6 +20,15 @@ pub struct InMemoryStore<T> {
     items: Arc<RwLock<Vec<T>>>,
 }
 
+impl<T> Default for InMemoryStore<T>
+where
+    T: Identifiable + Clone,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> InMemoryStore<T>
 where
     T: Identifiable + Clone,

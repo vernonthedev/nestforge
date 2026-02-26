@@ -776,11 +776,16 @@ name = "nestforge"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "nestforge-config",
  "nestforge-core",
+ "nestforge-data",
  "nestforge-db",
  "nestforge-http",
  "nestforge-macros",
+ "nestforge-mongo",
+ "nestforge-openapi",
  "nestforge-orm",
+ "nestforge-redis",
  "nestforge-testing",
  "tokio",
 ]
@@ -795,6 +800,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nestforge-config"
+version = "1.0.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "nestforge-core"
 version = "1.0.0"
 dependencies = [
@@ -803,6 +815,13 @@ dependencies = [
  "http",
  "serde",
  "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "nestforge-data"
+version = "1.0.0"
+dependencies = [
  "thiserror",
 ]
 
@@ -836,12 +855,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "nestforge-mongo"
+version = "1.0.0"
+dependencies = [
+ "nestforge-data",
+]
+
+[[package]]
+name = "nestforge-openapi"
+version = "1.0.0"
+dependencies = [
+ "axum",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "nestforge-orm"
 version = "1.0.0"
 dependencies = [
  "nestforge-db",
  "thiserror",
  "tokio",
+]
+
+[[package]]
+name = "nestforge-redis"
+version = "1.0.0"
+dependencies = [
+ "nestforge-data",
 ]
 
 [[package]]

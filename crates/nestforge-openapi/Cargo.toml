@@ -1,0 +1,16 @@
+[package]
+name = "nestforge-openapi"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "Minimal OpenAPI generation and docs endpoints for NestForge"
+keywords = ["rust", "openapi", "swagger", "nestforge"]
+categories = ["web-programming"]
+
+[dependencies]
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

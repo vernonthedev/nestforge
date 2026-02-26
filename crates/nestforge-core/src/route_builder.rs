@@ -14,6 +14,15 @@ pub struct RouteBuilder<T> {
     _marker: std::marker::PhantomData<T>,
 }
 
+impl<T> Default for RouteBuilder<T>
+where
+    T: ControllerBasePath,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> RouteBuilder<T>
 where
     T: ControllerBasePath,

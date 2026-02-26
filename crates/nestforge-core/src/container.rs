@@ -1,6 +1,6 @@
 use std::{
     any::{Any, TypeId},
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
 };
 
@@ -26,6 +26,7 @@ use thiserror::Error;
 #[derive(Clone, Default)]
 pub struct Container {
     inner: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+    names: Arc<RwLock<HashSet<&'static str>>>,
 }
 
 #[derive(Debug, Error)]
@@ -86,6 +87,10 @@ impl Container {
 
          /* Store as Arc<dyn Any> so we can keep different types in one map. */
         map.insert(type_id, Arc::new(value));
+        self.names
+            .write()
+            .map_err(|_| ContainerError::WriteLockPoisoned)?
+            .insert(std::any::type_name::<T>());
         Ok(())
     }
 
@@ -99,7 +104,22 @@ impl Container {
             .map_err(|_| ContainerError::WriteLockPoisoned)?;
 
         map.insert(TypeId::of::<T>(), Arc::new(value));
+        self.names
+            .write()
+            .map_err(|_| ContainerError::WriteLockPoisoned)?
+            .insert(std::any::type_name::<T>());
         Ok(())
+    }
+
+    pub fn is_type_registered_name(
+        &self,
+        type_name: &'static str,
+    ) -> Result<bool, ContainerError> {
+        let names = self
+            .names
+            .read()
+            .map_err(|_| ContainerError::ReadLockPoisoned)?;
+        Ok(names.contains(type_name))
     }
 
     /**

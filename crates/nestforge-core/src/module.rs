@@ -24,6 +24,8 @@ pub struct ModuleRef {
     pub register: fn(&Container) -> Result<()>,
     pub controllers: fn() -> Vec<Router<Container>>,
     pub imports: fn() -> Vec<ModuleRef>,
+    pub exports: fn() -> Vec<&'static str>,
+    pub is_global: fn() -> bool,
 }
 
 impl ModuleRef {
@@ -33,6 +35,8 @@ impl ModuleRef {
             register: M::register,
             controllers: M::controllers,
             imports: M::imports,
+            exports: M::exports,
+            is_global: M::is_global,
         }
     }
 }
@@ -49,6 +53,10 @@ pub trait ModuleDefinition: Send + Sync + 'static {
 
     fn imports() -> Vec<ModuleRef> {
         Vec::new()
+    }
+
+    fn is_global() -> bool {
+        false
     }
 
     fn exports() -> Vec<&'static str> {
@@ -72,6 +80,7 @@ struct ModuleGraphState {
     visiting: HashSet<&'static str>,
     stack: Vec<&'static str>,
     controllers: Vec<Router<Container>>,
+    global_modules: HashSet<&'static str>,
 }
 
 fn visit_module(module: ModuleRef, container: &Container, state: &mut ModuleGraphState) -> Result<()> {
@@ -96,6 +105,23 @@ fn visit_module(module: ModuleRef, container: &Container, state: &mut ModuleGrap
         .map_err(|err| anyhow::anyhow!("Failed to register module `{}`: {}", module.name, err))?;
 
     state.controllers.extend((module.controllers)());
+
+    if (module.is_global)() {
+        state.global_modules.insert(module.name);
+    }
+
+    for export in (module.exports)() {
+        let is_registered = container.is_type_registered_name(export).map_err(|err| {
+            anyhow::anyhow!("Failed to verify exports for module `{}`: {}", module.name, err)
+        })?;
+        if !is_registered {
+            anyhow::bail!(
+                "Module `{}` exports `{}` but that provider is not registered in the container",
+                module.name,
+                export
+            );
+        }
+    }
 
     state.stack.pop();
     state.visiting.remove(module.name);

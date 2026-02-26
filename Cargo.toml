@@ -9,6 +9,11 @@ members = [
   "crates/nestforge-testing",
   "crates/nestforge-db",
   "crates/nestforge-orm",
+  "crates/nestforge-config",
+  "crates/nestforge-openapi",
+  "crates/nestforge-data",
+  "crates/nestforge-mongo",
+  "crates/nestforge-redis",
   ]
 resolver = "2"
 

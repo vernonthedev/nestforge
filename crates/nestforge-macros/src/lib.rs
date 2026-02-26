@@ -110,6 +110,7 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
     let exported_types = args.exports.iter().map(|ty| {
         quote! { std::any::type_name::<#ty>() }
     });
+    let global_flag = args.global;
 
     let expanded = quote! {
         #input
@@ -130,6 +131,10 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
                 vec![
                     #(#exported_types),*
                 ]
+            }
+
+            fn is_global() -> bool {
+                #global_flag
             }
 
             fn controllers() -> Vec<axum::Router<nestforge::Container>> {
@@ -158,6 +163,16 @@ pub fn post(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn put(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn use_guard(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn use_interceptor(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
@@ -255,6 +270,7 @@ struct ModuleArgs {
     controllers: Vec<Type>,
     providers: Vec<Expr>,
     exports: Vec<Type>,
+    global: bool,
 }
 
 struct EntityArgs {
@@ -282,6 +298,7 @@ impl Parse for ModuleArgs {
         let mut controllers: Vec<Type> = Vec::new();
         let mut providers: Vec<Expr> = Vec::new();
         let mut exports: Vec<Type> = Vec::new();
+        let mut global = false;
 
         while !input.is_empty() {
             let key: Ident = input.parse()?;
@@ -295,10 +312,13 @@ impl Parse for ModuleArgs {
                 providers = parse_bracket_list::<Expr>(input)?;
             } else if key == "exports" {
                 exports = parse_bracket_list::<Type>(input)?;
+            } else if key == "global" {
+                let lit: syn::LitBool = input.parse()?;
+                global = lit.value;
             } else {
                 return Err(syn::Error::new(
                     key.span(),
-                    "Unsupported module key. Use `imports`, `controllers`, `providers`, or `exports`.",
+                    "Unsupported module key. Use `imports`, `controllers`, `providers`, `exports`, or `global`.",
                 ));
             }
 
@@ -312,6 +332,7 @@ impl Parse for ModuleArgs {
             controllers,
             providers,
             exports,
+            global,
         })
     }
 }

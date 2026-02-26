@@ -1,0 +1,14 @@
+[package]
+name = "nestforge-redis"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "Redis-style adapter primitives for NestForge data layer"
+keywords = ["rust", "redis", "adapter", "nestforge"]
+categories = ["database"]
+
+[dependencies]
+nestforge-data = { version = "1.0.0", path = "../nestforge-data" }

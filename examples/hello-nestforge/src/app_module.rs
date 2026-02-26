@@ -8,7 +8,7 @@ use crate::{
     imports = [],
     controllers = [AppController, HealthController, UsersController],
     providers = [
-        Provider::value(AppConfig { app_name: "NestForge".to_string() }),
+        Provider::value(nestforge::load_config::<AppConfig>()?),
         Provider::factory(|_| Ok(UsersService::new())),
         Provider::value(Db::connect_lazy(DbConfig::postgres_local("postgres"))?)
     ],

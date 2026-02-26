@@ -37,6 +37,7 @@ fn main() -> Result<()> {
             }
         }
         "db" => run_db_command(&args)?,
+        "docs" => run_docs_command()?,
         "fmt" => run_fmt_command()?,
         _ => {
             print_help();
@@ -59,6 +60,7 @@ fn print_help() {
     println!("  nestforge db generate <name>");
     println!("  nestforge db migrate");
     println!("  nestforge db status");
+    println!("  nestforge docs");
     println!("  nestforge fmt");
     println!();
     println!("Install:");
@@ -171,6 +173,25 @@ fn run_fmt_command() -> Result<()> {
     }
 
     println!("Formatted Rust sources in {}", target_dir.display());
+    Ok(())
+}
+
+fn run_docs_command() -> Result<()> {
+    let app_root = detect_app_root().or_else(|_| env::current_dir())?;
+    let docs_dir = app_root.join("docs");
+    fs::create_dir_all(&docs_dir)?;
+    let openapi_file = docs_dir.join("openapi.json");
+    let skeleton = r#"{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NestForge API",
+    "version": "0.1.0"
+  },
+  "paths": {}
+}
+"#;
+    write_file(&openapi_file, skeleton)?;
+    println!("Generated OpenAPI skeleton at {}", openapi_file.display());
     Ok(())
 }
 

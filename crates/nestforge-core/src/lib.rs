@@ -11,6 +11,7 @@ pub mod container;
 pub mod error;
 pub mod inject;
 pub mod module;
+pub mod pipeline;
 pub mod provider;
 pub mod request;
 pub mod route_builder;
@@ -27,6 +28,7 @@ pub use module::{
     ModuleDefinition,
     ModuleRef,
 };
+pub use pipeline::{run_guards, Guard, Interceptor, NextFn, NextFuture, RequestContext};
 pub use provider::{register_provider, Provider, RegisterProvider};
 pub use request::{Body, Param};
 pub use request::ValidatedBody;

@@ -7,7 +7,7 @@ publish = false
 
 [dependencies]
 # This example app uses our framework crate.
-nestforge = { path = "../../crates/nestforge", features = ["db"] }
+nestforge = { path = "../../crates/nestforge", features = ["db", "config"] }
 
 # axum/tokio are here mostly because we’re still in early setup mode.
 axum = { workspace = true }

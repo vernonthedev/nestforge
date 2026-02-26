@@ -71,12 +71,8 @@ impl HttpException {
     }
 
     pub fn bad_request_validation(errors: ValidationErrors) -> Self {
-        let message = if errors.is_empty() {
-            "Validation failed".to_string()
-        } else {
-            "Validation failed".to_string()
-        };
-        let details = serde_json::to_value(errors).unwrap_or_else(|_| Value::Null);
+        let message = "Validation failed".to_string();
+        let details = serde_json::to_value(errors).unwrap_or(Value::Null);
         Self::with_details(StatusCode::BAD_REQUEST, message, details)
     }
 

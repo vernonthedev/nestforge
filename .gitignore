@@ -1,5 +1,8 @@
 /target
 /examples/demo-api/
+examples/hello-nestforge/.env
+examples/hello-nestforge/.nestforge/
+examples/hello-nestforge/migrations/
 AGENTS.md
 .codex/
 .agents/

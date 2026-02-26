@@ -6,8 +6,9 @@ use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    Attribute, Expr, Field, Fields, Ident, ImplItem, ImplItemFn, ItemImpl, ItemStruct, LitStr,
-    Meta, Token, Type,
+    spanned::Spanned,
+    Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, ImplItem, ImplItemFn, ItemImpl,
+    ItemStruct, LitStr, Meta, Token, Type,
 };
 
 /*
@@ -61,6 +62,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 "get" => quote! { builder = builder.get(#path_lit, Self::#method_name); },
                 "post" => quote! { builder = builder.post(#path_lit, Self::#method_name); },
                 "put" => quote! { builder = builder.put(#path_lit, Self::#method_name); },
+                "delete" => quote! { builder = builder.delete(#path_lit, Self::#method_name); },
                 _ => continue,
             };
 
@@ -169,6 +171,11 @@ pub fn put(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
+pub fn delete(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
 pub fn use_guard(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
@@ -224,6 +231,165 @@ pub fn id(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+#[proc_macro_derive(Identifiable, attributes(id))]
+pub fn derive_identifiable(item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    let name = &input.ident;
+
+    let Data::Struct(data) = &input.data else {
+        return syn::Error::new(
+            input.ident.span(),
+            "Identifiable can only be derived on structs",
+        )
+        .to_compile_error()
+        .into();
+    };
+
+    let Some((id_field_name, id_field_ty)) = find_id_field(&data.fields) else {
+        return syn::Error::new(
+            input.ident.span(),
+            "Identifiable derive requires an `id: u64` field or a field marked with #[id]",
+        )
+        .to_compile_error()
+        .into();
+    };
+
+    let ty_ok = matches!(id_field_ty, Type::Path(ref tp) if tp.path.is_ident("u64"));
+    if !ty_ok {
+        return syn::Error::new(
+            id_field_ty.span(),
+            "Identifiable id field must be of type `u64`",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    let expanded = quote! {
+        impl nestforge::Identifiable for #name {
+            fn id(&self) -> u64 {
+                self.#id_field_name
+            }
+
+            fn set_id(&mut self, id: u64) {
+                self.#id_field_name = id;
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+#[proc_macro_derive(Validate, attributes(validate))]
+pub fn derive_validate(item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    let name = &input.ident;
+
+    let Data::Struct(data) = &input.data else {
+        return syn::Error::new(
+            input.ident.span(),
+            "Validate can only be derived on structs",
+        )
+        .to_compile_error()
+        .into();
+    };
+
+    let Fields::Named(fields) = &data.fields else {
+        return syn::Error::new(input.ident.span(), "Validate derive requires named fields")
+            .to_compile_error()
+            .into();
+    };
+
+    let mut checks = Vec::new();
+    for field in &fields.named {
+        let Some(field_ident) = &field.ident else {
+            continue;
+        };
+        let field_name_lit = field_ident.to_string();
+        let (required, email) = parse_validate_rules(&field.attrs);
+        if !(required || email) {
+            continue;
+        }
+
+        let is_string = is_type_named(&field.ty, "String");
+        let is_option_string = is_option_of(&field.ty, "String");
+        let is_option_any = is_option_any(&field.ty);
+
+        if required {
+            if is_string {
+                checks.push(quote! {
+                    if self.#field_ident.trim().is_empty() {
+                        errors.push(nestforge::ValidationIssue {
+                            field: #field_name_lit,
+                            message: format!("{} is required", #field_name_lit),
+                        });
+                    }
+                });
+            } else if is_option_string {
+                checks.push(quote! {
+                    match &self.#field_ident {
+                        Some(v) if !v.trim().is_empty() => {}
+                        _ => {
+                            errors.push(nestforge::ValidationIssue {
+                                field: #field_name_lit,
+                                message: format!("{} is required", #field_name_lit),
+                            });
+                        }
+                    }
+                });
+            } else if is_option_any {
+                checks.push(quote! {
+                    if self.#field_ident.is_none() {
+                        errors.push(nestforge::ValidationIssue {
+                            field: #field_name_lit,
+                            message: format!("{} is required", #field_name_lit),
+                        });
+                    }
+                });
+            }
+        }
+
+        if email {
+            if is_string {
+                checks.push(quote! {
+                    if !self.#field_ident.trim().is_empty() && !self.#field_ident.contains('@') {
+                        errors.push(nestforge::ValidationIssue {
+                            field: #field_name_lit,
+                            message: format!("{} must be a valid email", #field_name_lit),
+                        });
+                    }
+                });
+            } else if is_option_string {
+                checks.push(quote! {
+                    if let Some(v) = &self.#field_ident {
+                        if !v.trim().is_empty() && !v.contains('@') {
+                            errors.push(nestforge::ValidationIssue {
+                                field: #field_name_lit,
+                                message: format!("{} must be a valid email", #field_name_lit),
+                            });
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    let expanded = quote! {
+        impl nestforge::Validate for #name {
+            fn validate(&self) -> Result<(), nestforge::ValidationErrors> {
+                let mut errors = Vec::new();
+                #(#checks)*
+                if errors.is_empty() {
+                    Ok(())
+                } else {
+                    Err(nestforge::ValidationErrors::new(errors))
+                }
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
 /* -------- helpers -------- */
 
 fn extract_route_meta(method: &mut ImplItemFn) -> Option<(String, String)> {
@@ -253,7 +419,7 @@ fn parse_route_attr(attr: &Attribute) -> Option<(String, String)> {
     */
     let ident = attr.path().segments.last()?.ident.to_string();
 
-    if ident != "get" && ident != "post" && ident != "put" {
+    if ident != "get" && ident != "post" && ident != "put" && ident != "delete" {
         return None;
     }
 
@@ -428,4 +594,95 @@ fn remove_id_attr(field: &mut Field) -> bool {
 
     field.attrs = kept;
     has_id
+}
+
+fn find_id_field(fields: &Fields) -> Option<(Ident, Type)> {
+    let Fields::Named(named_fields) = fields else {
+        return None;
+    };
+
+    let mut by_attr: Option<(Ident, Type)> = None;
+    let mut by_name: Option<(Ident, Type)> = None;
+
+    for field in &named_fields.named {
+        let field_ident = field.ident.clone()?;
+        if field_ident == "id" {
+            by_name = Some((field_ident.clone(), field.ty.clone()));
+        }
+        let has_id_attr = field.attrs.iter().any(|attr| {
+            attr.path()
+                .segments
+                .last()
+                .map(|s| s.ident == "id")
+                .unwrap_or(false)
+        });
+        if has_id_attr {
+            by_attr = Some((field_ident, field.ty.clone()));
+        }
+    }
+
+    by_attr.or(by_name)
+}
+
+fn parse_validate_rules(attrs: &[Attribute]) -> (bool, bool) {
+    let mut required = false;
+    let mut email = false;
+
+    for attr in attrs {
+        let is_validate = attr
+            .path()
+            .segments
+            .last()
+            .map(|seg| seg.ident == "validate")
+            .unwrap_or(false);
+        if !is_validate {
+            continue;
+        }
+
+        let _ = attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("required") {
+                required = true;
+            } else if meta.path.is_ident("email") {
+                email = true;
+            }
+            Ok(())
+        });
+    }
+
+    (required, email)
+}
+
+fn is_type_named(ty: &Type, name: &str) -> bool {
+    matches!(ty, Type::Path(tp) if tp.path.is_ident(name))
+}
+
+fn is_option_any(ty: &Type) -> bool {
+    match ty {
+        Type::Path(tp) => tp
+            .path
+            .segments
+            .last()
+            .map(|seg| seg.ident == "Option")
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+fn is_option_of(ty: &Type, inner_name: &str) -> bool {
+    let Type::Path(tp) = ty else {
+        return false;
+    };
+    let Some(seg) = tp.path.segments.last() else {
+        return false;
+    };
+    if seg.ident != "Option" {
+        return false;
+    }
+    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return false;
+    };
+    let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() else {
+        return false;
+    };
+    is_type_named(inner_ty, inner_name)
 }

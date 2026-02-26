@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Router,
 };
 
@@ -92,6 +92,19 @@ where
 
         Self {
             router: self.router.route(&full, put(handler)),
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    pub fn delete<H, TState>(self, path: &str, handler: H) -> Self
+    where
+        H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
+        TState: 'static,
+    {
+        let full = Self::full_path(path);
+
+        Self {
+            router: self.router.route(&full, delete(handler)),
             _marker: std::marker::PhantomData,
         }
     }

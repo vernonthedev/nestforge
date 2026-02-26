@@ -829,23 +829,13 @@ pub struct AppConfig {
 
 fn template_entity_dto_rs(pascal_singular: &str) -> String {
     format!(
-        r#"use nestforge::Identifiable;
-use serde::Serialize;
+        r#"use serde::{{Deserialize, Serialize}};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, nestforge::Identifiable)]
 pub struct {pascal_singular}Dto {{
+    #[id]
     pub id: u64,
     pub name: String,
-}}
-
-impl Identifiable for {pascal_singular}Dto {{
-    fn id(&self) -> u64 {{
-        self.id
-    }}
-
-    fn set_id(&mut self, id: u64) {{
-        self.id = id;
-    }}
 }}
 "#
     )
@@ -853,22 +843,12 @@ impl Identifiable for {pascal_singular}Dto {{
 
 fn template_create_dto_rs(pascal_singular: &str) -> String {
     format!(
-        r#"use nestforge::{{Validate, ValidationErrors}};
-use serde::Deserialize;
+        r#"use serde::{{Deserialize, Serialize}};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, nestforge::Validate)]
 pub struct Create{pascal_singular}Dto {{
+    #[validate(required)]
     pub name: String,
-}}
-
-impl Validate for Create{pascal_singular}Dto {{
-    fn validate(&self) -> Result<(), ValidationErrors> {{
-        if self.name.trim().is_empty() {{
-            return Err(ValidationErrors::single("name", "name is required"));
-        }}
-
-        Ok(())
-    }}
 }}
 "#
     )
@@ -876,28 +856,13 @@ impl Validate for Create{pascal_singular}Dto {{
 
 fn template_update_dto_rs(pascal_singular: &str) -> String {
     format!(
-        r#"use nestforge::{{Validate, ValidationErrors}};
-use serde::Deserialize;
+        r#"use serde::{{Deserialize, Serialize}};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, nestforge::Validate)]
 pub struct Update{pascal_singular}Dto {{
     pub name: Option<String>,
-}}
-
-impl Validate for Update{pascal_singular}Dto {{
-    fn validate(&self) -> Result<(), ValidationErrors> {{
-        if self.name.is_none() {{
-            return Err(ValidationErrors::single("body", "at least one field is required"));
-        }}
-
-        if let Some(name) = &self.name {{
-            if name.trim().is_empty() {{
-                return Err(ValidationErrors::single("name", "name cannot be empty"));
-            }}
-        }}
-
-        Ok(())
-    }}
+    #[validate(email)]
+    pub email: Option<String>,
 }}
 "#
     )
@@ -910,47 +875,11 @@ fn template_resource_service_rs(
     pascal_singular: &str,
 ) -> String {
     format!(
-        r#"use nestforge::InMemoryStore;
+        r#"use nestforge::ResourceService;
 
-use crate::dto::{{Create{pascal_singular}Dto, Update{pascal_singular}Dto, {pascal_singular}Dto}};
+use crate::dto::{pascal_singular}Dto;
 
-#[derive(Clone)]
-pub struct {pascal_plural}Service {{
-    store: InMemoryStore<{pascal_singular}Dto>,
-}}
-
-impl {pascal_plural}Service {{
-    pub fn new() -> Self {{
-        Self {{
-            store: InMemoryStore::new(),
-        }}
-    }}
-
-    pub fn find_all(&self) -> Vec<{pascal_singular}Dto> {{
-        self.store.find_all()
-    }}
-
-    pub fn find_by_id(&self, id: u64) -> Option<{pascal_singular}Dto> {{
-        self.store.find_by_id(id)
-    }}
-
-    pub fn create(&self, dto: Create{pascal_singular}Dto) -> {pascal_singular}Dto {{
-        let item = {pascal_singular}Dto {{
-            id: 0,
-            name: dto.name,
-        }};
-
-        self.store.create(item)
-    }}
-
-    pub fn update(&self, id: u64, dto: Update{pascal_singular}Dto) -> Option<{pascal_singular}Dto> {{
-        self.store.update_by_id(id, |item| {{
-            if let Some(name) = dto.name.clone() {{
-                item.name = name;
-            }}
-        }})
-    }}
-}}
+pub type {pascal_plural}Service = ResourceService<{pascal_singular}Dto>;
 "#
     )
 }
@@ -997,7 +926,10 @@ impl {pascal_plural}Controller {{
         service: Inject<{pascal_plural}Service>,
         body: ValidatedBody<Create{pascal_singular}Dto>,
     ) -> Result<Json<{pascal_singular}Dto>, HttpException> {{
-        Ok(Json(service.create(body.into_inner())))
+        let item = service
+            .create_from(body.into_inner())
+            .map_err(|err| HttpException::bad_request(err.to_string()))?;
+        Ok(Json(item))
     }}
 
     #[nestforge::put("/{{id}}")]
@@ -1007,7 +939,8 @@ impl {pascal_plural}Controller {{
         body: ValidatedBody<Update{pascal_singular}Dto>,
     ) -> Result<Json<{pascal_singular}Dto>, HttpException> {{
         let item = service
-            .update(*id, body.into_inner())
+            .update_from(*id, body.into_inner())
+            .map_err(|err| HttpException::bad_request(err.to_string()))?
             .ok_or_else(|| HttpException::not_found(format!("{pascal_singular} with id {{}} not found", *id)))?;
 
         Ok(Json(item))

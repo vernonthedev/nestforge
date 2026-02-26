@@ -7,8 +7,8 @@ pub use nestforge_core::{
     initialize_module_graph, register_provider, Body, Container, ContainerError,
     ControllerBasePath, ControllerDefinition, Guard, HttpException, Identifiable, InMemoryStore,
     Inject, Interceptor, ModuleDefinition, ModuleRef, NextFn, NextFuture, Param, Provider,
-    RegisterProvider, RequestContext, RouteBuilder, Validate, ValidatedBody, ValidationErrors,
-    ValidationIssue,
+    RegisterProvider, RequestContext, ResourceError, ResourceService, RouteBuilder, Validate,
+    ValidatedBody, ValidationErrors, ValidationIssue,
 };
 
 #[cfg(feature = "config")]
@@ -19,7 +19,8 @@ pub use nestforge_data::{CacheStore, DataError, DataFuture, DocumentRepo};
 pub use nestforge_db::{Db, DbConfig, DbError, DbTransaction};
 pub use nestforge_http::NestForgeFactory;
 pub use nestforge_macros::{
-    controller, entity, get, id, module, post, put, routes, use_guard, use_interceptor,
+    controller, delete, entity, get, id, module, post, put, routes, use_guard, use_interceptor,
+    Identifiable, Validate,
 };
 #[cfg(feature = "mongo")]
 pub use nestforge_mongo::{InMemoryMongoRepo, MongoConfig};

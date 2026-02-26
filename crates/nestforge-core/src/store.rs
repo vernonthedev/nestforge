@@ -59,6 +59,10 @@ where
             .and_then(|items| items.iter().find(|item| item.id() == id).cloned())
     }
 
+    pub fn count(&self) -> usize {
+        self.items.read().map(|items| items.len()).unwrap_or(0)
+    }
+
     /*
     create():
     - auto-generates next id
@@ -89,5 +93,19 @@ where
 
         updater(item);
         Some(item.clone())
+    }
+
+    pub fn replace_by_id(&self, id: u64, mut replacement: T) -> Option<T> {
+        let mut items = self.items.write().ok()?;
+        let existing = items.iter_mut().find(|item| item.id() == id)?;
+        replacement.set_id(id);
+        *existing = replacement;
+        Some(existing.clone())
+    }
+
+    pub fn delete_by_id(&self, id: u64) -> Option<T> {
+        let mut items = self.items.write().ok()?;
+        let index = items.iter().position(|item| item.id() == id)?;
+        Some(items.remove(index))
     }
 }

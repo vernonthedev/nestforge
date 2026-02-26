@@ -1,63 +1,81 @@
-use nestforge::InMemoryStore;
+use nestforge::{ResourceError, ResourceService};
 
 use crate::dto::{CreateUserDto, UpdateUserDto, UserDto};
 
 /*
-UsersService = business logic layer
-Now storage internals are handled by NestForge's InMemoryStore.
+UsersService = thin alias over NestForge's generic ResourceService.
+Built-in methods available directly on this alias:
+- find_all()
+- find_by_id(id)
+- count()
+- exists(id)
+- create_from(dto)
+- update_from(id, dto)
+- replace_from(id, dto)
+- delete_by_id(id)
+
 */
-#[derive(Clone)]
-pub struct UsersService {
-    store: InMemoryStore<UserDto>,
+pub type UsersService = ResourceService<UserDto>;
+
+pub fn users_service_seed() -> UsersService {
+    ResourceService::with_seed(vec![
+        UserDto {
+            id: 1,
+            name: "Vernon".to_string(),
+            email: "vernon@example.com".to_string(),
+        },
+        UserDto {
+            id: 2,
+            name: "Sam".to_string(),
+            email: "sam@example.com".to_string(),
+        },
+    ])
 }
 
-impl UsersService {
-    pub fn new() -> Self {
-        let seed = vec![
-            UserDto {
-                id: 1,
-                name: "Vernon".to_string(),
-                email: "vernon@example.com".to_string(),
-            },
-            UserDto {
-                id: 2,
-                name: "Sam".to_string(),
-                email: "sam@example.com".to_string(),
-            },
-        ];
+pub fn list_users(service: &UsersService) -> Vec<UserDto> {
+    service.find_all()
+}
 
-        Self {
-            store: InMemoryStore::with_seed(seed),
-        }
-    }
+pub fn get_user(service: &UsersService, id: u64) -> Option<UserDto> {
+    service.find_by_id(id)
+}
 
-    pub fn find_all(&self) -> Vec<UserDto> {
-        self.store.find_all()
-    }
+pub fn users_count(service: &UsersService) -> usize {
+    service.count()
+}
 
-    pub fn find_by_id(&self, id: u64) -> Option<UserDto> {
-        self.store.find_by_id(id)
-    }
+pub fn user_exists(service: &UsersService, id: u64) -> bool {
+    service.exists(id)
+}
 
-    pub fn create(&self, dto: CreateUserDto) -> UserDto {
-        let user = UserDto {
-            id: 0, /* framework store sets the real id */
-            name: dto.name,
-            email: dto.email,
-        };
+pub fn create_user(service: &UsersService, dto: CreateUserDto) -> Result<UserDto, ResourceError> {
+    service.create_from(dto)
+}
 
-        self.store.create(user)
-    }
+pub fn update_user(
+    service: &UsersService,
+    id: u64,
+    dto: UpdateUserDto,
+) -> Result<Option<UserDto>, ResourceError> {
+    service.update_from(id, dto)
+}
 
-    pub fn update(&self, id: u64, dto: UpdateUserDto) -> Option<UserDto> {
-        self.store.update_by_id(id, |user| {
-            if let Some(name) = dto.name.clone() {
-                user.name = name;
-            }
+pub fn replace_user(
+    service: &UsersService,
+    id: u64,
+    dto: CreateUserDto,
+) -> Result<Option<UserDto>, ResourceError> {
+    service.replace_from(id, dto)
+}
 
-            if let Some(email) = dto.email.clone() {
-                user.email = email;
-            }
-        })
-    }
+pub fn delete_user(service: &UsersService, id: u64) -> Option<UserDto> {
+    service.delete_by_id(id)
+}
+
+#[allow(dead_code)]
+pub fn find_user_by_email(service: &UsersService, email: &str) -> Option<UserDto> {
+    service
+        .find_all()
+        .into_iter()
+        .find(|user| user.email.eq_ignore_ascii_case(email))
 }

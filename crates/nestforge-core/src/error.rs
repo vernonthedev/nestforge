@@ -10,7 +10,7 @@ use crate::ValidationErrors;
 
 /**
 * ErrorBody = standard JSON error response shape.
-* 
+*
 * Keeping this simple and clean for now:
 * {
 *   "statusCode": 500,
@@ -51,11 +51,7 @@ impl HttpException {
         }
     }
 
-    pub fn with_details(
-        status: StatusCode,
-        message: impl Into<String>,
-        details: Value,
-    ) -> Self {
+    pub fn with_details(status: StatusCode, message: impl Into<String>, details: Value) -> Self {
         Self {
             status,
             message: message.into(),
@@ -91,7 +87,7 @@ impl HttpException {
 
 /**
 * IntoResponse makes HttpException directly returnable from axum handlers.
-* 
+*
 * So handlers can return:
 * Result<Json<T>, HttpException>
 * and axum knows how to turn the error into a real HTTP response.

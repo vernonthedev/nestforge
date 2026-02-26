@@ -8,6 +8,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$CliManifest = Join-Path $RepoRoot "crates/nestforge-cli/Cargo.toml"
+$ExampleAppDir = Join-Path $RepoRoot "examples/hello-nestforge"
 Set-Location $RepoRoot
 
 function Invoke-Step {
@@ -22,30 +24,35 @@ function Invoke-Step {
 }
 
 function Cargo-Cmd {
-    param([string[]]$Args)
+    param([string[]]$CommandArgs)
     if ($Offline) {
-        & cargo @Args --offline
+        & cargo --offline @CommandArgs
     } else {
-        & cargo @Args
+        & cargo @CommandArgs
     }
     if ($LASTEXITCODE -ne 0) {
-        throw "Cargo command failed: cargo $($Args -join ' ')"
+        throw "Cargo command failed: cargo $($CommandArgs -join ' ')"
     }
 }
 
 Invoke-Step "Workspace check/test/clippy" {
-    Cargo-Cmd @("check", "--workspace")
-    Cargo-Cmd @("test", "--workspace")
-    Cargo-Cmd @("clippy", "--workspace", "--all-targets", "--", "-D", "warnings")
+    Cargo-Cmd -CommandArgs @("check", "--workspace")
+    Cargo-Cmd -CommandArgs @("test", "--workspace")
+    Cargo-Cmd -CommandArgs @("clippy", "--workspace", "--all-targets", "--", "-D", "warnings")
 }
 
 Invoke-Step "CLI help + utility commands" {
-    Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "--help")
-    Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "fmt")
-    Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "docs")
-    Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "db", "init")
-    Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "db", "generate", "create_users_table")
-    Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "db", "status")
+    Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "--help")
+    Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "fmt")
+    Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "docs")
+    Push-Location $ExampleAppDir
+    try {
+        Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "db", "init")
+        Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "db", "generate", "create_users_table")
+        Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "db", "status")
+    } finally {
+        Pop-Location
+    }
 }
 
 $TmpRoot = Join-Path $env:TEMP "nestforge-script-test"
@@ -59,12 +66,17 @@ Invoke-Step "Generator flow: new + module + resource" {
 
     Push-Location $TmpRoot
     try {
-        Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "new", "demo_api")
+        Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "new", "demo_api")
+        $DemoCargoToml = Join-Path $DemoAppDir "Cargo.toml"
+        $DemoCargo = Get-Content -Raw -Path $DemoCargoToml
+        $LocalNestforgePath = (Join-Path $RepoRoot "crates/nestforge").Replace("\", "/")
+        $DemoCargo = $DemoCargo -replace 'nestforge = ".*"', "nestforge = { path = `"$LocalNestforgePath`" }"
+        Set-Content -Path $DemoCargoToml -Value $DemoCargo
         Push-Location $DemoAppDir
         try {
-            Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "g", "module", "auth")
-            Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "g", "resource", "users")
-            Cargo-Cmd @("check")
+            Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "g", "module", "auth")
+            Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "g", "resource", "users")
+            Cargo-Cmd -CommandArgs @("check", "--manifest-path", (Join-Path $DemoAppDir "Cargo.toml"))
         } finally {
             Pop-Location
         }
@@ -74,7 +86,7 @@ Invoke-Step "Generator flow: new + module + resource" {
 }
 
 Invoke-Step "Feature-gated API compile check" {
-    Cargo-Cmd @("check", "-p", "nestforge", "--features", "db orm config openapi data mongo redis testing")
+    Cargo-Cmd -CommandArgs @("check", "-p", "nestforge", "--features", "db orm config openapi data mongo redis testing")
 }
 
 if ($RunRuntime) {
@@ -92,10 +104,10 @@ if ($RunRuntime) {
 
 if ($RunPostgresMigrations) {
     Invoke-Step "Postgres migration flow (requires DATABASE_URL)" {
-        Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "db", "init")
-        Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "db", "generate", "smoke_migration")
-        Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "db", "migrate")
-        Cargo-Cmd @("run", "-p", "nestforge-cli", "--", "db", "status")
+        Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "db", "init")
+        Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "db", "generate", "smoke_migration")
+        Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "db", "migrate")
+        Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "db", "status")
     }
 }
 

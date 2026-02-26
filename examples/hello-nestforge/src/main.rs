@@ -1,4 +1,4 @@
-/* 
+/*
 Its job:
 - load app modules/files
 - boot the framework

@@ -55,8 +55,13 @@ where
     F: FnOnce(&Container) -> Result<T> + Send + 'static,
 {
     fn register(self, container: &Container) -> Result<()> {
-        let value = (self.factory)(container)
-            .map_err(|err| anyhow!("Failed to build provider `{}`: {}", std::any::type_name::<T>(), err))?;
+        let value = (self.factory)(container).map_err(|err| {
+            anyhow!(
+                "Failed to build provider `{}`: {}",
+                std::any::type_name::<T>(),
+                err
+            )
+        })?;
         container.register(value)?;
         Ok(())
     }
@@ -85,18 +90,30 @@ mod tests {
     #[test]
     fn registers_value_provider() {
         let container = Container::new();
-        let result = register_provider(&container, Provider::value(AppConfig { app_name: "nestforge" }));
+        let result = register_provider(
+            &container,
+            Provider::value(AppConfig {
+                app_name: "nestforge",
+            }),
+        );
 
         assert!(result.is_ok(), "value provider registration should succeed");
-        let config = container.resolve::<AppConfig>().expect("config should be registered");
+        let config = container
+            .resolve::<AppConfig>()
+            .expect("config should be registered");
         assert_eq!(config.app_name, "nestforge");
     }
 
     #[test]
     fn registers_factory_provider() {
         let container = Container::new();
-        register_provider(&container, Provider::value(AppConfig { app_name: "nestforge" }))
-            .expect("seed config");
+        register_provider(
+            &container,
+            Provider::value(AppConfig {
+                app_name: "nestforge",
+            }),
+        )
+        .expect("seed config");
 
         let result = register_provider(
             &container,
@@ -108,8 +125,13 @@ mod tests {
             }),
         );
 
-        assert!(result.is_ok(), "factory provider registration should succeed");
-        let service = container.resolve::<AppService>().expect("service should be registered");
+        assert!(
+            result.is_ok(),
+            "factory provider registration should succeed"
+        );
+        let service = container
+            .resolve::<AppService>()
+            .expect("service should be registered");
         assert_eq!(service.config_name, "nestforge");
     }
 

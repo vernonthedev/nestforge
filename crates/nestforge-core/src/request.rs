@@ -37,10 +37,7 @@ where
 {
     type Rejection = HttpException;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let Path(value) = Path::<T>::from_request_parts(parts, state)
             .await
             .map_err(|_| HttpException::bad_request("Invalid route parameter"))?;
@@ -84,10 +81,7 @@ where
 {
     type Rejection = HttpException;
 
-    async fn from_request(
-        req: axum::extract::Request,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: axum::extract::Request, state: &S) -> Result<Self, Self::Rejection> {
         let axum::Json(value) = axum::Json::<T>::from_request(req, state)
             .await
             .map_err(|_| HttpException::bad_request("Invalid JSON body"))?;
@@ -119,10 +113,7 @@ where
 {
     type Rejection = HttpException;
 
-    async fn from_request(
-        req: axum::extract::Request,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: axum::extract::Request, state: &S) -> Result<Self, Self::Rejection> {
         let axum::Json(value) = axum::Json::<T>::from_request(req, state)
             .await
             .map_err(|_| HttpException::bad_request("Invalid JSON body"))?;

@@ -35,10 +35,7 @@ pub trait Interceptor: Send + Sync + 'static {
     fn around(&self, ctx: RequestContext, req: Request<Body>, next: NextFn) -> NextFuture;
 }
 
-pub fn run_guards(
-    guards: &[Arc<dyn Guard>],
-    ctx: &RequestContext,
-) -> Result<(), HttpException> {
+pub fn run_guards(guards: &[Arc<dyn Guard>], ctx: &RequestContext) -> Result<(), HttpException> {
     for guard in guards {
         guard.can_activate(ctx)?;
     }

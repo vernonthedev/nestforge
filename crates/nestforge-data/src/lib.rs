@@ -27,6 +27,11 @@ pub trait DocumentRepo<T>: Send + Sync {
 
 pub trait CacheStore: Send + Sync {
     fn get(&self, key: &str) -> DataFuture<'_, Result<Option<String>, DataError>>;
-    fn set(&self, key: &str, value: &str, ttl_seconds: Option<u64>) -> DataFuture<'_, Result<(), DataError>>;
+    fn set(
+        &self,
+        key: &str,
+        value: &str,
+        ttl_seconds: Option<u64>,
+    ) -> DataFuture<'_, Result<(), DataError>>;
     fn delete(&self, key: &str) -> DataFuture<'_, Result<(), DataError>>;
 }

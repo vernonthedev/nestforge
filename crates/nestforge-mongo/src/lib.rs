@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::{Arc, RwLock}};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use nestforge_data::{DataError, DocumentRepo};
 
@@ -52,7 +55,10 @@ where
         })
     }
 
-    fn find_by_id(&self, id: Self::Id) -> nestforge_data::DataFuture<'_, Result<Option<T>, DataError>> {
+    fn find_by_id(
+        &self,
+        id: Self::Id,
+    ) -> nestforge_data::DataFuture<'_, Result<Option<T>, DataError>> {
         let docs = Arc::clone(&self.docs);
         Box::pin(async move {
             let map = docs
@@ -65,7 +71,13 @@ where
     fn insert(&self, doc: T) -> nestforge_data::DataFuture<'_, Result<T, DataError>> {
         let docs = Arc::clone(&self.docs);
         Box::pin(async move {
-            let id = format!("doc_{}", docs.read().map_err(|_| DataError::Query("lock".to_string()))?.len() + 1);
+            let id = format!(
+                "doc_{}",
+                docs.read()
+                    .map_err(|_| DataError::Query("lock".to_string()))?
+                    .len()
+                    + 1
+            );
             docs.write()
                 .map_err(|_| DataError::Query("in-memory mongo lock poisoned".to_string()))?
                 .insert(id, doc.clone());

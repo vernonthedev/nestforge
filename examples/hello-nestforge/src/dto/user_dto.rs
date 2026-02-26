@@ -1,5 +1,5 @@
-use serde::Serialize;
 use nestforge::Identifiable;
+use serde::Serialize;
 
 /*
 UserDto = shape returned to the client as JSON

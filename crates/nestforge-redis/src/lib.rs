@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::{Arc, RwLock}};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use nestforge_data::{CacheStore, DataError};
 

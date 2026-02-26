@@ -8,15 +8,15 @@ use thiserror::Error;
 
 /**
 * Container = our tiny dependency injection store (v1).
-* 
+*
 * What it does:
 * - stores values by type (TypeId).
 * - lets us register services/config once.
 * - lets us resolve them later.
-* 
+*
 * Why Arc?
 * - so multiple parts of the app can share the same service safely.
-* 
+*
 * Why RwLock?
 * - allows safe reads/writes across threads.
 * - write when registering.
@@ -50,23 +50,23 @@ pub enum ContainerError {
 
 impl Container {
     /**
-    * Nice helper constructor.
-    * Same as Default, just cleaner to read in app code.
-    */
+     * Nice helper constructor.
+     * Same as Default, just cleaner to read in app code.
+     */
     pub fn new() -> Self {
         Self::default()
     }
 
     /**
-    * Register a value/service into the container.
-    * 
-    * Example:
-    * container.register(AppConfig { ... })?;
-    * 
-    * Rules:
-    * - T must be thread-safe (Send + Sync).
-    * - T must be 'static because we store it for the app lifetime.
-    */
+     * Register a value/service into the container.
+     *
+     * Example:
+     * container.register(AppConfig { ... })?;
+     *
+     * Rules:
+     * - T must be thread-safe (Send + Sync).
+     * - T must be 'static because we store it for the app lifetime.
+     */
     pub fn register<T>(&self, value: T) -> Result<(), ContainerError>
     where
         T: Send + Sync + 'static,
@@ -85,7 +85,7 @@ impl Container {
             });
         }
 
-         /* Store as Arc<dyn Any> so we can keep different types in one map. */
+        /* Store as Arc<dyn Any> so we can keep different types in one map. */
         map.insert(type_id, Arc::new(value));
         self.names
             .write()
@@ -111,10 +111,7 @@ impl Container {
         Ok(())
     }
 
-    pub fn is_type_registered_name(
-        &self,
-        type_name: &'static str,
-    ) -> Result<bool, ContainerError> {
+    pub fn is_type_registered_name(&self, type_name: &'static str) -> Result<bool, ContainerError> {
         let names = self
             .names
             .read()
@@ -123,13 +120,13 @@ impl Container {
     }
 
     /**
-    * Resolve (get back) a registered value/service by type.
-    * 
-    * Example:
-    * let config = container.resolve::<AppConfig>()?;
-    * 
-    * Returns Arc<T> so the caller can clone/share it cheaply.
-    */
+     * Resolve (get back) a registered value/service by type.
+     *
+     * Example:
+     * let config = container.resolve::<AppConfig>()?;
+     *
+     * Returns Arc<T> so the caller can clone/share it cheaply.
+     */
     pub fn resolve<T>(&self) -> Result<Arc<T>, ContainerError>
     where
         T: Send + Sync + 'static,
@@ -147,19 +144,17 @@ impl Container {
             .clone();
 
         /*
-        * We stored the value as dyn Any, so now we downcast it back to the real type T.
-        * If downcast fails, the type in the map doesn’t match what we asked for.
-        */
-        value.downcast::<T>()
+         * We stored the value as dyn Any, so now we downcast it back to the real type T.
+         * If downcast fails, the type in the map doesn’t match what we asked for.
+         */
+        value
+            .downcast::<T>()
             .map_err(|_| ContainerError::DowncastFailed {
                 type_name: std::any::type_name::<T>(),
             })
     }
 
-    pub fn resolve_in_module<T>(
-        &self,
-        module_name: &'static str,
-    ) -> Result<Arc<T>, ContainerError>
+    pub fn resolve_in_module<T>(&self, module_name: &'static str) -> Result<Arc<T>, ContainerError>
     where
         T: Send + Sync + 'static,
     {

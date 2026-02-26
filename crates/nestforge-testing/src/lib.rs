@@ -71,7 +71,9 @@ mod tests {
     struct AppModule;
     impl ModuleDefinition for AppModule {
         fn register(container: &Container) -> Result<()> {
-            container.register(AppConfig { app_name: "default" })?;
+            container.register(AppConfig {
+                app_name: "default",
+            })?;
             Ok(())
         }
     }
@@ -82,8 +84,15 @@ mod tests {
             .build()
             .expect("test module should build");
 
-        let config = module.resolve::<AppConfig>().expect("config should resolve");
-        assert_eq!(*config, AppConfig { app_name: "default" });
+        let config = module
+            .resolve::<AppConfig>()
+            .expect("config should resolve");
+        assert_eq!(
+            *config,
+            AppConfig {
+                app_name: "default"
+            }
+        );
     }
 
     #[test]
@@ -93,7 +102,9 @@ mod tests {
             .build()
             .expect("test module should build with overrides");
 
-        let config = module.resolve::<AppConfig>().expect("config should resolve");
+        let config = module
+            .resolve::<AppConfig>()
+            .expect("config should resolve");
         assert_eq!(*config, AppConfig { app_name: "test" });
     }
 }

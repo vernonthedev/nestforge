@@ -46,7 +46,10 @@ where
     }
 
     pub fn find_all(&self) -> Vec<T> {
-        self.items.read().map(|items| items.clone()).unwrap_or_default()
+        self.items
+            .read()
+            .map(|items| items.clone())
+            .unwrap_or_default()
     }
 
     pub fn find_by_id(&self, id: u64) -> Option<T> {

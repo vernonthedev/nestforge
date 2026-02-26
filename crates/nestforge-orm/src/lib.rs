@@ -36,14 +36,19 @@ pub enum OrmError {
 
 type FindAllHandler<T> =
     Arc<dyn Fn(&Db) -> RepoFuture<'static, Result<Vec<T>, OrmError>> + Send + Sync>;
-type FindByIdHandler<T> =
-    Arc<dyn Fn(&Db, <T as EntityMeta>::Id) -> RepoFuture<'static, Result<Option<T>, OrmError>> + Send + Sync>;
+type FindByIdHandler<T> = Arc<
+    dyn Fn(&Db, <T as EntityMeta>::Id) -> RepoFuture<'static, Result<Option<T>, OrmError>>
+        + Send
+        + Sync,
+>;
 type CreateHandler<T> =
     Arc<dyn Fn(&Db, T) -> RepoFuture<'static, Result<T, OrmError>> + Send + Sync>;
-type UpdateByIdHandler<T> =
-    Arc<dyn Fn(&Db, <T as EntityMeta>::Id, T) -> RepoFuture<'static, Result<T, OrmError>> + Send + Sync>;
-type DeleteByIdHandler<T> =
-    Arc<dyn Fn(&Db, <T as EntityMeta>::Id) -> RepoFuture<'static, Result<(), OrmError>> + Send + Sync>;
+type UpdateByIdHandler<T> = Arc<
+    dyn Fn(&Db, <T as EntityMeta>::Id, T) -> RepoFuture<'static, Result<T, OrmError>> + Send + Sync,
+>;
+type DeleteByIdHandler<T> = Arc<
+    dyn Fn(&Db, <T as EntityMeta>::Id) -> RepoFuture<'static, Result<(), OrmError>> + Send + Sync,
+>;
 
 pub struct SqlRepo<T>
 where
@@ -136,7 +141,10 @@ where
 
     pub fn with_find_by_id<F>(mut self, handler: F) -> Self
     where
-        F: Fn(&Db, T::Id) -> RepoFuture<'static, Result<Option<T>, OrmError>> + Send + Sync + 'static,
+        F: Fn(&Db, T::Id) -> RepoFuture<'static, Result<Option<T>, OrmError>>
+            + Send
+            + Sync
+            + 'static,
     {
         self.find_by_id_handler = Some(Arc::new(handler));
         self
@@ -169,16 +177,12 @@ where
     pub fn build(self) -> Result<SqlRepo<T>, OrmError> {
         Ok(SqlRepo {
             db: self.db,
-            find_all_handler: self
-                .find_all_handler
-                .ok_or(OrmError::MissingOperation {
-                    operation: "find_all",
-                })?,
-            find_by_id_handler: self
-                .find_by_id_handler
-                .ok_or(OrmError::MissingOperation {
-                    operation: "find_by_id",
-                })?,
+            find_all_handler: self.find_all_handler.ok_or(OrmError::MissingOperation {
+                operation: "find_all",
+            })?,
+            find_by_id_handler: self.find_by_id_handler.ok_or(OrmError::MissingOperation {
+                operation: "find_by_id",
+            })?,
             create_handler: self.create_handler.ok_or(OrmError::MissingOperation {
                 operation: "create",
             })?,

@@ -22,16 +22,12 @@ pub use container::{Container, ContainerError};
 pub use error::HttpException;
 pub use inject::Inject;
 pub use module::{
-    initialize_module_graph,
-    ControllerBasePath,
-    ControllerDefinition,
-    ModuleDefinition,
-    ModuleRef,
+    initialize_module_graph, ControllerBasePath, ControllerDefinition, ModuleDefinition, ModuleRef,
 };
 pub use pipeline::{run_guards, Guard, Interceptor, NextFn, NextFuture, RequestContext};
 pub use provider::{register_provider, Provider, RegisterProvider};
-pub use request::{Body, Param};
 pub use request::ValidatedBody;
+pub use request::{Body, Param};
 pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};
 pub use validation::{Validate, ValidationErrors, ValidationIssue};

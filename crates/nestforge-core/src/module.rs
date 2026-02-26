@@ -68,7 +68,9 @@ pub trait ModuleDefinition: Send + Sync + 'static {
     }
 }
 
-pub fn initialize_module_graph<M: ModuleDefinition>(container: &Container) -> Result<Vec<Router<Container>>> {
+pub fn initialize_module_graph<M: ModuleDefinition>(
+    container: &Container,
+) -> Result<Vec<Router<Container>>> {
     let mut state = ModuleGraphState::default();
     visit_module(ModuleRef::of::<M>(), container, &mut state)?;
     Ok(state.controllers)
@@ -83,7 +85,11 @@ struct ModuleGraphState {
     global_modules: HashSet<&'static str>,
 }
 
-fn visit_module(module: ModuleRef, container: &Container, state: &mut ModuleGraphState) -> Result<()> {
+fn visit_module(
+    module: ModuleRef,
+    container: &Container,
+    state: &mut ModuleGraphState,
+) -> Result<()> {
     if state.visited.contains(module.name) {
         return Ok(());
     }
@@ -112,7 +118,11 @@ fn visit_module(module: ModuleRef, container: &Container, state: &mut ModuleGrap
 
     for export in (module.exports)() {
         let is_registered = container.is_type_registered_name(export).map_err(|err| {
-            anyhow::anyhow!("Failed to verify exports for module `{}`: {}", module.name, err)
+            anyhow::anyhow!(
+                "Failed to verify exports for module `{}`: {}",
+                module.name,
+                err
+            )
         })?;
         if !is_registered {
             anyhow::bail!(
@@ -209,7 +219,10 @@ mod tests {
 
     impl ModuleDefinition for RootModule {
         fn imports() -> Vec<ModuleRef> {
-            vec![ModuleRef::of::<LeftModule>(), ModuleRef::of::<RightModule>()]
+            vec![
+                ModuleRef::of::<LeftModule>(),
+                ModuleRef::of::<RightModule>(),
+            ]
         }
 
         fn register(_container: &Container) -> Result<()> {
@@ -222,7 +235,10 @@ mod tests {
         let container = Container::new();
         let result = initialize_module_graph::<RootModule>(&container);
 
-        assert!(result.is_ok(), "shared imported modules should only register once");
+        assert!(
+            result.is_ok(),
+            "shared imported modules should only register once"
+        );
         assert!(container.resolve::<SharedMarker>().is_ok());
     }
 

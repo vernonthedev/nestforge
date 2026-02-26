@@ -250,7 +250,9 @@ mod tests {
             named: HashMap::new(),
         };
 
-        let err = db.pool_named("analytics").expect_err("missing pool should fail");
+        let err = db
+            .pool_named("analytics")
+            .expect_err("missing pool should fail");
         assert!(matches!(err, DbError::NamedConnectionNotFound { .. }));
     }
 

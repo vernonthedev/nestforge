@@ -10,9 +10,7 @@ pub struct UsersController;
 #[routes]
 impl UsersController {
     #[get("/")]
-    async fn list(
-        users: Inject<UsersService>,
-    ) -> Result<Json<Vec<UserDto>>, HttpException> {
+    async fn list(users: Inject<UsersService>) -> Result<Json<Vec<UserDto>>, HttpException> {
         Ok(Json(users.find_all()))
     }
 

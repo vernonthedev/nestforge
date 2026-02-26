@@ -2,8 +2,7 @@ use anyhow::{bail, Context, Result};
 use nestforge_db::{Db, DbConfig};
 use std::{
     collections::{HashMap, HashSet},
-    env,
-    fs,
+    env, fs,
     hash::{Hash, Hasher},
     io::Write,
     path::{Path, PathBuf},
@@ -21,19 +20,28 @@ fn main() -> Result<()> {
 
     match args[1].as_str() {
         "new" => {
-            let app_name = args.get(2).context("Missing app name. Example: nestforge new demo-app")?;
+            let app_name = args
+                .get(2)
+                .context("Missing app name. Example: nestforge new demo-app")?;
             create_new_app(app_name)?;
         }
         "g" | "generate" => {
-            let kind = args.get(2).context("Missing generator kind. Example: nestforge g resource users")?;
-            let name = args.get(3).context("Missing generator name. Example: nestforge g resource users")?;
+            let kind = args
+                .get(2)
+                .context("Missing generator kind. Example: nestforge g resource users")?;
+            let name = args
+                .get(3)
+                .context("Missing generator name. Example: nestforge g resource users")?;
 
             match kind.as_str() {
                 "resource" => generate_resource(name)?,
                 "controller" => generate_controller_only(name)?,
                 "service" => generate_service_only(name)?,
                 "module" => generate_module(name)?,
-                _ => bail!("Unknown generator `{}`. Use: resource | controller | service | module", kind),
+                _ => bail!(
+                    "Unknown generator `{}`. Use: resource | controller | service | module",
+                    kind
+                ),
             }
         }
         "db" => run_db_command(&args)?,
@@ -99,10 +107,16 @@ fn create_new_app(app_name: &str) -> Result<()> {
     write_file(&app_dir.join("src/main.rs"), &template_main_rs())?;
 
     /* app_module.rs */
-    write_file(&app_dir.join("src/app_module.rs"), &template_app_module_rs())?;
+    write_file(
+        &app_dir.join("src/app_module.rs"),
+        &template_app_module_rs(),
+    )?;
 
     /* controllers */
-    write_file(&app_dir.join("src/controllers/mod.rs"), &template_controllers_mod_rs())?;
+    write_file(
+        &app_dir.join("src/controllers/mod.rs"),
+        &template_controllers_mod_rs(),
+    )?;
     write_file(
         &app_dir.join("src/controllers/app_controller.rs"),
         &template_app_controller_rs(),
@@ -113,7 +127,10 @@ fn create_new_app(app_name: &str) -> Result<()> {
     )?;
 
     /* services */
-    write_file(&app_dir.join("src/services/mod.rs"), &template_services_mod_rs())?;
+    write_file(
+        &app_dir.join("src/services/mod.rs"),
+        &template_services_mod_rs(),
+    )?;
     write_file(
         &app_dir.join("src/services/app_config.rs"),
         &template_app_config_rs(),
@@ -121,8 +138,14 @@ fn create_new_app(app_name: &str) -> Result<()> {
 
     /* dto */
     write_file(&app_dir.join("src/dto/mod.rs"), &template_dto_mod_rs())?;
-    write_file(&app_dir.join(".env.example"), "DATABASE_URL=postgres://postgres:postgres@localhost/postgres\n")?;
-    write_file(&app_dir.join(".env"), "DATABASE_URL=postgres://postgres:postgres@localhost/postgres\n")?;
+    write_file(
+        &app_dir.join(".env.example"),
+        "DATABASE_URL=postgres://postgres:postgres@localhost/postgres\n",
+    )?;
+    write_file(
+        &app_dir.join(".env"),
+        "DATABASE_URL=postgres://postgres:postgres@localhost/postgres\n",
+    )?;
 
     println!("Created NestForge app at {}", app_dir.display());
     println!();
@@ -156,7 +179,10 @@ fn run_db_command(args: &[String]) -> Result<()> {
         }
         "migrate" => db_migrate(&app_root),
         "status" => db_status(&app_root),
-        _ => bail!("Unknown db command `{}`. Use: init | generate | migrate | status", action),
+        _ => bail!(
+            "Unknown db command `{}`. Use: init | generate | migrate | status",
+            action
+        ),
     }
 }
 
@@ -290,8 +316,9 @@ fn db_migrate(app_root: &Path) -> Result<()> {
         }
 
         for stmt in statements {
-            rt.block_on(db.execute(&stmt))
-                .with_context(|| format!("Migration {} failed on statement: {}", file_name, stmt))?;
+            rt.block_on(db.execute(&stmt)).with_context(|| {
+                format!("Migration {} failed on statement: {}", file_name, stmt)
+            })?;
         }
 
         let hash = compute_content_hash(&sql);
@@ -359,8 +386,20 @@ fn generate_resource(name: &str) -> Result<()> {
     let pascal_singular = to_pascal_case(&singular);
 
     generate_dto_files(&app_root, &resource, &singular, &pascal_singular)?;
-    generate_service_file(&app_root, &resource, &singular, &pascal_plural, &pascal_singular)?;
-    generate_controller_file(&app_root, &resource, &singular, &pascal_plural, &pascal_singular)?;
+    generate_service_file(
+        &app_root,
+        &resource,
+        &singular,
+        &pascal_plural,
+        &pascal_singular,
+    )?;
+    generate_controller_file(
+        &app_root,
+        &resource,
+        &singular,
+        &pascal_plural,
+        &pascal_singular,
+    )?;
 
     patch_dto_mod(&app_root, &singular, &pascal_singular)?;
     patch_services_mod(&app_root, &resource, &pascal_plural)?;
@@ -378,7 +417,13 @@ fn generate_controller_only(name: &str) -> Result<()> {
     let pascal_plural = to_pascal_case(&resource);
     let pascal_singular = to_pascal_case(&singular);
 
-    generate_controller_file(&app_root, &resource, &singular, &pascal_plural, &pascal_singular)?;
+    generate_controller_file(
+        &app_root,
+        &resource,
+        &singular,
+        &pascal_plural,
+        &pascal_singular,
+    )?;
     patch_controllers_mod(&app_root, &resource, &pascal_plural)?;
     patch_app_module_controllers_only(&app_root, &pascal_plural)?;
 
@@ -393,7 +438,13 @@ fn generate_service_only(name: &str) -> Result<()> {
     let pascal_plural = to_pascal_case(&resource);
     let pascal_singular = to_pascal_case(&singular);
 
-    generate_service_file(&app_root, &resource, &singular, &pascal_plural, &pascal_singular)?;
+    generate_service_file(
+        &app_root,
+        &resource,
+        &singular,
+        &pascal_plural,
+        &pascal_singular,
+    )?;
     patch_services_mod(&app_root, &resource, &pascal_plural)?;
     patch_app_module_providers_only(&app_root, &pascal_plural)?;
 
@@ -417,6 +468,7 @@ fn generate_module(name: &str) -> Result<()> {
         &module_file,
         &template_feature_module_rs(&module_name, &pascal_module),
     )?;
+    patch_main_mod_decl(&app_root, &module_name)?;
     patch_root_app_module_import(&app_root, &module_name, &pascal_module)?;
     patch_root_app_module_imports_list(&app_root, &pascal_module)?;
 
@@ -428,7 +480,12 @@ fn generate_module(name: &str) -> Result<()> {
    FILE GENERATION
 ------------------------------ */
 
-fn generate_dto_files(app_root: &Path, resource: &str, singular: &str, pascal_singular: &str) -> Result<()> {
+fn generate_dto_files(
+    app_root: &Path,
+    resource: &str,
+    singular: &str,
+    pascal_singular: &str,
+) -> Result<()> {
     let dto_dir = app_root.join("src/dto");
 
     let entity_file = dto_dir.join(format!("{}_dto.rs", singular));
@@ -456,7 +513,9 @@ fn generate_service_file(
     pascal_plural: &str,
     pascal_singular: &str,
 ) -> Result<()> {
-    let service_path = app_root.join("src/services").join(format!("{}_service.rs", resource));
+    let service_path = app_root
+        .join("src/services")
+        .join(format!("{}_service.rs", resource));
     if service_path.exists() {
         println!("Service already exists: {}", service_path.display());
         return Ok(());
@@ -508,8 +567,14 @@ fn patch_dto_mod(app_root: &Path, singular: &str, pascal_singular: &str) -> Resu
 
     let use_lines = [
         format!("pub use {}_dto::{}Dto;", singular, pascal_singular),
-        format!("pub use create_{}_dto::Create{}Dto;", singular, pascal_singular),
-        format!("pub use update_{}_dto::Update{}Dto;", singular, pascal_singular),
+        format!(
+            "pub use create_{}_dto::Create{}Dto;",
+            singular, pascal_singular
+        ),
+        format!(
+            "pub use update_{}_dto::Update{}Dto;",
+            singular, pascal_singular
+        ),
     ];
 
     for line in mod_lines {
@@ -551,7 +616,10 @@ fn patch_controllers_mod(app_root: &Path, resource: &str, pascal_plural: &str) -
     let mut content = fs::read_to_string(&path)?;
 
     let mod_line = format!("pub mod {}_controller;", resource);
-    let use_line = format!("pub use {}_controller::{}Controller;", resource, pascal_plural);
+    let use_line = format!(
+        "pub use {}_controller::{}Controller;",
+        resource, pascal_plural
+    );
 
     if !content.contains(&mod_line) {
         content.push_str(&format!("\n{}", mod_line));
@@ -580,11 +648,7 @@ fn patch_app_module(app_root: &Path, resource: &str, pascal_plural: &str) -> Res
     );
 
     /* services import */
-    content = patch_brace_import_list(
-        &content,
-        "services",
-        &format!("{}Service", pascal_plural),
-    );
+    content = patch_brace_import_list(&content, "services", &format!("{}Service", pascal_plural));
 
     fs::write(path, content)?;
     let _ = resource;
@@ -1110,6 +1174,23 @@ fn patch_root_app_module_imports_list(app_root: &Path, pascal_module: &str) -> R
     Ok(())
 }
 
+fn patch_main_mod_decl(app_root: &Path, module_name: &str) -> Result<()> {
+    let path = app_root.join("src/main.rs");
+    let mut content = fs::read_to_string(&path)?;
+    let decl = format!("mod {}_module;", module_name);
+    if content.contains(&decl) {
+        return Ok(());
+    }
+
+    if let Some(idx) = content.find("mod app_module;") {
+        let insert_at = idx + "mod app_module;".len();
+        content.insert_str(insert_at, &format!("\n{decl}"));
+        fs::write(path, content)?;
+    }
+
+    Ok(())
+}
+
 fn current_unix_timestamp() -> Result<u64> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1163,7 +1244,11 @@ fn read_applied_migrations(app_root: &Path) -> Result<HashMap<String, String>> {
 
     let content = fs::read_to_string(&file)?;
     let mut map = HashMap::new();
-    for line in content.lines().map(str::trim).filter(|line| !line.is_empty()) {
+    for line in content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
         if let Some((name, hash)) = line.split_once('|') {
             map.insert(name.to_string(), hash.to_string());
         } else {

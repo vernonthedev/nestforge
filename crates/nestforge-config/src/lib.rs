@@ -29,19 +29,24 @@ impl EnvStore {
         let mut values = env::vars().collect::<HashMap<_, _>>();
 
         if path_ref.exists() {
-            let content = fs::read_to_string(path_ref).map_err(|source| ConfigError::ReadEnvFile {
-                path: path_ref.display().to_string(),
-                source,
-            })?;
+            let content =
+                fs::read_to_string(path_ref).map_err(|source| ConfigError::ReadEnvFile {
+                    path: path_ref.display().to_string(),
+                    source,
+                })?;
             for line in content.lines() {
                 let trimmed = line.trim();
                 if trimmed.is_empty() || trimmed.starts_with('#') {
                     continue;
                 }
                 if let Some((key, value)) = trimmed.split_once('=') {
-                    values
-                        .entry(key.trim().to_string())
-                        .or_insert_with(|| value.trim().trim_matches('"').trim_matches('\'').to_string());
+                    values.entry(key.trim().to_string()).or_insert_with(|| {
+                        value
+                            .trim()
+                            .trim_matches('"')
+                            .trim_matches('\'')
+                            .to_string()
+                    });
                 }
             }
         }

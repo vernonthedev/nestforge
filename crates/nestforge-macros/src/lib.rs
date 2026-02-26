@@ -4,8 +4,10 @@ use quote::quote;
 use syn::{
     bracketed,
     parse::{Parse, ParseStream},
-    parse_macro_input, punctuated::Punctuated,
-    Attribute, Expr, Field, Fields, Ident, ImplItem, ImplItemFn, ItemImpl, ItemStruct, LitStr, Meta, Token, Type,
+    parse_macro_input,
+    punctuated::Punctuated,
+    Attribute, Expr, Field, Fields, Ident, ImplItem, ImplItemFn, ItemImpl, ItemStruct, LitStr,
+    Meta, Token, Type,
 };
 
 /*

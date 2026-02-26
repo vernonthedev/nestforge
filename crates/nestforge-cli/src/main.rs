@@ -1080,37 +1080,14 @@ impl {pascal_plural}Controller {{
 
 fn template_guard_rs(pascal_guard: &str) -> String {
     format!(
-        r#"use nestforge::{{Guard, HttpException, RequestContext}};
-
-#[derive(Default)]
-pub struct {pascal_guard};
-
-impl Guard for {pascal_guard} {{
-    fn can_activate(&self, _ctx: &RequestContext) -> Result<(), HttpException> {{
-        Ok(())
-    }}
-}}
+        r#"nestforge::guard!({pascal_guard});
 "#
     )
 }
 
 fn template_interceptor_rs(pascal_interceptor: &str) -> String {
     format!(
-        r#"use nestforge::{{Interceptor, NextFn, NextFuture, RequestContext}};
-
-#[derive(Default)]
-pub struct {pascal_interceptor};
-
-impl Interceptor for {pascal_interceptor} {{
-    fn around(
-        &self,
-        _ctx: RequestContext,
-        req: axum::extract::Request,
-        next: NextFn,
-    ) -> NextFuture {{
-        Box::pin(async move {{ (next)(req).await }})
-    }}
-}}
+        r#"nestforge::interceptor!({pascal_interceptor});
 "#
     )
 }

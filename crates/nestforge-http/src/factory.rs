@@ -1,8 +1,12 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use anyhow::Result;
 use axum::Router;
-use nestforge_core::{initialize_module_graph, Container, ModuleDefinition};
+use axum::middleware::from_fn;
+use nestforge_core::{
+    execute_pipeline, initialize_module_graph, Container, Guard, Interceptor, ModuleDefinition,
+};
 use tower_http::trace::TraceLayer;
 
 /*
@@ -20,6 +24,10 @@ pub struct NestForgeFactory<M: ModuleDefinition> {
     _marker: std::marker::PhantomData<M>,
     container: Container,
     controllers: Vec<Router<Container>>,
+    global_prefix: Option<String>,
+    version: Option<String>,
+    global_guards: Vec<Arc<dyn Guard>>,
+    global_interceptors: Vec<Arc<dyn Interceptor>>,
 }
 
 impl<M: ModuleDefinition> NestForgeFactory<M> {
@@ -31,7 +39,43 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
             _marker: std::marker::PhantomData,
             container,
             controllers,
+            global_prefix: None,
+            version: None,
+            global_guards: Vec::new(),
+            global_interceptors: Vec::new(),
         })
+    }
+
+    pub fn with_global_prefix(mut self, prefix: impl Into<String>) -> Self {
+        let prefix = prefix.into().trim().trim_matches('/').to_string();
+        if !prefix.is_empty() {
+            self.global_prefix = Some(prefix);
+        }
+        self
+    }
+
+    pub fn with_version(mut self, version: impl Into<String>) -> Self {
+        let version = version.into().trim().trim_matches('/').to_string();
+        if !version.is_empty() {
+            self.version = Some(version);
+        }
+        self
+    }
+
+    pub fn use_guard<G>(mut self) -> Self
+    where
+        G: Guard + Default,
+    {
+        self.global_guards.push(Arc::new(G::default()));
+        self
+    }
+
+    pub fn use_interceptor<I>(mut self) -> Self
+    where
+        I: Interceptor + Default,
+    {
+        self.global_interceptors.push(Arc::new(I::default()));
+        self
     }
 
     pub async fn listen(self, port: u16) -> Result<()> {
@@ -48,10 +92,23 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
             app = app.merge(controller_router);
         }
 
-        /*
-        Now attach the real Container state.
-        After this, the router becomes ready to run.
-        */
+        if let Some(version) = &self.version {
+            app = Router::new().nest(&format!("/{}", version), app);
+        }
+
+        if let Some(prefix) = &self.global_prefix {
+            app = Router::new().nest(&format!("/{}", prefix), app);
+        }
+
+        let global_guards = Arc::new(self.global_guards);
+        let global_interceptors = Arc::new(self.global_interceptors);
+
+        let app = app.route_layer(from_fn(move |req, next| {
+            let guards = Arc::clone(&global_guards);
+            let interceptors = Arc::clone(&global_interceptors);
+            async move { execute_pipeline(req, next, guards, interceptors).await }
+        }));
+
         let app = app
             .with_state(self.container.clone())
             .layer(TraceLayer::new_for_http());

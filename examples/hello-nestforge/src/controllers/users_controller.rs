@@ -39,6 +39,8 @@ impl UsersController {
     }
 
     #[nestforge::post("/")]
+    #[nestforge::use_guard(crate::guards::AllowAllGuard)]
+    #[nestforge::use_interceptor(crate::interceptors::LoggingInterceptor)]
     async fn create(
         users: Inject<UsersService>,
         body: ValidatedBody<CreateUserDto>,
@@ -48,6 +50,8 @@ impl UsersController {
     }
 
     #[nestforge::put("/{id}")]
+    #[nestforge::use_guard(crate::guards::AllowAllGuard)]
+    #[nestforge::use_interceptor(crate::interceptors::LoggingInterceptor)]
     async fn update(
         id: Param<u64>,
         users: Inject<UsersService>,

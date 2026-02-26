@@ -53,16 +53,51 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         let ImplItem::Fn(method) = impl_item else {
             continue;
         };
+        let (guards, interceptors) = extract_pipeline_meta(method);
 
         if let Some((http_method, path)) = extract_route_meta(method) {
             let method_name = &method.sig.ident;
             let path_lit = LitStr::new(&path, method.sig.ident.span());
+            let guard_inits = guards.iter().map(|ty| {
+                quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Guard> }
+            });
+            let interceptor_inits = interceptors.iter().map(|ty| {
+                quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Interceptor> }
+            });
 
             let call = match http_method.as_str() {
-                "get" => quote! { builder = builder.get(#path_lit, Self::#method_name); },
-                "post" => quote! { builder = builder.post(#path_lit, Self::#method_name); },
-                "put" => quote! { builder = builder.put(#path_lit, Self::#method_name); },
-                "delete" => quote! { builder = builder.delete(#path_lit, Self::#method_name); },
+                "get" => quote! {
+                    builder = builder.get_with_pipeline(
+                        #path_lit,
+                        Self::#method_name,
+                        vec![#(#guard_inits),*],
+                        vec![#(#interceptor_inits),*]
+                    );
+                },
+                "post" => quote! {
+                    builder = builder.post_with_pipeline(
+                        #path_lit,
+                        Self::#method_name,
+                        vec![#(#guard_inits),*],
+                        vec![#(#interceptor_inits),*]
+                    );
+                },
+                "put" => quote! {
+                    builder = builder.put_with_pipeline(
+                        #path_lit,
+                        Self::#method_name,
+                        vec![#(#guard_inits),*],
+                        vec![#(#interceptor_inits),*]
+                    );
+                },
+                "delete" => quote! {
+                    builder = builder.delete_with_pipeline(
+                        #path_lit,
+                        Self::#method_name,
+                        vec![#(#guard_inits),*],
+                        vec![#(#interceptor_inits),*]
+                    );
+                },
                 _ => continue,
             };
 
@@ -506,6 +541,40 @@ fn extract_route_meta(method: &mut ImplItemFn) -> Option<(String, String)> {
 
     method.attrs = kept_attrs;
     found
+}
+
+fn extract_pipeline_meta(method: &mut ImplItemFn) -> (Vec<Type>, Vec<Type>) {
+    let mut guards = Vec::new();
+    let mut interceptors = Vec::new();
+    let mut kept_attrs: Vec<Attribute> = Vec::new();
+
+    for attr in method.attrs.drain(..) {
+        let ident = attr
+            .path()
+            .segments
+            .last()
+            .map(|seg| seg.ident.to_string())
+            .unwrap_or_default();
+
+        if ident == "use_guard" {
+            if let Ok(ty) = attr.parse_args::<Type>() {
+                guards.push(ty);
+            }
+            continue;
+        }
+
+        if ident == "use_interceptor" {
+            if let Ok(ty) = attr.parse_args::<Type>() {
+                interceptors.push(ty);
+            }
+            continue;
+        }
+
+        kept_attrs.push(attr);
+    }
+
+    method.attrs = kept_attrs;
+    (guards, interceptors)
 }
 
 fn parse_route_attr(attr: &Attribute) -> Option<(String, String)> {

@@ -1,9 +1,12 @@
 use axum::{
+    middleware::from_fn,
     routing::{delete, get, post, put},
     Router,
 };
 
-use crate::{Container, ControllerBasePath};
+use std::sync::Arc;
+
+use crate::{execute_pipeline, Container, ControllerBasePath, Guard, Interceptor};
 
 /*
 RouteBuilder<T> helps us build routes cleanly in generated code.
@@ -62,12 +65,7 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        let full = Self::full_path(path);
-
-        Self {
-            router: self.router.route(&full, get(handler)),
-            _marker: std::marker::PhantomData,
-        }
+        self.get_with_pipeline(path, handler, Vec::new(), Vec::new())
     }
 
     pub fn post<H, TState>(self, path: &str, handler: H) -> Self
@@ -75,12 +73,7 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        let full = Self::full_path(path);
-
-        Self {
-            router: self.router.route(&full, post(handler)),
-            _marker: std::marker::PhantomData,
-        }
+        self.post_with_pipeline(path, handler, Vec::new(), Vec::new())
     }
 
     pub fn put<H, TState>(self, path: &str, handler: H) -> Self
@@ -88,12 +81,7 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        let full = Self::full_path(path);
-
-        Self {
-            router: self.router.route(&full, put(handler)),
-            _marker: std::marker::PhantomData,
-        }
+        self.put_with_pipeline(path, handler, Vec::new(), Vec::new())
     }
 
     pub fn delete<H, TState>(self, path: &str, handler: H) -> Self
@@ -101,10 +89,84 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
+        self.delete_with_pipeline(path, handler, Vec::new(), Vec::new())
+    }
+
+    pub fn get_with_pipeline<H, TState>(
+        self,
+        path: &str,
+        handler: H,
+        guards: Vec<Arc<dyn Guard>>,
+        interceptors: Vec<Arc<dyn Interceptor>>,
+    ) -> Self
+    where
+        H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
+        TState: 'static,
+    {
+        self.route_with_pipeline(path, get(handler), guards, interceptors)
+    }
+
+    pub fn post_with_pipeline<H, TState>(
+        self,
+        path: &str,
+        handler: H,
+        guards: Vec<Arc<dyn Guard>>,
+        interceptors: Vec<Arc<dyn Interceptor>>,
+    ) -> Self
+    where
+        H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
+        TState: 'static,
+    {
+        self.route_with_pipeline(path, post(handler), guards, interceptors)
+    }
+
+    pub fn put_with_pipeline<H, TState>(
+        self,
+        path: &str,
+        handler: H,
+        guards: Vec<Arc<dyn Guard>>,
+        interceptors: Vec<Arc<dyn Interceptor>>,
+    ) -> Self
+    where
+        H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
+        TState: 'static,
+    {
+        self.route_with_pipeline(path, put(handler), guards, interceptors)
+    }
+
+    pub fn delete_with_pipeline<H, TState>(
+        self,
+        path: &str,
+        handler: H,
+        guards: Vec<Arc<dyn Guard>>,
+        interceptors: Vec<Arc<dyn Interceptor>>,
+    ) -> Self
+    where
+        H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
+        TState: 'static,
+    {
+        self.route_with_pipeline(path, delete(handler), guards, interceptors)
+    }
+
+    fn route_with_pipeline(
+        self,
+        path: &str,
+        method_router: axum::routing::MethodRouter<Container>,
+        guards: Vec<Arc<dyn Guard>>,
+        interceptors: Vec<Arc<dyn Interceptor>>,
+    ) -> Self {
         let full = Self::full_path(path);
+        let guards = Arc::new(guards);
+        let interceptors = Arc::new(interceptors);
+
+        let route = method_router.route_layer(from_fn(move |req, next| {
+            let guards = Arc::clone(&guards);
+            let interceptors = Arc::clone(&interceptors);
+            async move { execute_pipeline(req, next, guards, interceptors).await }
+        }));
 
         Self {
-            router: self.router.route(&full, delete(handler)),
+            router: self.router.route(&full, route),
             _marker: std::marker::PhantomData,
         }
     }

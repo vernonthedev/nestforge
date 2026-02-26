@@ -27,7 +27,7 @@ pub use inject::Inject;
 pub use module::{
     initialize_module_graph, ControllerBasePath, ControllerDefinition, ModuleDefinition, ModuleRef,
 };
-pub use pipeline::{run_guards, Guard, Interceptor, NextFn, NextFuture, RequestContext};
+pub use pipeline::{execute_pipeline, run_guards, Guard, Interceptor, NextFn, NextFuture, RequestContext};
 pub use provider::{register_provider, Provider, RegisterProvider};
 pub use request::ValidatedBody;
 pub use request::{Body, Param};

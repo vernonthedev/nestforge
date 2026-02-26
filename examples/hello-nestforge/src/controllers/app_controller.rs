@@ -9,6 +9,6 @@ pub struct AppController;
 impl AppController {
     #[get("/")]
     async fn root(cfg: Inject<AppConfig>) -> Result<String, HttpException> {
-        Ok(format!("Welcome to {} 🔥", cfg.app_name))
+        Ok(format!("Welcome to {} 🦀", cfg.app_name))
     }
 }

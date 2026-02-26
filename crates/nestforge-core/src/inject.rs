@@ -6,7 +6,7 @@ use axum::{
     http::request::Parts,
 };
 
-use crate::{Container, HttpException};
+use crate::{framework_log, Container, HttpException};
 
 /*
 Inject<T> = DI extractor wrapper
@@ -26,6 +26,7 @@ where
     Manual resolve helper (still useful internally/tests)
     */
     pub fn from(container: &Container) -> Result<Self> {
+        framework_log(format!("Injecting {}.", std::any::type_name::<T>()));
         let inner = container.resolve::<T>()?;
         Ok(Self(inner))
     }

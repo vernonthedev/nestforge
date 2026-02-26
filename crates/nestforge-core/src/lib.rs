@@ -11,6 +11,7 @@ pub mod container;
 pub mod error;
 pub mod http_ext;
 pub mod inject;
+pub mod logging;
 pub mod module;
 pub mod pipeline;
 pub mod provider;
@@ -24,6 +25,7 @@ pub use container::{Container, ContainerError};
 pub use error::HttpException;
 pub use http_ext::{OptionHttpExt, ResultHttpExt};
 pub use inject::Inject;
+pub use logging::framework_log;
 pub use module::{
     initialize_module_graph, ControllerBasePath, ControllerDefinition, ModuleDefinition, ModuleRef,
 };

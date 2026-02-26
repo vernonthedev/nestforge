@@ -5,7 +5,8 @@ use anyhow::Result;
 use axum::Router;
 use axum::middleware::from_fn;
 use nestforge_core::{
-    execute_pipeline, initialize_module_graph, Container, Guard, Interceptor, ModuleDefinition,
+    execute_pipeline, framework_log, initialize_module_graph, Container, Guard, Interceptor,
+    ModuleDefinition,
 };
 use tower_http::trace::TraceLayer;
 
@@ -49,6 +50,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
     pub fn with_global_prefix(mut self, prefix: impl Into<String>) -> Self {
         let prefix = prefix.into().trim().trim_matches('/').to_string();
         if !prefix.is_empty() {
+            framework_log(format!("Using global route prefix '{}'.", prefix));
             self.global_prefix = Some(prefix);
         }
         self
@@ -57,6 +59,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
     pub fn with_version(mut self, version: impl Into<String>) -> Self {
         let version = version.into().trim().trim_matches('/').to_string();
         if !version.is_empty() {
+            framework_log(format!("Using api version '{}'.", version));
             self.version = Some(version);
         }
         self
@@ -66,6 +69,10 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
     where
         G: Guard + Default,
     {
+        framework_log(format!(
+            "Registering guard {}.",
+            std::any::type_name::<G>()
+        ));
         self.global_guards.push(Arc::new(G::default()));
         self
     }
@@ -74,6 +81,10 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
     where
         I: Interceptor + Default,
     {
+        framework_log(format!(
+            "Registering interceptor {}.",
+            std::any::type_name::<I>()
+        ));
         self.global_interceptors.push(Arc::new(I::default()));
         self
     }
@@ -116,7 +127,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
         let listener = tokio::net::TcpListener::bind(addr).await?;
 
-        println!("🦀 NestForge running on http://{}", addr);
+        framework_log(format!("Listening on {}.", addr));
 
         axum::serve(listener, app).await?;
         Ok(())

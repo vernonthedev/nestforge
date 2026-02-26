@@ -9,6 +9,7 @@ pub use nestforge_core::{
     Inject, Interceptor, List, ModuleDefinition, ModuleRef, NextFn, NextFuture, OptionHttpExt,
     Param, Provider, RegisterProvider, RequestContext, ResourceError, ResourceService,
     ResultHttpExt, RouteBuilder, Validate, ValidatedBody, ValidationErrors, ValidationIssue,
+    framework_log,
 };
 
 #[cfg(feature = "config")]

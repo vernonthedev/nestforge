@@ -110,6 +110,10 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         impl nestforge::ControllerDefinition for #self_ty {
             fn router() -> axum::Router<nestforge::Container> {
+                nestforge::framework_log(format!(
+                    "Registering controller {}.",
+                    std::any::type_name::<#self_ty>()
+                ));
                 let mut builder = nestforge::RouteBuilder::<#self_ty>::new();
                 #(#route_calls)*
                 builder.build()

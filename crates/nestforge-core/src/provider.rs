@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use anyhow::{anyhow, Result};
 
-use crate::Container;
+use crate::{framework_log, Container};
 
 pub struct Provider;
 
@@ -44,6 +44,10 @@ where
     T: Send + Sync + 'static,
 {
     fn register(self, container: &Container) -> Result<()> {
+        framework_log(format!(
+            "Registering service {}.",
+            std::any::type_name::<T>()
+        ));
         container.register(self.value)?;
         Ok(())
     }
@@ -55,6 +59,10 @@ where
     F: FnOnce(&Container) -> Result<T> + Send + 'static,
 {
     fn register(self, container: &Container) -> Result<()> {
+        framework_log(format!(
+            "Registering service {} (factory).",
+            std::any::type_name::<T>()
+        ));
         let value = (self.factory)(container).map_err(|err| {
             anyhow!(
                 "Failed to build provider `{}`: {}",

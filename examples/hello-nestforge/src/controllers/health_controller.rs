@@ -5,13 +5,13 @@ pub struct HealthController;
 
 #[routes]
 impl HealthController {
-    #[get("/health")]
-    async fn health() -> &'static str {
-        "OK"
+    #[nestforge::get("/health")]
+    async fn health() -> String {
+        "OK".to_string()
     }
 
-    #[get("/health/db")]
-    async fn health_db(_db: Inject<Db>) -> Result<&'static str, HttpException> {
-        Ok("DB_READY")
+    #[nestforge::get("/health/db")]
+    async fn health_db(_db: Inject<Db>) -> Result<String, HttpException> {
+        Ok("DB_READY".to_string())
     }
 }

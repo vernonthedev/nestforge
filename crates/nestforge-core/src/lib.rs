@@ -33,3 +33,6 @@ pub use resource_service::{ResourceError, ResourceService};
 pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};
 pub use validation::{Validate, ValidationErrors, ValidationIssue};
+
+pub type ApiResult<T> = Result<axum::Json<T>, HttpException>;
+pub type List<T> = Vec<T>;

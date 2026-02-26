@@ -810,8 +810,8 @@ pub struct HealthController;
 #[routes]
 impl HealthController {
     #[nestforge::get("/health")]
-    async fn health() -> &'static str {
-        "OK"
+    async fn health() -> String {
+        "OK".to_string()
     }
 }
 "#
@@ -887,7 +887,7 @@ fn template_resource_controller_rs(
 ) -> String {
     format!(
         r#"use axum::Json;
-use nestforge::{{controller, routes, HttpException, Inject, Param, ValidatedBody}};
+use nestforge::{{controller, routes, ApiResult, HttpException, Inject, List, Param, ValidatedBody}};
 
 use crate::dto::{{Create{pascal_singular}Dto, Update{pascal_singular}Dto, {pascal_singular}Dto}};
 use crate::services::{pascal_plural}Service;
@@ -900,7 +900,7 @@ impl {pascal_plural}Controller {{
     #[nestforge::get("/")]
     async fn list(
         service: Inject<{pascal_plural}Service>,
-    ) -> Result<Json<Vec<{pascal_singular}Dto>>, HttpException> {{
+    ) -> ApiResult<List<{pascal_singular}Dto>> {{
         Ok(Json(service.find_all()))
     }}
 
@@ -908,7 +908,7 @@ impl {pascal_plural}Controller {{
     async fn get_one(
         id: Param<u64>,
         service: Inject<{pascal_plural}Service>,
-    ) -> Result<Json<{pascal_singular}Dto>, HttpException> {{
+    ) -> ApiResult<{pascal_singular}Dto> {{
         let item = service
             .find_by_id(*id)
             .ok_or_else(|| HttpException::not_found(format!("{pascal_singular} with id {{}} not found", *id)))?;
@@ -920,7 +920,7 @@ impl {pascal_plural}Controller {{
     async fn create(
         service: Inject<{pascal_plural}Service>,
         body: ValidatedBody<Create{pascal_singular}Dto>,
-    ) -> Result<Json<{pascal_singular}Dto>, HttpException> {{
+    ) -> ApiResult<{pascal_singular}Dto> {{
         let item = service
             .create_from(body.into_inner())
             .map_err(|err| HttpException::bad_request(err.to_string()))?;
@@ -932,7 +932,7 @@ impl {pascal_plural}Controller {{
         id: Param<u64>,
         service: Inject<{pascal_plural}Service>,
         body: ValidatedBody<Update{pascal_singular}Dto>,
-    ) -> Result<Json<{pascal_singular}Dto>, HttpException> {{
+    ) -> ApiResult<{pascal_singular}Dto> {{
         let item = service
             .update_from(*id, body.into_inner())
             .map_err(|err| HttpException::bad_request(err.to_string()))?

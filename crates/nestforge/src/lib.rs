@@ -13,7 +13,10 @@ pub use nestforge_core::{
 };
 
 #[cfg(feature = "config")]
-pub use nestforge_config::{load_config, ConfigError, ConfigModule, ConfigOptions, EnvStore, FromEnv};
+pub use nestforge_config::{
+    load_config, ConfigError, ConfigModule, ConfigOptions, EnvSchema, EnvStore, EnvValidationIssue,
+    FromEnv,
+};
 #[cfg(feature = "data")]
 pub use nestforge_data::{CacheStore, DataError, DataFuture, DocumentRepo};
 #[cfg(feature = "db")]

@@ -32,11 +32,12 @@ fn main() -> Result<()> {
             let name = args
                 .get(3)
                 .context("Missing generator name. Example: nestforge g resource users")?;
+            let target_module = parse_target_module_arg(&args[4..])?;
 
             match kind.as_str() {
-                "resource" => generate_resource(name)?,
-                "controller" => generate_controller_only(name)?,
-                "service" => generate_service_only(name)?,
+                "resource" => generate_resource(name, target_module.as_deref())?,
+                "controller" => generate_controller_only(name, target_module.as_deref())?,
+                "service" => generate_service_only(name, target_module.as_deref())?,
                 "module" => generate_module(name)?,
                 "guard" => generate_guard_only(name)?,
                 "interceptor" => generate_interceptor_only(name)?,
@@ -65,6 +66,7 @@ fn print_help() {
     println!("  nestforge g resource <name>");
     println!("  nestforge g controller <name>");
     println!("  nestforge g service <name>");
+    println!("  nestforge g resource <name> --module <feature>");
     println!("  nestforge g module <name>");
     println!("  nestforge g guard <name>");
     println!("  nestforge g interceptor <name>");
@@ -392,75 +394,99 @@ fn db_status(app_root: &Path) -> Result<()> {
    GENERATORS
 ------------------------------ */
 
-fn generate_resource(name: &str) -> Result<()> {
+fn generate_resource(name: &str, target_module: Option<&str>) -> Result<()> {
     let app_root = detect_app_root()?;
     let resource = normalize_resource_name(name);
     let singular = singular_name(&resource);
     let pascal_plural = to_pascal_case(&resource);
     let pascal_singular = to_pascal_case(&singular);
 
-    generate_dto_files(&app_root, &resource, &singular, &pascal_singular)?;
+    let target_root = generator_target_root(&app_root, target_module)?;
+    let namespace = generator_namespace(target_module);
+
+    generate_dto_files(&target_root, &resource, &singular, &pascal_singular)?;
     generate_service_file(
-        &app_root,
+        &target_root,
         &resource,
         &singular,
         &pascal_plural,
         &pascal_singular,
+        &namespace,
     )?;
     generate_controller_file(
-        &app_root,
+        &target_root,
         &resource,
         &singular,
         &pascal_plural,
         &pascal_singular,
+        &namespace,
     )?;
 
-    patch_dto_mod(&app_root, &singular, &pascal_singular)?;
-    patch_services_mod(&app_root, &resource, &pascal_plural)?;
-    patch_controllers_mod(&app_root, &resource, &pascal_plural)?;
-    patch_app_module(&app_root, &resource, &pascal_plural)?;
+    patch_dto_mod(&target_root, &singular, &pascal_singular)?;
+    patch_services_mod(&target_root, &resource, &pascal_plural)?;
+    patch_controllers_mod(&target_root, &resource, &pascal_plural)?;
+
+    if let Some(module_name) = target_module {
+        patch_feature_module(&app_root, module_name, &pascal_plural)?;
+    } else {
+        patch_app_module(&app_root, &resource, &pascal_plural)?;
+    }
 
     println!("Generated resource `{}`", resource);
     Ok(())
 }
 
-fn generate_controller_only(name: &str) -> Result<()> {
+fn generate_controller_only(name: &str, target_module: Option<&str>) -> Result<()> {
     let app_root = detect_app_root()?;
     let resource = normalize_resource_name(name);
     let singular = singular_name(&resource);
     let pascal_plural = to_pascal_case(&resource);
     let pascal_singular = to_pascal_case(&singular);
+    let target_root = generator_target_root(&app_root, target_module)?;
+    let namespace = generator_namespace(target_module);
 
     generate_controller_file(
-        &app_root,
+        &target_root,
         &resource,
         &singular,
         &pascal_plural,
         &pascal_singular,
+        &namespace,
     )?;
-    patch_controllers_mod(&app_root, &resource, &pascal_plural)?;
-    patch_app_module_controllers_only(&app_root, &pascal_plural)?;
+    patch_controllers_mod(&target_root, &resource, &pascal_plural)?;
+    if let Some(module_name) = target_module {
+        patch_feature_module(&app_root, module_name, &pascal_plural)?;
+    } else {
+        patch_app_module_controllers_only(&app_root, &pascal_plural)?;
+    }
 
     println!("Generated controller `{}`", resource);
     Ok(())
 }
 
-fn generate_service_only(name: &str) -> Result<()> {
+fn generate_service_only(name: &str, target_module: Option<&str>) -> Result<()> {
     let app_root = detect_app_root()?;
     let resource = normalize_resource_name(name);
     let singular = singular_name(&resource);
     let pascal_plural = to_pascal_case(&resource);
     let pascal_singular = to_pascal_case(&singular);
+    let target_root = generator_target_root(&app_root, target_module)?;
+    let namespace = generator_namespace(target_module);
 
     generate_service_file(
-        &app_root,
+        &target_root,
         &resource,
         &singular,
         &pascal_plural,
         &pascal_singular,
+        &namespace,
     )?;
-    patch_services_mod(&app_root, &resource, &pascal_plural)?;
-    patch_app_module_providers_only(&app_root, &pascal_plural)?;
+    patch_services_mod(&target_root, &resource, &pascal_plural)?;
+    if let Some(module_name) = target_module {
+        patch_feature_module(&app_root, module_name, &pascal_plural)?;
+    } else {
+        patch_app_module_providers_only(&app_root, &pascal_plural)?;
+    }
 
     println!("Generated service `{}`", resource);
     Ok(())
@@ -470,18 +496,32 @@ fn generate_module(name: &str) -> Result<()> {
     let app_root = detect_app_root()?;
     let module_name = normalize_resource_name(name);
     let pascal_module = format!("{}Module", to_pascal_case(&module_name));
-    let module_file = app_root
-        .join("src")
-        .join(format!("{}_module.rs", module_name));
+    let module_dir = app_root.join("src").join(&module_name);
+    let module_file = module_dir.join("mod.rs");
 
     if module_file.exists() {
-        bail!("Module already exists: {}", module_file.display());
+        bail!("Module folder already exists: {}", module_dir.display());
     }
 
+    write_file(&module_dir.join("mod.rs"), &template_feature_mod_rs(&module_name, &pascal_module))?;
     write_file(
-        &module_file,
-        &template_feature_module_rs(&module_name, &pascal_module),
+        &module_dir.join("controllers/mod.rs"),
+        &template_feature_controllers_mod_rs(&module_name, &pascal_module),
     )?;
+    write_file(
+        &module_dir.join("controllers/controller.rs"),
+        &template_feature_controller_rs(&module_name, &pascal_module),
+    )?;
+    write_file(
+        &module_dir.join("services/mod.rs"),
+        &template_feature_services_mod_rs(&module_name, &pascal_module),
+    )?;
+    write_file(
+        &module_dir.join("services/service.rs"),
+        &template_feature_service_rs(&module_name, &pascal_module),
+    )?;
+    write_file(&module_dir.join("dto/mod.rs"), &template_feature_dto_mod_rs())?;
+
     patch_main_mod_decl(&app_root, &module_name)?;
     patch_root_app_module_import(&app_root, &module_name, &pascal_module)?;
     patch_root_app_module_imports_list(&app_root, &pascal_module)?;
@@ -540,12 +580,12 @@ fn generate_interceptor_only(name: &str) -> Result<()> {
 ------------------------------ */
 
 fn generate_dto_files(
-    app_root: &Path,
+    target_root: &Path,
     resource: &str,
     singular: &str,
     pascal_singular: &str,
 ) -> Result<()> {
-    let dto_dir = app_root.join("src/dto");
+    let dto_dir = target_root.join("dto");
 
     let entity_file = dto_dir.join(format!("{}_dto.rs", singular));
     let create_file = dto_dir.join(format!("create_{}_dto.rs", singular));
@@ -566,14 +606,15 @@ fn generate_dto_files(
 }
 
 fn generate_service_file(
-    app_root: &Path,
+    target_root: &Path,
     resource: &str,
     singular: &str,
     pascal_plural: &str,
     pascal_singular: &str,
+    namespace: &str,
 ) -> Result<()> {
-    let service_path = app_root
-        .join("src/services")
+    let service_path = target_root
+        .join("services")
         .join(format!("{}_service.rs", resource));
     if service_path.exists() {
         println!("Service already exists: {}", service_path.display());
@@ -582,20 +623,21 @@ fn generate_service_file(
 
     write_file(
         &service_path,
-        &template_resource_service_rs(resource, singular, pascal_plural, pascal_singular),
+        &template_resource_service_rs(resource, singular, pascal_plural, pascal_singular, namespace),
     )?;
     Ok(())
 }
 
 fn generate_controller_file(
-    app_root: &Path,
+    target_root: &Path,
     resource: &str,
     singular: &str,
     pascal_plural: &str,
     pascal_singular: &str,
+    namespace: &str,
 ) -> Result<()> {
-    let controller_path = app_root
-        .join("src/controllers")
+    let controller_path = target_root
+        .join("controllers")
         .join(format!("{}_controller.rs", resource));
 
     if controller_path.exists() {
@@ -605,7 +647,7 @@ fn generate_controller_file(
 
     write_file(
         &controller_path,
-        &template_resource_controller_rs(resource, singular, pascal_plural, pascal_singular),
+        &template_resource_controller_rs(resource, singular, pascal_plural, pascal_singular, namespace),
     )?;
     Ok(())
 }
@@ -614,8 +656,8 @@ fn generate_controller_file(
    PATCHERS
 ------------------------------ */
 
-fn patch_dto_mod(app_root: &Path, singular: &str, pascal_singular: &str) -> Result<()> {
-    let path = app_root.join("src/dto/mod.rs");
+fn patch_dto_mod(target_root: &Path, singular: &str, pascal_singular: &str) -> Result<()> {
+    let path = target_root.join("dto/mod.rs");
     let mut content = fs::read_to_string(&path)?;
 
     let mod_lines = [
@@ -652,8 +694,8 @@ fn patch_dto_mod(app_root: &Path, singular: &str, pascal_singular: &str) -> Resu
     Ok(())
 }
 
-fn patch_services_mod(app_root: &Path, resource: &str, pascal_plural: &str) -> Result<()> {
-    let path = app_root.join("src/services/mod.rs");
+fn patch_services_mod(target_root: &Path, resource: &str, pascal_plural: &str) -> Result<()> {
+    let path = target_root.join("services/mod.rs");
     let mut content = fs::read_to_string(&path)?;
 
     let mod_line = format!("pub mod {}_service;", resource);
@@ -670,8 +712,8 @@ fn patch_services_mod(app_root: &Path, resource: &str, pascal_plural: &str) -> R
     Ok(())
 }
 
-fn patch_controllers_mod(app_root: &Path, resource: &str, pascal_plural: &str) -> Result<()> {
-    let path = app_root.join("src/controllers/mod.rs");
+fn patch_controllers_mod(target_root: &Path, resource: &str, pascal_plural: &str) -> Result<()> {
+    let path = target_root.join("controllers/mod.rs");
     let mut content = fs::read_to_string(&path)?;
 
     let mod_line = format!("pub mod {}_controller;", resource);
@@ -762,6 +804,57 @@ fn patch_app_module(app_root: &Path, resource: &str, pascal_plural: &str) -> Res
 
     fs::write(path, content)?;
     let _ = resource;
+    Ok(())
+}
+
+fn patch_feature_module(app_root: &Path, module_name: &str, pascal_plural: &str) -> Result<()> {
+    let path = app_root.join("src").join(module_name).join("mod.rs");
+    let mut content = fs::read_to_string(&path)?;
+
+    let controller_use_marker = "/* nestforge:feature_controllers_use */";
+    let provider_use_marker = "/* nestforge:feature_services_use */";
+    let controllers_marker = "/* nestforge:feature_controllers */";
+    let providers_marker = "/* nestforge:feature_providers */";
+    let exports_marker = "/* nestforge:feature_exports */";
+
+    let controller_use = format!("{}Controller,", pascal_plural);
+    let service_use = format!("{}Service,", pascal_plural);
+    let controller_entry = format!("{}Controller,", pascal_plural);
+    let provider_entry = format!("{}Service::new(),", pascal_plural);
+    let export_entry = format!("{}Service,", pascal_plural);
+
+    if !content.contains(&controller_use) && content.contains(controller_use_marker) {
+        content = content.replace(
+            controller_use_marker,
+            &format!("{}\n    {}", controller_use_marker, controller_use),
+        );
+    }
+    if !content.contains(&service_use) && content.contains(provider_use_marker) {
+        content = content.replace(
+            provider_use_marker,
+            &format!("{}\n    {}", provider_use_marker, service_use),
+        );
+    }
+    if !content.contains(&controller_entry) && content.contains(controllers_marker) {
+        content = content.replace(
+            controllers_marker,
+            &format!("{}\n        {}", controllers_marker, controller_entry),
+        );
+    }
+    if !content.contains(&provider_entry) && content.contains(providers_marker) {
+        content = content.replace(
+            providers_marker,
+            &format!("{}\n        {}", providers_marker, provider_entry),
+        );
+    }
+    if !content.contains(&export_entry) && content.contains(exports_marker) {
+        content = content.replace(
+            exports_marker,
+            &format!("{}\n        {}", exports_marker, export_entry),
+        );
+    }
+
+    fs::write(path, content)?;
     Ok(())
 }
 
@@ -1007,11 +1100,12 @@ fn template_resource_service_rs(
     _singular: &str,
     pascal_plural: &str,
     pascal_singular: &str,
+    namespace: &str,
 ) -> String {
     format!(
         r#"use nestforge::ResourceService;
 
-use crate::dto::{pascal_singular}Dto;
+use {namespace}dto::{pascal_singular}Dto;
 
 pub type {pascal_plural}Service = ResourceService<{pascal_singular}Dto>;
 "#
@@ -1023,13 +1117,14 @@ fn template_resource_controller_rs(
     _singular: &str,
     pascal_plural: &str,
     pascal_singular: &str,
+    namespace: &str,
 ) -> String {
     format!(
         r#"use axum::Json;
 use nestforge::{{controller, routes, ApiResult, Inject, List, OptionHttpExt, Param, ResultHttpExt, ValidatedBody}};
 
-use crate::dto::{{Create{pascal_singular}Dto, Update{pascal_singular}Dto, {pascal_singular}Dto}};
-use crate::services::{pascal_plural}Service;
+use {namespace}dto::{{Create{pascal_singular}Dto, Update{pascal_singular}Dto, {pascal_singular}Dto}};
+use {namespace}services::{pascal_plural}Service;
 
 #[controller("/{resource}")]
 pub struct {pascal_plural}Controller;
@@ -1130,6 +1225,45 @@ fn normalize_resource_name(name: &str) -> String {
     to_snake_case(name).replace(' ', "_")
 }
 
+fn parse_target_module_arg(args: &[String]) -> Result<Option<String>> {
+    if args.is_empty() {
+        return Ok(None);
+    }
+
+    if args.len() == 2 && args[0] == "--module" {
+        let module = normalize_resource_name(&args[1]);
+        if module.is_empty() {
+            bail!("Module name cannot be empty.");
+        }
+        return Ok(Some(module));
+    }
+
+    bail!("Invalid generator options. Use: --module <feature>");
+}
+
+fn generator_target_root(app_root: &Path, target_module: Option<&str>) -> Result<PathBuf> {
+    if let Some(module_name) = target_module {
+        let root = app_root.join("src").join(module_name);
+        if !root.exists() {
+            bail!(
+                "Target module `{}` not found. Create it first with: nestforge g module {}",
+                module_name,
+                module_name
+            );
+        }
+        return Ok(root);
+    }
+
+    Ok(app_root.join("src"))
+}
+
+fn generator_namespace(target_module: Option<&str>) -> String {
+    if let Some(module_name) = target_module {
+        return format!("crate::{}::", module_name);
+    }
+    "crate::".to_string()
+}
+
 fn singular_name(resource: &str) -> String {
     if resource.ends_with("ies") && resource.len() > 3 {
         format!("{}y", &resource[..resource.len() - 3])
@@ -1195,21 +1329,93 @@ fn patch_brace_import_list(content: &str, module_name: &str, item: &str) -> Stri
     content.to_string()
 }
 
-fn template_feature_module_rs(module_name: &str, pascal_module: &str) -> String {
+fn template_feature_mod_rs(module_name: &str, pascal_module: &str) -> String {
     format!(
-        r#"use nestforge::module;
+        r#"pub mod controllers;
+pub mod dto;
+pub mod services;
+
+use nestforge::module;
+
+use self::controllers::{{
+    Controller,
+    /* nestforge:feature_controllers_use */
+}};
+use self::services::{{
+    Service,
+    /* nestforge:feature_services_use */
+}};
 
 #[module(
     imports = [],
-    controllers = [],
-    providers = [],
-    exports = []
+    controllers = [
+        Controller,
+        /* nestforge:feature_controllers */
+    ],
+    providers = [
+        Service::new(),
+        /* nestforge:feature_providers */
+    ],
+    exports = [
+        Service,
+        /* nestforge:feature_exports */
+    ]
 )]
 pub struct {pascal_module};
 
-// Module: {module_name}
+// Feature module: {module_name}
 "#
     )
+}
+
+fn template_feature_controllers_mod_rs(_module_name: &str, _pascal_module: &str) -> String {
+    "pub mod controller;\n\npub use controller::Controller;\n".to_string()
+}
+
+fn template_feature_controller_rs(module_name: &str, _pascal_module: &str) -> String {
+    format!(
+        r#"use nestforge::{{controller, routes, Inject}};
+
+use crate::{module_name}::services::Service;
+
+#[controller("/{module_name}")]
+pub struct Controller;
+
+#[routes]
+impl Controller {{
+    #[nestforge::get("/")]
+    async fn index(service: Inject<Service>) -> String {{
+        service.hello()
+    }}
+}}
+"#
+    )
+}
+
+fn template_feature_services_mod_rs(_module_name: &str, _pascal_module: &str) -> String {
+    "pub mod service;\n\npub use service::Service;\n".to_string()
+}
+
+fn template_feature_service_rs(module_name: &str, _pascal_module: &str) -> String {
+    format!(
+        r#"#[derive(Clone)]
+pub struct Service;
+
+impl Service {{
+    pub fn new() -> Self {{
+        Self
+    }}
+
+    pub fn hello(&self) -> String {{
+        "Hello from {module_name} module".to_string()
+    }}
+}}
+"#
+    )
+}
+
+fn template_feature_dto_mod_rs() -> String {
+    "/* feature dto exports */\n".to_string()
 }
 
 fn patch_root_app_module_import(
@@ -1219,7 +1425,7 @@ fn patch_root_app_module_import(
 ) -> Result<()> {
     let path = app_root.join("src/app_module.rs");
     let mut content = fs::read_to_string(&path)?;
-    let import_line = format!("use crate::{}_module::{};\n", module_name, pascal_module);
+    let import_line = format!("use crate::{}::{};\n", module_name, pascal_module);
 
     if !content.contains(&import_line) {
         content = format!("{import_line}{content}");
@@ -1260,7 +1466,7 @@ fn patch_root_app_module_imports_list(app_root: &Path, pascal_module: &str) -> R
 fn patch_main_mod_decl(app_root: &Path, module_name: &str) -> Result<()> {
     let path = app_root.join("src/main.rs");
     let mut content = fs::read_to_string(&path)?;
-    let decl = format!("mod {}_module;", module_name);
+    let decl = format!("mod {};", module_name);
     if content.contains(&decl) {
         return Ok(());
     }

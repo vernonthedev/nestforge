@@ -887,7 +887,7 @@ fn template_resource_controller_rs(
 ) -> String {
     format!(
         r#"use axum::Json;
-use nestforge::{{controller, routes, ApiResult, HttpException, Inject, List, Param, ValidatedBody}};
+use nestforge::{{controller, routes, ApiResult, Inject, List, OptionHttpExt, Param, ResultHttpExt, ValidatedBody}};
 
 use crate::dto::{{Create{pascal_singular}Dto, Update{pascal_singular}Dto, {pascal_singular}Dto}};
 use crate::services::{pascal_plural}Service;
@@ -909,9 +909,10 @@ impl {pascal_plural}Controller {{
         id: Param<u64>,
         service: Inject<{pascal_plural}Service>,
     ) -> ApiResult<{pascal_singular}Dto> {{
+        let id = id.value();
         let item = service
-            .find_by_id(*id)
-            .ok_or_else(|| HttpException::not_found(format!("{pascal_singular} with id {{}} not found", *id)))?;
+            .find_by_id(id)
+            .or_not_found_id("{pascal_singular}", id)?;
 
         Ok(Json(item))
     }}
@@ -922,8 +923,8 @@ impl {pascal_plural}Controller {{
         body: ValidatedBody<Create{pascal_singular}Dto>,
     ) -> ApiResult<{pascal_singular}Dto> {{
         let item = service
-            .create_from(body.into_inner())
-            .map_err(|err| HttpException::bad_request(err.to_string()))?;
+            .create_from(body.value())
+            .or_bad_request()?;
         Ok(Json(item))
     }}
 
@@ -933,10 +934,11 @@ impl {pascal_plural}Controller {{
         service: Inject<{pascal_plural}Service>,
         body: ValidatedBody<Update{pascal_singular}Dto>,
     ) -> ApiResult<{pascal_singular}Dto> {{
+        let id = id.value();
         let item = service
-            .update_from(*id, body.into_inner())
-            .map_err(|err| HttpException::bad_request(err.to_string()))?
-            .ok_or_else(|| HttpException::not_found(format!("{pascal_singular} with id {{}} not found", *id)))?;
+            .update_from(id, body.value())
+            .or_bad_request()?
+            .or_not_found_id("{pascal_singular}", id)?;
 
         Ok(Json(item))
     }}

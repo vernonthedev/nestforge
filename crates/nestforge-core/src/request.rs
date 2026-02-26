@@ -32,6 +32,10 @@ impl<T> Param<T> {
     pub fn into_inner(self) -> T {
         self.0
     }
+
+    pub fn value(self) -> T {
+        self.0
+    }
 }
 
 /*
@@ -76,6 +80,10 @@ impl<T> Body<T> {
     pub fn into_inner(self) -> T {
         self.0
     }
+
+    pub fn value(self) -> T {
+        self.0
+    }
 }
 
 /*
@@ -109,6 +117,10 @@ impl<T> Deref for ValidatedBody<T> {
 
 impl<T> ValidatedBody<T> {
     pub fn into_inner(self) -> T {
+        self.0
+    }
+
+    pub fn value(self) -> T {
         self.0
     }
 }

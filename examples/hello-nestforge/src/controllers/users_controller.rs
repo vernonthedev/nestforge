@@ -1,5 +1,8 @@
 use axum::Json;
-use nestforge::{controller, routes, ApiResult, HttpException, Inject, List, Param, ValidatedBody};
+use nestforge::{
+    controller, routes, ApiResult, Inject, List, OptionHttpExt, Param, ResultHttpExt,
+    ValidatedBody,
+};
 
 use crate::dto::{CreateUserDto, UpdateUserDto, UserDto, UserExistsDto, UsersCountDto};
 use crate::services::{
@@ -29,10 +32,8 @@ impl UsersController {
         id: Param<u64>,
         users: Inject<UsersService>,
     ) -> ApiResult<UserDto> {
-        let id_value = id.into_inner();
-        let user = get_user_by_id(users.as_ref(), id_value).ok_or_else(|| {
-            HttpException::not_found(format!("User with id {} not found", id_value))
-        })?;
+        let id = id.value();
+        let user = get_user_by_id(users.as_ref(), id).or_not_found_id("User", id)?;
 
         Ok(Json(user))
     }
@@ -42,8 +43,7 @@ impl UsersController {
         users: Inject<UsersService>,
         body: ValidatedBody<CreateUserDto>,
     ) -> ApiResult<UserDto> {
-        let user = create_user(users.as_ref(), body.into_inner())
-            .map_err(|err| HttpException::bad_request(err.to_string()))?;
+        let user = create_user(users.as_ref(), body.value()).or_bad_request()?;
         Ok(Json(user))
     }
 
@@ -53,10 +53,10 @@ impl UsersController {
         users: Inject<UsersService>,
         body: ValidatedBody<UpdateUserDto>,
     ) -> ApiResult<UserDto> {
-        let id_value = id.into_inner();
-        let updated = update_user(users.as_ref(), id_value, body.into_inner())
-            .map_err(|err| HttpException::bad_request(err.to_string()))?
-            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", id_value)))?;
+        let id = id.value();
+        let updated = update_user(users.as_ref(), id, body.value())
+            .or_bad_request()?
+            .or_not_found_id("User", id)?;
 
         Ok(Json(updated))
     }
@@ -67,10 +67,10 @@ impl UsersController {
         users: Inject<UsersService>,
         body: ValidatedBody<CreateUserDto>,
     ) -> ApiResult<UserDto> {
-        let id_value = id.into_inner();
-        let replaced = replace_user(users.as_ref(), id_value, body.into_inner())
-            .map_err(|err| HttpException::bad_request(err.to_string()))?
-            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", id_value)))?;
+        let id = id.value();
+        let replaced = replace_user(users.as_ref(), id, body.value())
+            .or_bad_request()?
+            .or_not_found_id("User", id)?;
 
         Ok(Json(replaced))
     }
@@ -80,10 +80,10 @@ impl UsersController {
         id: Param<u64>,
         users: Inject<UsersService>,
     ) -> ApiResult<UserExistsDto> {
-        let id_value = id.into_inner();
+        let id = id.value();
         Ok(Json(UserExistsDto {
-            id: id_value,
-            exists: user_exists(users.as_ref(), id_value),
+            id,
+            exists: user_exists(users.as_ref(), id),
         }))
     }
 
@@ -92,10 +92,8 @@ impl UsersController {
         id: Param<u64>,
         users: Inject<UsersService>,
     ) -> ApiResult<UserDto> {
-        let id_value = id.into_inner();
-        let deleted = delete_user(users.as_ref(), id_value).ok_or_else(|| {
-            HttpException::not_found(format!("User with id {} not found", id_value))
-        })?;
+        let id = id.value();
+        let deleted = delete_user(users.as_ref(), id).or_not_found_id("User", id)?;
 
         Ok(Json(deleted))
     }

@@ -9,6 +9,7 @@
 */
 pub mod container;
 pub mod error;
+pub mod http_ext;
 pub mod inject;
 pub mod module;
 pub mod pipeline;
@@ -21,6 +22,7 @@ pub mod validation;
 
 pub use container::{Container, ContainerError};
 pub use error::HttpException;
+pub use http_ext::{OptionHttpExt, ResultHttpExt};
 pub use inject::Inject;
 pub use module::{
     initialize_module_graph, ControllerBasePath, ControllerDefinition, ModuleDefinition, ModuleRef,

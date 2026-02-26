@@ -108,7 +108,7 @@ fn create_new_app(app_name: &str) -> Result<()> {
     /* Cargo.toml */
     write_file(
         &app_dir.join("Cargo.toml"),
-        &template_app_cargo_toml(app_name),
+        &template_app_cargo_toml(app_name, resolve_nestforge_dependency_line()),
     )?;
 
     /* main.rs */
@@ -823,31 +823,37 @@ fn patch_feature_module(app_root: &Path, module_name: &str, pascal_plural: &str)
     let provider_entry = format!("{}Service::new(),", pascal_plural);
     let export_entry = format!("{}Service,", pascal_plural);
 
-    if !content.contains(&controller_use) && content.contains(controller_use_marker) {
+    let controller_use_block = format!("{}\n    {}", controller_use_marker, controller_use);
+    let service_use_block = format!("{}\n    {}", provider_use_marker, service_use);
+    let controller_block = format!("{}\n        {}", controllers_marker, controller_entry);
+    let provider_block = format!("{}\n        {}", providers_marker, provider_entry);
+    let export_block = format!("{}\n        {}", exports_marker, export_entry);
+
+    if !content.contains(&controller_use_block) && content.contains(controller_use_marker) {
         content = content.replace(
             controller_use_marker,
             &format!("{}\n    {}", controller_use_marker, controller_use),
         );
     }
-    if !content.contains(&service_use) && content.contains(provider_use_marker) {
+    if !content.contains(&service_use_block) && content.contains(provider_use_marker) {
         content = content.replace(
             provider_use_marker,
             &format!("{}\n    {}", provider_use_marker, service_use),
         );
     }
-    if !content.contains(&controller_entry) && content.contains(controllers_marker) {
+    if !content.contains(&controller_block) && content.contains(controllers_marker) {
         content = content.replace(
             controllers_marker,
             &format!("{}\n        {}", controllers_marker, controller_entry),
         );
     }
-    if !content.contains(&provider_entry) && content.contains(providers_marker) {
+    if !content.contains(&provider_block) && content.contains(providers_marker) {
         content = content.replace(
             providers_marker,
             &format!("{}\n        {}", providers_marker, provider_entry),
         );
     }
-    if !content.contains(&export_entry) && content.contains(exports_marker) {
+    if !content.contains(&export_block) && content.contains(exports_marker) {
         content = content.replace(
             exports_marker,
             &format!("{}\n        {}", exports_marker, export_entry),
@@ -894,9 +900,29 @@ fn patch_app_module_providers_only(app_root: &Path, pascal_plural: &str) -> Resu
    TEMPLATE HELPERS
 ------------------------------ */
 
-fn template_app_cargo_toml(app_name: &str) -> String {
+fn resolve_nestforge_dependency_line() -> String {
     let framework_version = env!("CARGO_PKG_VERSION");
+    let local_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(|p| p.join("nestforge"));
 
+    if let Some(path) = local_path {
+        if path.exists() {
+            let normalized = path.to_string_lossy().replace('\\', "/");
+            return format!(
+                "nestforge = {{ path = \"{}\", features = [\"config\"] }}",
+                normalized
+            );
+        }
+    }
+
+    format!(
+        "nestforge = {{ version = \"{}\", features = [\"config\"] }}",
+        framework_version
+    )
+}
+
+fn template_app_cargo_toml(app_name: &str, nestforge_dep: String) -> String {
     format!(
         r#"[package]
 name = "{app_name}"
@@ -907,12 +933,13 @@ edition = "2021"
 members = []
 
 [dependencies]
-nestforge = {{ version = "{framework_version}", features = ["config"] }}
+{nestforge_dep}
 axum = "0.8"
 tokio = {{ version = "1", features = ["full"] }}
 serde = {{ version = "1", features = ["derive"] }}
 anyhow = "1"
-"#
+"#,
+        nestforge_dep = nestforge_dep
     )
 }
 

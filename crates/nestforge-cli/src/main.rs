@@ -38,8 +38,10 @@ fn main() -> Result<()> {
                 "controller" => generate_controller_only(name)?,
                 "service" => generate_service_only(name)?,
                 "module" => generate_module(name)?,
+                "guard" => generate_guard_only(name)?,
+                "interceptor" => generate_interceptor_only(name)?,
                 _ => bail!(
-                    "Unknown generator `{}`. Use: resource | controller | service | module",
+                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | interceptor",
                     kind
                 ),
             }
@@ -64,6 +66,8 @@ fn print_help() {
     println!("  nestforge g controller <name>");
     println!("  nestforge g service <name>");
     println!("  nestforge g module <name>");
+    println!("  nestforge g guard <name>");
+    println!("  nestforge g interceptor <name>");
     println!("  nestforge db init");
     println!("  nestforge db generate <name>");
     println!("  nestforge db migrate");
@@ -96,6 +100,8 @@ fn create_new_app(app_name: &str) -> Result<()> {
     fs::create_dir_all(app_dir.join("src/controllers"))?;
     fs::create_dir_all(app_dir.join("src/services"))?;
     fs::create_dir_all(app_dir.join("src/dto"))?;
+    fs::create_dir_all(app_dir.join("src/guards"))?;
+    fs::create_dir_all(app_dir.join("src/interceptors"))?;
 
     /* Cargo.toml */
     write_file(
@@ -134,6 +140,14 @@ fn create_new_app(app_name: &str) -> Result<()> {
     write_file(
         &app_dir.join("src/services/app_config.rs"),
         &template_app_config_rs(),
+    )?;
+    write_file(
+        &app_dir.join("src/guards/mod.rs"),
+        &template_guards_mod_rs(),
+    )?;
+    write_file(
+        &app_dir.join("src/interceptors/mod.rs"),
+        &template_interceptors_mod_rs(),
     )?;
 
     /* dto */
@@ -476,6 +490,51 @@ fn generate_module(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn generate_guard_only(name: &str) -> Result<()> {
+    let app_root = detect_app_root()?;
+    let guard_name = normalize_resource_name(name);
+    let pascal_guard = format!("{}Guard", to_pascal_case(&guard_name));
+    let guard_file = app_root.join("src/guards").join(format!("{}_guard.rs", guard_name));
+
+    if guard_file.exists() {
+        println!("Guard already exists: {}", guard_file.display());
+        return Ok(());
+    }
+
+    fs::create_dir_all(app_root.join("src/guards"))?;
+    write_file(&guard_file, &template_guard_rs(&pascal_guard))?;
+    patch_guards_mod(&app_root, &guard_name, &pascal_guard)?;
+    patch_main_mod_decl(&app_root, "guards")?;
+
+    println!("Generated guard `{}`", guard_name);
+    Ok(())
+}
+
+fn generate_interceptor_only(name: &str) -> Result<()> {
+    let app_root = detect_app_root()?;
+    let interceptor_name = normalize_resource_name(name);
+    let pascal_interceptor = format!("{}Interceptor", to_pascal_case(&interceptor_name));
+    let interceptor_file = app_root
+        .join("src/interceptors")
+        .join(format!("{}_interceptor.rs", interceptor_name));
+
+    if interceptor_file.exists() {
+        println!("Interceptor already exists: {}", interceptor_file.display());
+        return Ok(());
+    }
+
+    fs::create_dir_all(app_root.join("src/interceptors"))?;
+    write_file(
+        &interceptor_file,
+        &template_interceptor_rs(&pascal_interceptor),
+    )?;
+    patch_interceptors_mod(&app_root, &interceptor_name, &pascal_interceptor)?;
+    patch_main_mod_decl(&app_root, "interceptors")?;
+
+    println!("Generated interceptor `{}`", interceptor_name);
+    Ok(())
+}
+
 /* ------------------------------
    FILE GENERATION
 ------------------------------ */
@@ -632,6 +691,57 @@ fn patch_controllers_mod(app_root: &Path, resource: &str, pascal_plural: &str) -
     Ok(())
 }
 
+fn patch_guards_mod(app_root: &Path, guard_name: &str, pascal_guard: &str) -> Result<()> {
+    let path = app_root.join("src/guards/mod.rs");
+    let mut content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        template_guards_mod_rs()
+    };
+
+    let mod_line = format!("pub mod {}_guard;", guard_name);
+    let use_line = format!("pub use {}_guard::{};", guard_name, pascal_guard);
+
+    if !content.contains(&mod_line) {
+        content.push_str(&format!("\n{}", mod_line));
+    }
+    if !content.contains(&use_line) {
+        content.push_str(&format!("\n{}", use_line));
+    }
+
+    fs::write(path, content)?;
+    Ok(())
+}
+
+fn patch_interceptors_mod(
+    app_root: &Path,
+    interceptor_name: &str,
+    pascal_interceptor: &str,
+) -> Result<()> {
+    let path = app_root.join("src/interceptors/mod.rs");
+    let mut content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        template_interceptors_mod_rs()
+    };
+
+    let mod_line = format!("pub mod {}_interceptor;", interceptor_name);
+    let use_line = format!(
+        "pub use {}_interceptor::{};",
+        interceptor_name, pascal_interceptor
+    );
+
+    if !content.contains(&mod_line) {
+        content.push_str(&format!("\n{}", mod_line));
+    }
+    if !content.contains(&use_line) {
+        content.push_str(&format!("\n{}", use_line));
+    }
+
+    fs::write(path, content)?;
+    Ok(())
+}
+
 fn patch_app_module(app_root: &Path, resource: &str, pascal_plural: &str) -> Result<()> {
     patch_app_module_controllers_only(app_root, pascal_plural)?;
     patch_app_module_providers_only(app_root, pascal_plural)?;
@@ -717,6 +827,8 @@ fn template_main_rs() -> String {
     r#"mod app_module;
 mod controllers;
 mod dto;
+mod guards;
+mod interceptors;
 mod services;
 
 use app_module::AppModule;
@@ -784,6 +896,14 @@ fn template_services_mod_rs() -> String {
 pub use app_config::AppConfig;
 "#
     .to_string()
+}
+
+fn template_guards_mod_rs() -> String {
+    "/* Guard exports get generated here */\n".to_string()
+}
+
+fn template_interceptors_mod_rs() -> String {
+    "/* Interceptor exports get generated here */\n".to_string()
 }
 
 fn template_dto_mod_rs() -> String {
@@ -955,6 +1075,43 @@ impl {pascal_plural}Controller {{
         resource = resource,
         pascal_plural = pascal_plural,
         pascal_singular = pascal_singular
+    )
+}
+
+fn template_guard_rs(pascal_guard: &str) -> String {
+    format!(
+        r#"use nestforge::{{Guard, HttpException, RequestContext}};
+
+#[derive(Default)]
+pub struct {pascal_guard};
+
+impl Guard for {pascal_guard} {{
+    fn can_activate(&self, _ctx: &RequestContext) -> Result<(), HttpException> {{
+        Ok(())
+    }}
+}}
+"#
+    )
+}
+
+fn template_interceptor_rs(pascal_interceptor: &str) -> String {
+    format!(
+        r#"use nestforge::{{Interceptor, NextFn, NextFuture, RequestContext}};
+
+#[derive(Default)]
+pub struct {pascal_interceptor};
+
+impl Interceptor for {pascal_interceptor} {{
+    fn around(
+        &self,
+        _ctx: RequestContext,
+        req: axum::extract::Request,
+        next: NextFn,
+    ) -> NextFuture {{
+        Box::pin(async move {{ (next)(req).await }})
+    }}
+}}
+"#
     )
 }
 

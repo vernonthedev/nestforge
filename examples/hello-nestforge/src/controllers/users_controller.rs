@@ -28,6 +28,7 @@ impl UsersController {
     }
 
     #[nestforge::get("/{id}")]
+    #[nestforge::use_guard(crate::guards::RequireValidIdGuard)]
     async fn get_user(
         id: Param<u64>,
         users: Inject<UsersService>,
@@ -52,6 +53,7 @@ impl UsersController {
     #[nestforge::put("/{id}")]
     #[nestforge::use_guard(crate::guards::AllowAllGuard)]
     #[nestforge::use_interceptor(crate::interceptors::LoggingInterceptor)]
+    #[nestforge::use_guard(crate::guards::RequireValidIdGuard)]
     async fn update(
         id: Param<u64>,
         users: Inject<UsersService>,
@@ -66,6 +68,7 @@ impl UsersController {
     }
 
     #[nestforge::put("/{id}/replace")]
+    #[nestforge::use_guard(crate::guards::RequireValidIdGuard)]
     async fn replace(
         id: Param<u64>,
         users: Inject<UsersService>,
@@ -80,6 +83,7 @@ impl UsersController {
     }
 
     #[nestforge::get("/{id}/exists")]
+    #[nestforge::use_guard(crate::guards::RequireValidIdGuard)]
     async fn exists(
         id: Param<u64>,
         users: Inject<UsersService>,
@@ -92,6 +96,7 @@ impl UsersController {
     }
 
     #[nestforge::delete("/{id}")]
+    #[nestforge::use_guard(crate::guards::RequireValidIdGuard)]
     async fn delete(
         id: Param<u64>,
         users: Inject<UsersService>,

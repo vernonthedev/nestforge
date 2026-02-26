@@ -1,11 +1,11 @@
 use nestforge::{module, ConfigModule, ConfigOptions, Db, DbConfig};
 
 use crate::{
-    settings_module::SettingsModule,
-    controllers::{
-        AppController, HealthController, UsersController, VersioningController,
-    },
-    services::{users_service_seed, AppConfig, UsersService},
+    app_config::AppConfig,
+    controllers::{AppController, HealthController},
+    settings::SettingsModule,
+    users::UsersModule,
+    versioning::VersioningModule,
 };
 
 fn load_app_config() -> anyhow::Result<AppConfig> {
@@ -23,18 +23,12 @@ fn connect_db() -> anyhow::Result<Db> {
 }
 
 #[module(
-    imports = [SettingsModule],
-    controllers = [
-        AppController,
-        HealthController,
-        UsersController,
-        VersioningController
-    ],
+    imports = [UsersModule, SettingsModule, VersioningModule],
+    controllers = [AppController, HealthController],
     providers = [
         load_app_config()?,
-        users_service_seed(),
         connect_db()?
     ],
-    exports = [UsersService, Db]
+    exports = [Db, AppConfig]
 )]
 pub struct AppModule;

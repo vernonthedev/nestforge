@@ -5,12 +5,13 @@ Its job:
 */
 
 mod app_module;
+mod app_config;
 mod controllers;
-mod dto;
 mod guards;
 mod interceptors;
-mod settings_module;
-mod services;
+mod settings;
+mod users;
+mod versioning;
 
 use app_module::AppModule;
 use guards::AllowAllGuard;

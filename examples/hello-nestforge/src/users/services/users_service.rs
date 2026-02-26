@@ -1,20 +1,7 @@
 use nestforge::{ResourceError, ResourceService};
 
-use crate::dto::{CreateUserDto, UpdateUserDto, UserDto};
+use crate::users::dto::{CreateUserDto, UpdateUserDto, UserDto};
 
-/*
-UsersService = thin alias over NestForge's generic ResourceService.
-Readable CRUD methods available directly:
-- all()
-- get(id)
-- count()
-- exists(id)
-- create(dto)
-- update(id, dto)
-- replace(id, dto)
-- delete(id)
-
-*/
 pub type UsersService = ResourceService<UserDto>;
 
 pub fn users_service_seed() -> UsersService {
@@ -32,11 +19,6 @@ pub fn users_service_seed() -> UsersService {
     ])
 }
 
-/*
-Service layer examples:
-- keep controllers thin
-- keep business rules in one place
-*/
 pub fn list_users(service: &UsersService) -> Vec<UserDto> {
     service.all()
 }

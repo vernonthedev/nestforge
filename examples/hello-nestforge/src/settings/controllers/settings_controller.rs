@@ -4,7 +4,8 @@ use nestforge::{
     routes,
 };
 
-use crate::{
+use crate::app_config::AppConfig;
+use crate::settings::{
     dto::{CreateSettingDto, SettingDto, UpdateSettingDto},
     services::{
         SettingsService, create_setting, delete_setting, get_setting, list_settings,
@@ -17,6 +18,16 @@ pub struct SettingsController;
 
 #[routes]
 impl SettingsController {
+    #[nestforge::get("/runtime")]
+    #[nestforge::version("1")]
+    async fn runtime_config(cfg: Inject<AppConfig>) -> ApiResult<SettingDto> {
+        Ok(Json(SettingDto {
+            id: 0,
+            key: "app_name".to_string(),
+            value: format!("{} (log_level={})", cfg.app_name, cfg.log_level),
+        }))
+    }
+
     #[nestforge::get("/")]
     #[nestforge::version("1")]
     async fn list(service: Inject<SettingsService>) -> ApiResult<List<SettingDto>> {

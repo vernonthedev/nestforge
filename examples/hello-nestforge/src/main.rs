@@ -12,7 +12,13 @@ mod services;
 use app_module::AppModule;
 use nestforge::NestForgeFactory;
 
+const PORT: u16 = 3000;
+
+async fn bootstrap() -> anyhow::Result<()> {
+    NestForgeFactory::<AppModule>::create()?.listen(PORT).await
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    NestForgeFactory::<AppModule>::create()?.listen(3000).await
+    bootstrap().await
 }

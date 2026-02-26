@@ -722,18 +722,22 @@ mod services;
 use app_module::AppModule;
 use nestforge::NestForgeFactory;
 
+const PORT: u16 = 3000;
+
+async fn bootstrap() -> anyhow::Result<()> {
+    NestForgeFactory::<AppModule>::create()?.listen(PORT).await
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    NestForgeFactory::<AppModule>::create()?
-        .listen(3000)
-        .await
+    bootstrap().await
 }
 "#
     .to_string()
 }
 
 fn template_app_module_rs() -> String {
-    r#"use nestforge::{module, Provider};
+    r#"use nestforge::module;
 
 use crate::{
     controllers::{AppController, HealthController},
@@ -750,7 +754,7 @@ use crate::{
         /* nestforge:controllers */
     ],
     providers = [
-        Provider::value(AppConfig { app_name: "NestForge App".to_string() }),
+        AppConfig { app_name: "NestForge App".to_string() },
         /* nestforge:providers */
     ],
     exports = []

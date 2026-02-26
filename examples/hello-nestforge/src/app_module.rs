@@ -1,16 +1,25 @@
-use nestforge::{module, Db, DbConfig, Provider};
+use nestforge::{module, Db, DbConfig};
 
 use crate::{
     controllers::{AppController, HealthController, UsersController},
     services::{users_service_seed, AppConfig, UsersService},
 };
+
+fn load_app_config() -> anyhow::Result<AppConfig> {
+    Ok(nestforge::load_config::<AppConfig>()?)
+}
+
+fn connect_db() -> anyhow::Result<Db> {
+    Ok(Db::connect_lazy(DbConfig::postgres_local("postgres"))?)
+}
+
 #[module(
     imports = [],
     controllers = [AppController, HealthController, UsersController],
     providers = [
-        Provider::value(nestforge::load_config::<AppConfig>()?),
-        Provider::factory(|_| Ok(users_service_seed())),
-        Provider::value(Db::connect_lazy(DbConfig::postgres_local("postgres"))?)
+        load_app_config()?,
+        users_service_seed(),
+        connect_db()?
     ],
     exports = [UsersService, Db]
 )]

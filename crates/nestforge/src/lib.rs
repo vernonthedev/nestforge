@@ -10,9 +10,11 @@ pub use nestforge_core::{
     ControllerDefinition,
     HttpException,
     Inject,
+    ModuleRef,
     ModuleDefinition,
     Param,
     RouteBuilder,
+    initialize_module_graph,
     Identifiable,
     InMemoryStore,
 };

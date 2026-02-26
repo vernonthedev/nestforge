@@ -18,7 +18,13 @@ pub mod store;
 pub use container::Container;
 pub use error::HttpException;
 pub use inject::Inject;
-pub use module::{ControllerBasePath, ControllerDefinition, ModuleDefinition};
+pub use module::{
+    initialize_module_graph,
+    ControllerBasePath,
+    ControllerDefinition,
+    ModuleDefinition,
+    ModuleRef,
+};
 pub use request::{Body, Param};
 pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};

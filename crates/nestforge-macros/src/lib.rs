@@ -82,8 +82,10 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /*
 #[module(
+    imports = [AuthModule],
     controllers = [AppController, UsersController],
-    providers = [AppConfig { ... }, UsersService::new()]
+    providers = [AppConfig { ... }, UsersService::new()],
+    exports = [UsersService]
 )]
 Generates ModuleDefinition for the struct.
 */
@@ -102,6 +104,14 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
         quote! { container.register(#expr)?; }
     });
 
+    let import_refs = args.imports.iter().map(|ty| {
+        quote! { nestforge::ModuleRef::of::<#ty>() }
+    });
+
+    let exported_types = args.exports.iter().map(|ty| {
+        quote! { std::any::type_name::<#ty>() }
+    });
+
     let expanded = quote! {
         #input
 
@@ -109,6 +119,18 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
             fn register(container: &nestforge::Container) -> anyhow::Result<()> {
                 #(#provider_regs)*
                 Ok(())
+            }
+
+            fn imports() -> Vec<nestforge::ModuleRef> {
+                vec![
+                    #(#import_refs),*
+                ]
+            }
+
+            fn exports() -> Vec<&'static str> {
+                vec![
+                    #(#exported_types),*
+                ]
             }
 
             fn controllers() -> Vec<axum::Router<nestforge::Container>> {
@@ -184,27 +206,35 @@ fn parse_route_attr(attr: &Attribute) -> Option<(String, String)> {
 /* -------- module parser -------- */
 
 struct ModuleArgs {
+    imports: Vec<Type>,
     controllers: Vec<Type>,
     providers: Vec<Expr>,
+    exports: Vec<Type>,
 }
 
 impl Parse for ModuleArgs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut imports: Vec<Type> = Vec::new();
         let mut controllers: Vec<Type> = Vec::new();
         let mut providers: Vec<Expr> = Vec::new();
+        let mut exports: Vec<Type> = Vec::new();
 
         while !input.is_empty() {
             let key: Ident = input.parse()?;
             input.parse::<Token![=]>()?;
 
-            if key == "controllers" {
+            if key == "imports" {
+                imports = parse_bracket_list::<Type>(input)?;
+            } else if key == "controllers" {
                 controllers = parse_bracket_list::<Type>(input)?;
             } else if key == "providers" {
                 providers = parse_bracket_list::<Expr>(input)?;
+            } else if key == "exports" {
+                exports = parse_bracket_list::<Type>(input)?;
             } else {
                 return Err(syn::Error::new(
                     key.span(),
-                    "Unsupported module key. Use `controllers` or `providers`.",
+                    "Unsupported module key. Use `imports`, `controllers`, `providers`, or `exports`.",
                 ));
             }
 
@@ -214,8 +244,10 @@ impl Parse for ModuleArgs {
         }
 
         Ok(Self {
+            imports,
             controllers,
             providers,
+            exports,
         })
     }
 }

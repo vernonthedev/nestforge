@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use anyhow::Result;
 use axum::Router;
-use nestforge_core::{Container, ModuleDefinition};
+use nestforge_core::{initialize_module_graph, Container, ModuleDefinition};
 use tower_http::trace::TraceLayer;
 
 /*
@@ -19,18 +19,18 @@ Now it:
 pub struct NestForgeFactory<M: ModuleDefinition> {
     _marker: std::marker::PhantomData<M>,
     container: Container,
+    controllers: Vec<Router<Container>>,
 }
 
 impl<M: ModuleDefinition> NestForgeFactory<M> {
     pub fn create() -> Result<Self> {
         let container = Container::new();
-
-        /* Let the module register providers/services into DI */
-        M::register(&container)?;
+        let controllers = initialize_module_graph::<M>(&container)?;
 
         Ok(Self {
             _marker: std::marker::PhantomData,
             container,
+            controllers,
         })
     }
 
@@ -44,7 +44,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         /*
         Mount all controller routers (they are also Router<Container>)
         */
-        for controller_router in M::controllers() {
+        for controller_router in self.controllers {
             app = app.merge(controller_router);
         }
 

@@ -7,6 +7,7 @@ members = [
   "crates/nestforge-macros", 
   "crates/nestforge-cli",
   "crates/nestforge-testing",
+  "crates/nestforge-db",
   ]
 resolver = "2"
 
@@ -30,3 +31,4 @@ anyhow = "1"
 thiserror = "2"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "any", "postgres"] }

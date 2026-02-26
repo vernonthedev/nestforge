@@ -1,0 +1,18 @@
+[package]
+name = "nestforge-db"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "Tier 1 database module for NestForge built on SQLx adapters"
+keywords = ["rust", "database", "sqlx", "di", "nestforge"]
+categories = ["database"]
+
+[dependencies]
+thiserror = { workspace = true }
+sqlx = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

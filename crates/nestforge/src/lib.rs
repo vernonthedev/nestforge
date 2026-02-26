@@ -31,3 +31,5 @@ pub use nestforge_http::NestForgeFactory;
 pub use nestforge_macros::{controller, get, post, put, routes, module};
 #[cfg(feature = "testing")]
 pub use nestforge_testing::{TestFactory, TestingModule};
+#[cfg(feature = "db")]
+pub use nestforge_db::{Db, DbConfig, DbError, DbTransaction};

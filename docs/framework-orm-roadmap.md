@@ -83,14 +83,31 @@ Status: In progress (core graph support implemented)
 
 ## Phase 2 - Tier 1 Data Layer (`nestforge-db`)
 
-- [ ] Add `crates/nestforge-db`
-- [ ] Implement `DbConfig`
-- [ ] Implement `DbError` (`thiserror`)
-- [ ] Implement injectable `Db`
-- [ ] Implement transactions API
-- [ ] Support named connections
-- [ ] Integrate with module system (`DbModule`)
-- [ ] Add example using `Inject<Db>`
+- [x] Add `crates/nestforge-db`
+- [x] Implement `DbConfig`
+- [x] Implement `DbError` (`thiserror`)
+- [x] Implement injectable `Db`
+- [x] Implement transactions API
+- [x] Support named connections
+- [x] Integrate with module system (`Db::connect_lazy` for sync provider registration)
+- [x] Add example using `Inject<Db>` (`/health/db` in `hello-nestforge`)
+
+### B1 Wiring Example (current)
+
+```rust
+use nestforge::{module, Provider};
+use nestforge_db::{Db, DbConfig};
+
+#[module(
+    imports = [],
+    controllers = [],
+    providers = [
+        Provider::value(Db::connect_lazy(DbConfig::postgres_local("app_db"))?)
+    ],
+    exports = [Db]
+)]
+pub struct DbModule;
+```
 
 ## Phase 3 - Tier 2 Relational ORM (`nestforge-orm`)
 

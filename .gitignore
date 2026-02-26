@@ -1,2 +1,8 @@
 /target
 /examples/demo-api/
+AGENTS.md
+.codex/
+.agents/
+.agent/
+skills-lock.json
+.agents-lock.json

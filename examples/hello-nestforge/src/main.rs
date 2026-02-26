@@ -6,8 +6,9 @@ Its job:
 
 mod app_module;
 mod app_config;
-mod controllers;
+mod app_controller;
 mod guards;
+mod health_controller;
 mod interceptors;
 mod settings;
 mod users;

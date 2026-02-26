@@ -2,7 +2,8 @@ use nestforge::{module, ConfigModule, ConfigOptions, Db, DbConfig};
 
 use crate::{
     app_config::AppConfig,
-    controllers::{AppController, HealthController},
+    app_controller::AppController,
+    health_controller::HealthController,
     settings::SettingsModule,
     users::UsersModule,
     versioning::VersioningModule,

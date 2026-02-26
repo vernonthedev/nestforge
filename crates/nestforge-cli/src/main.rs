@@ -901,7 +901,7 @@ impl {pascal_plural}Controller {{
     async fn list(
         service: Inject<{pascal_plural}Service>,
     ) -> ApiResult<List<{pascal_singular}Dto>> {{
-        Ok(Json(service.find_all()))
+        Ok(Json(service.all()))
     }}
 
     #[nestforge::get("/{{id}}")]
@@ -911,7 +911,7 @@ impl {pascal_plural}Controller {{
     ) -> ApiResult<{pascal_singular}Dto> {{
         let id = id.value();
         let item = service
-            .find_by_id(id)
+            .get(id)
             .or_not_found_id("{pascal_singular}", id)?;
 
         Ok(Json(item))
@@ -923,7 +923,7 @@ impl {pascal_plural}Controller {{
         body: ValidatedBody<Create{pascal_singular}Dto>,
     ) -> ApiResult<{pascal_singular}Dto> {{
         let item = service
-            .create_from(body.value())
+            .create(body.value())
             .or_bad_request()?;
         Ok(Json(item))
     }}
@@ -936,7 +936,7 @@ impl {pascal_plural}Controller {{
     ) -> ApiResult<{pascal_singular}Dto> {{
         let id = id.value();
         let item = service
-            .update_from(id, body.value())
+            .update(id, body.value())
             .or_bad_request()?
             .or_not_found_id("{pascal_singular}", id)?;
 

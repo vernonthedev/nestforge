@@ -51,8 +51,16 @@ where
         self.store.find_all()
     }
 
+    pub fn all(&self) -> Vec<T> {
+        self.find_all()
+    }
+
     pub fn find_by_id(&self, id: u64) -> Option<T> {
         self.store.find_by_id(id)
+    }
+
+    pub fn get(&self, id: u64) -> Option<T> {
+        self.find_by_id(id)
     }
 
     pub fn count(&self) -> usize {
@@ -75,6 +83,13 @@ where
         map.insert("id".to_string(), Value::from(0_u64));
         let entity = serde_json::from_value::<T>(dto_value)?;
         Ok(self.store.create(entity))
+    }
+
+    pub fn create<D>(&self, dto: D) -> Result<T, ResourceError>
+    where
+        D: Serialize,
+    {
+        self.create_from(dto)
     }
 
     pub fn update_from<D>(&self, id: u64, dto: D) -> Result<Option<T>, ResourceError>
@@ -112,6 +127,13 @@ where
         Ok(updated)
     }
 
+    pub fn update<D>(&self, id: u64, dto: D) -> Result<Option<T>, ResourceError>
+    where
+        D: Serialize,
+    {
+        self.update_from(id, dto)
+    }
+
     pub fn replace_from<D>(&self, id: u64, dto: D) -> Result<Option<T>, ResourceError>
     where
         D: Serialize,
@@ -126,7 +148,18 @@ where
         Ok(self.store.replace_by_id(id, replacement))
     }
 
+    pub fn replace<D>(&self, id: u64, dto: D) -> Result<Option<T>, ResourceError>
+    where
+        D: Serialize,
+    {
+        self.replace_from(id, dto)
+    }
+
     pub fn delete_by_id(&self, id: u64) -> Option<T> {
         self.store.delete_by_id(id)
+    }
+
+    pub fn delete(&self, id: u64) -> Option<T> {
+        self.delete_by_id(id)
     }
 }

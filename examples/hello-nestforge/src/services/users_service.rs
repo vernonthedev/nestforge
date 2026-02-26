@@ -4,15 +4,15 @@ use crate::dto::{CreateUserDto, UpdateUserDto, UserDto};
 
 /*
 UsersService = thin alias over NestForge's generic ResourceService.
-Built-in methods available directly on this alias:
-- find_all()
-- find_by_id(id)
+Readable CRUD methods available directly:
+- all()
+- get(id)
 - count()
 - exists(id)
-- create_from(dto)
-- update_from(id, dto)
-- replace_from(id, dto)
-- delete_by_id(id)
+- create(dto)
+- update(id, dto)
+- replace(id, dto)
+- delete(id)
 
 */
 pub type UsersService = ResourceService<UserDto>;
@@ -32,12 +32,17 @@ pub fn users_service_seed() -> UsersService {
     ])
 }
 
+/*
+Service layer examples:
+- keep controllers thin
+- keep business rules in one place
+*/
 pub fn list_users(service: &UsersService) -> Vec<UserDto> {
-    service.find_all()
+    service.all()
 }
 
 pub fn get_user(service: &UsersService, id: u64) -> Option<UserDto> {
-    service.find_by_id(id)
+    service.get(id)
 }
 
 pub fn users_count(service: &UsersService) -> usize {
@@ -49,7 +54,7 @@ pub fn user_exists(service: &UsersService, id: u64) -> bool {
 }
 
 pub fn create_user(service: &UsersService, dto: CreateUserDto) -> Result<UserDto, ResourceError> {
-    service.create_from(dto)
+    service.create(dto)
 }
 
 pub fn update_user(
@@ -57,7 +62,7 @@ pub fn update_user(
     id: u64,
     dto: UpdateUserDto,
 ) -> Result<Option<UserDto>, ResourceError> {
-    service.update_from(id, dto)
+    service.update(id, dto)
 }
 
 pub fn replace_user(
@@ -65,17 +70,9 @@ pub fn replace_user(
     id: u64,
     dto: CreateUserDto,
 ) -> Result<Option<UserDto>, ResourceError> {
-    service.replace_from(id, dto)
+    service.replace(id, dto)
 }
 
 pub fn delete_user(service: &UsersService, id: u64) -> Option<UserDto> {
-    service.delete_by_id(id)
-}
-
-#[allow(dead_code)]
-pub fn find_user_by_email(service: &UsersService, email: &str) -> Option<UserDto> {
-    service
-        .find_all()
-        .into_iter()
-        .find(|user| user.email.eq_ignore_ascii_case(email))
+    service.delete(id)
 }

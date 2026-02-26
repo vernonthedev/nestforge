@@ -6,8 +6,8 @@ use nestforge::{
 
 use crate::dto::{CreateUserDto, UpdateUserDto, UserDto, UserExistsDto, UsersCountDto};
 use crate::services::{
-    create_user, delete_user, get_user as get_user_by_id, list_users, replace_user, update_user,
-    user_exists, users_count, UsersService,
+    create_user, delete_user, get_user, list_users, replace_user, update_user, user_exists,
+    users_count, UsersService,
 };
 
 #[controller("/users")]
@@ -33,7 +33,7 @@ impl UsersController {
         users: Inject<UsersService>,
     ) -> ApiResult<UserDto> {
         let id = id.value();
-        let user = get_user_by_id(users.as_ref(), id).or_not_found_id("User", id)?;
+        let user = get_user(users.as_ref(), id).or_not_found_id("User", id)?;
 
         Ok(Json(user))
     }

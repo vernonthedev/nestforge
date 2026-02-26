@@ -790,6 +790,8 @@ name = "nestforge-cli"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "nestforge-db",
+ "tokio",
 ]
 
 [[package]]

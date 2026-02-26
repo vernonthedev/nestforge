@@ -143,7 +143,11 @@ pub struct DbModule;
   - [ ] `cargo install --path crates/nestforge-cli`
   - [ ] binary name `nestforge`
 - [ ] Add command: `nestforge g module <name>`
-- [ ] Add command group: `nestforge db *`
+- [x] Add command group: `nestforge db *`
+  - [x] `nestforge db init`
+  - [x] `nestforge db generate <name>`
+  - [x] `nestforge db migrate`
+  - [x] `nestforge db status`
 - [ ] Update templates to current API:
   - [ ] `NestForgeFactory::<AppModule>::create()?.listen(3000).await`
   - [ ] `#[module(imports, controllers, providers, exports)]`

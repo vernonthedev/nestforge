@@ -9,6 +9,7 @@ mod controllers;
 mod dto;
 mod guards;
 mod interceptors;
+mod settings_module;
 mod services;
 
 use app_module::AppModule;

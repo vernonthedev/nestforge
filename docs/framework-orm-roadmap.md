@@ -37,9 +37,9 @@ Status: In progress (core graph support implemented)
 - [x] Support mixed provider syntax in `#[module(providers = [...])]`:
   - [x] plain values (auto-wrapped as `Provider::value`)
   - [x] explicit provider helpers (`Provider::value`, `Provider::factory`)
-- [ ] Typed DI errors with:
-  - [ ] requested type
-  - [ ] current module
+- [x] Typed DI errors with:
+  - [x] requested type
+  - [x] current module (during module registration via contextual resolve + graph error wrapping)
 - [ ] Prepare lifecycle model:
   - [ ] singleton (default)
   - [ ] transient (planned)
@@ -68,9 +68,10 @@ Status: In progress (core graph support implemented)
 
 ### A6 Testing Utilities
 
-- [ ] Create `nestforge-testing` crate
-- [ ] Add `TestFactory::create::<M>()`
-- [ ] Add `.override_provider::<T>(mock)`
+- [x] Create `nestforge-testing` crate
+- [x] Add `TestFactory::create::<M>()`
+- [x] Add `.override_provider::<T>(mock)` (value override)
+- [ ] Add override semantics for provider dependencies instantiated during module boot
 
 ### A7 OpenAPI
 

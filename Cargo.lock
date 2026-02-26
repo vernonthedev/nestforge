@@ -267,6 +267,7 @@ dependencies = [
  "nestforge-core",
  "nestforge-http",
  "nestforge-macros",
+ "nestforge-testing",
  "tokio",
 ]
 
@@ -306,6 +307,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "nestforge-testing"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "nestforge-core",
 ]
 
 [[package]]

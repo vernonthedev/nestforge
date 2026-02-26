@@ -61,7 +61,12 @@ where
             .await
             .map_err(|_| HttpException::internal_server_error("Container state not available"))?;
 
-        Self::from(&container)
-            .map_err(|_| HttpException::internal_server_error("Dependency not registered"))
+        Self::from(&container).map_err(|err| {
+            HttpException::internal_server_error(format!(
+                "Failed to resolve dependency `{}`: {}",
+                std::any::type_name::<T>(),
+                err
+            ))
+        })
     }
 }

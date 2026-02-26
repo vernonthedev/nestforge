@@ -114,7 +114,8 @@ mod tests {
     struct ImportedModule;
     impl ModuleDefinition for ImportedModule {
         fn register(container: &Container) -> Result<()> {
-            container.register(ImportedConfig)
+            container.register(ImportedConfig)?;
+            Ok(())
         }
     }
 
@@ -126,7 +127,8 @@ mod tests {
 
         fn register(container: &Container) -> Result<()> {
             let imported = container.resolve::<ImportedConfig>()?;
-            container.register(AppService::from(imported))
+            container.register(AppService::from(imported))?;
+            Ok(())
         }
     }
 
@@ -149,7 +151,8 @@ mod tests {
     struct SharedImportedModule;
     impl ModuleDefinition for SharedImportedModule {
         fn register(container: &Container) -> Result<()> {
-            container.register(SharedMarker)
+            container.register(SharedMarker)?;
+            Ok(())
         }
     }
 
@@ -229,5 +232,26 @@ mod tests {
             err.to_string().contains("Detected module import cycle"),
             "error should include cycle detection message"
         );
+    }
+
+    struct MissingDependency;
+    struct BrokenModule;
+
+    impl ModuleDefinition for BrokenModule {
+        fn register(container: &Container) -> Result<()> {
+            let _ = container.resolve_in_module::<MissingDependency>(Self::module_name())?;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn module_registration_error_includes_module_and_type_context() {
+        let container = Container::new();
+        let err = initialize_module_graph::<BrokenModule>(&container).unwrap_err();
+        let message = err.to_string();
+
+        assert!(message.contains("Failed to register module"));
+        assert!(message.contains("BrokenModule"));
+        assert!(message.contains("MissingDependency"));
     }
 }

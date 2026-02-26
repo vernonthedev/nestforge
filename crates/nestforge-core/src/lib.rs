@@ -16,7 +16,7 @@ pub mod request;
 pub mod route_builder;
 pub mod store;
 
-pub use container::Container;
+pub use container::{Container, ContainerError};
 pub use error::HttpException;
 pub use inject::Inject;
 pub use module::{

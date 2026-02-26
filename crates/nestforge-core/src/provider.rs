@@ -44,7 +44,8 @@ where
     T: Send + Sync + 'static,
 {
     fn register(self, container: &Container) -> Result<()> {
-        container.register(self.value)
+        container.register(self.value)?;
+        Ok(())
     }
 }
 
@@ -56,7 +57,8 @@ where
     fn register(self, container: &Container) -> Result<()> {
         let value = (self.factory)(container)
             .map_err(|err| anyhow!("Failed to build provider `{}`: {}", std::any::type_name::<T>(), err))?;
-        container.register(value)
+        container.register(value)?;
+        Ok(())
     }
 }
 

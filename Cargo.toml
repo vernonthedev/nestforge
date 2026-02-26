@@ -6,6 +6,7 @@ members = [
   "examples/hello-nestforge",
   "crates/nestforge-macros", 
   "crates/nestforge-cli",
+  "crates/nestforge-testing",
   ]
 resolver = "2"
 

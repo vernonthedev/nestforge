@@ -6,6 +6,7 @@
 pub use nestforge_core::{
     Body,
     Container,
+    ContainerError,
     ControllerBasePath,
     ControllerDefinition,
     HttpException,
@@ -24,3 +25,5 @@ pub use nestforge_core::{
 
 pub use nestforge_http::NestForgeFactory;
 pub use nestforge_macros::{controller, get, post, put, routes, module};
+#[cfg(feature = "testing")]
+pub use nestforge_testing::{TestFactory, TestingModule};

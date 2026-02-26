@@ -19,9 +19,24 @@ pub use nestforge_data::{CacheStore, DataError, DataFuture, DocumentRepo};
 pub use nestforge_db::{Db, DbConfig, DbError, DbTransaction};
 pub use nestforge_http::NestForgeFactory;
 pub use nestforge_macros::{
-    controller, delete, entity, get, id, module, post, put, routes, use_guard, use_interceptor,
-    Identifiable, Validate,
+    controller, delete, dto, entity, entity_dto, get, id, identifiable, module, post, put,
+    response_dto, routes, use_guard, use_interceptor, Identifiable, Validate,
 };
+
+#[macro_export]
+macro_rules! impl_identifiable {
+    ($type:ty, $field:ident) => {
+        impl $crate::Identifiable for $type {
+            fn id(&self) -> u64 {
+                self.$field
+            }
+
+            fn set_id(&mut self, id: u64) {
+                self.$field = id;
+            }
+        }
+    };
+}
 #[cfg(feature = "mongo")]
 pub use nestforge_mongo::{InMemoryMongoRepo, MongoConfig};
 #[cfg(feature = "openapi")]

@@ -1,6 +1,4 @@
-use serde::Serialize;
-
-#[derive(Debug, Clone, Serialize)]
+#[nestforge::dto]
 pub struct UsersCountDto {
     pub total: usize,
 }

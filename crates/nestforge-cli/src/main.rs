@@ -829,23 +829,20 @@ pub struct AppConfig {
 
 fn template_entity_dto_rs(pascal_singular: &str) -> String {
     format!(
-        r#"use serde::{{Deserialize, Serialize}};
-
-#[derive(Debug, Clone, Serialize, Deserialize, nestforge::Identifiable)]
+        r#"#[nestforge::dto]
 pub struct {pascal_singular}Dto {{
-    #[id]
     pub id: u64,
     pub name: String,
 }}
+
+nestforge::impl_identifiable!({pascal_singular}Dto, id);
 "#
     )
 }
 
 fn template_create_dto_rs(pascal_singular: &str) -> String {
     format!(
-        r#"use serde::{{Deserialize, Serialize}};
-
-#[derive(Debug, Clone, Serialize, Deserialize, nestforge::Validate)]
+        r#"#[nestforge::dto]
 pub struct Create{pascal_singular}Dto {{
     #[validate(required)]
     pub name: String,
@@ -856,9 +853,7 @@ pub struct Create{pascal_singular}Dto {{
 
 fn template_update_dto_rs(pascal_singular: &str) -> String {
     format!(
-        r#"use serde::{{Deserialize, Serialize}};
-
-#[derive(Debug, Clone, Serialize, Deserialize, nestforge::Validate)]
+        r#"#[nestforge::dto]
 pub struct Update{pascal_singular}Dto {{
     pub name: Option<String>,
     #[validate(email)]

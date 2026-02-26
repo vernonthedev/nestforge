@@ -7,8 +7,8 @@ use syn::{
     parse_macro_input,
     punctuated::Punctuated,
     spanned::Spanned,
-    Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, ImplItem, ImplItemFn, ItemImpl,
-    ItemStruct, LitStr, Meta, Token, Type,
+    parse_quote, Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, ImplItem, ImplItemFn,
+    ItemImpl, ItemStruct, LitStr, Meta, Token, Type,
 };
 
 /*
@@ -183,6 +183,103 @@ pub fn use_guard(_attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn use_interceptor(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
+}
+
+#[proc_macro_attribute]
+pub fn dto(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut input = parse_macro_input!(item as ItemStruct);
+
+    input.attrs.push(parse_quote!(
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, nestforge::Validate)]
+    ));
+
+    TokenStream::from(quote! { #input })
+}
+
+#[proc_macro_attribute]
+pub fn identifiable(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as ItemStruct);
+    let name = &input.ident;
+
+    let Some((id_field_name, id_field_ty)) = find_id_field(&input.fields) else {
+        return syn::Error::new(
+            input.ident.span(),
+            "identifiable requires an `id: u64` field or a field marked with #[id]",
+        )
+        .to_compile_error()
+        .into();
+    };
+    let ty_ok = matches!(id_field_ty, Type::Path(ref tp) if tp.path.is_ident("u64"));
+    if !ty_ok {
+        return syn::Error::new(id_field_ty.span(), "identifiable id field must be of type `u64`")
+            .to_compile_error()
+            .into();
+    }
+
+    TokenStream::from(quote! {
+        #input
+
+        impl nestforge::Identifiable for #name {
+            fn id(&self) -> u64 {
+                self.#id_field_name
+            }
+
+            fn set_id(&mut self, id: u64) {
+                self.#id_field_name = id;
+            }
+        }
+    })
+}
+
+#[proc_macro_attribute]
+pub fn response_dto(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut input = parse_macro_input!(item as ItemStruct);
+
+    input
+        .attrs
+        .push(parse_quote!(#[derive(Debug, Clone, serde::Serialize)]));
+
+    TokenStream::from(quote! { #input })
+}
+
+#[proc_macro_attribute]
+pub fn entity_dto(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut input = parse_macro_input!(item as ItemStruct);
+
+    let Some((id_field_name, id_field_ty)) = find_id_field(&input.fields) else {
+        return syn::Error::new(
+            input.ident.span(),
+            "entity_dto requires an `id: u64` field or a field marked with #[id]",
+        )
+        .to_compile_error()
+        .into();
+    };
+    let ty_ok = matches!(id_field_ty, Type::Path(ref tp) if tp.path.is_ident("u64"));
+    if !ty_ok {
+        return syn::Error::new(id_field_ty.span(), "entity_dto id field must be of type `u64`")
+            .to_compile_error()
+            .into();
+    }
+
+    input.attrs.push(parse_quote!(
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, nestforge::Validate)]
+    ));
+
+    let name = &input.ident;
+
+    TokenStream::from(quote! {
+        #input
+
+        impl nestforge::Identifiable for #name {
+            fn id(&self) -> u64 {
+                self.#id_field_name
+            }
+
+            fn set_id(&mut self, id: u64) {
+                self.#id_field_name = id;
+            }
+        }
+    })
 }
 
 #[proc_macro_attribute]

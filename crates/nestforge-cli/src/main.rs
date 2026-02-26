@@ -1,10 +1,13 @@
 use anyhow::{bail, Context, Result};
 use nestforge_db::{Db, DbConfig};
 use std::{
+    collections::{HashMap, HashSet},
     env,
     fs,
+    hash::{Hash, Hasher},
     io::Write,
     path::{Path, PathBuf},
+    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -29,10 +32,12 @@ fn main() -> Result<()> {
                 "resource" => generate_resource(name)?,
                 "controller" => generate_controller_only(name)?,
                 "service" => generate_service_only(name)?,
-                _ => bail!("Unknown generator `{}`. Use: resource | controller | service", kind),
+                "module" => generate_module(name)?,
+                _ => bail!("Unknown generator `{}`. Use: resource | controller | service | module", kind),
             }
         }
         "db" => run_db_command(&args)?,
+        "fmt" => run_fmt_command()?,
         _ => {
             print_help();
         }
@@ -49,10 +54,15 @@ fn print_help() {
     println!("  nestforge g resource <name>");
     println!("  nestforge g controller <name>");
     println!("  nestforge g service <name>");
+    println!("  nestforge g module <name>");
     println!("  nestforge db init");
     println!("  nestforge db generate <name>");
     println!("  nestforge db migrate");
     println!("  nestforge db status");
+    println!("  nestforge fmt");
+    println!();
+    println!("Install:");
+    println!("  cargo install --path crates/nestforge-cli");
     println!();
     println!("Examples:");
     println!("  nestforge new care-api");
@@ -148,6 +158,22 @@ fn run_db_command(args: &[String]) -> Result<()> {
     }
 }
 
+fn run_fmt_command() -> Result<()> {
+    let target_dir = detect_app_root().or_else(|_| env::current_dir())?;
+    let status = Command::new("cargo")
+        .arg("fmt")
+        .current_dir(&target_dir)
+        .status()
+        .with_context(|| format!("Failed to run cargo fmt in {}", target_dir.display()))?;
+
+    if !status.success() {
+        bail!("cargo fmt failed in {}", target_dir.display());
+    }
+
+    println!("Formatted Rust sources in {}", target_dir.display());
+    Ok(())
+}
+
 fn db_init(app_root: &Path) -> Result<()> {
     fs::create_dir_all(migrations_dir(app_root))?;
     fs::create_dir_all(nestforge_dir(app_root))?;
@@ -203,12 +229,13 @@ fn db_migrate(app_root: &Path) -> Result<()> {
 
     let migrations = list_migration_files(app_root)?;
     let applied = read_applied_migrations(app_root)?;
+    let applied_names: HashSet<String> = applied.keys().cloned().collect();
     let pending: Vec<PathBuf> = migrations
         .into_iter()
         .filter(|path| {
             path.file_name()
                 .and_then(|n| n.to_str())
-                .map(|name| !applied.contains(name))
+                .map(|name| !applied_names.contains(name))
                 .unwrap_or(false)
         })
         .collect();
@@ -236,7 +263,8 @@ fn db_migrate(app_root: &Path) -> Result<()> {
 
         if statements.is_empty() {
             println!("Skipping empty migration {}", file_name);
-            append_applied_migration(app_root, &file_name)?;
+            let hash = compute_content_hash(&sql);
+            append_applied_migration(app_root, &file_name, &hash)?;
             continue;
         }
 
@@ -245,7 +273,8 @@ fn db_migrate(app_root: &Path) -> Result<()> {
                 .with_context(|| format!("Migration {} failed on statement: {}", file_name, stmt))?;
         }
 
-        append_applied_migration(app_root, &file_name)?;
+        let hash = compute_content_hash(&sql);
+        append_applied_migration(app_root, &file_name, &hash)?;
         println!("Applied {}", file_name);
     }
 
@@ -267,14 +296,23 @@ fn db_status(app_root: &Path) -> Result<()> {
     let mut applied_count = 0usize;
     let mut pending_count = 0usize;
 
+    let mut drift_count = 0usize;
     for migration in migrations {
         let file_name = migration
             .file_name()
             .and_then(|n| n.to_str())
             .context("Invalid migration filename")?;
-        if applied.contains(file_name) {
-            applied_count += 1;
-            println!("[applied] {file_name}");
+        if let Some(stored_hash) = applied.get(file_name) {
+            let content = fs::read_to_string(&migration)
+                .with_context(|| format!("Failed to read migration {}", migration.display()))?;
+            let current_hash = compute_content_hash(&content);
+            if stored_hash.is_empty() || *stored_hash == current_hash {
+                applied_count += 1;
+                println!("[applied] {file_name}");
+            } else {
+                drift_count += 1;
+                println!("[drift]   {file_name} (applied hash differs from current file)");
+            }
         } else {
             pending_count += 1;
             println!("[pending] {file_name}");
@@ -284,6 +322,7 @@ fn db_status(app_root: &Path) -> Result<()> {
     println!();
     println!("Applied: {applied_count}");
     println!("Pending: {pending_count}");
+    println!("Drift: {drift_count}");
     Ok(())
 }
 
@@ -338,6 +377,29 @@ fn generate_service_only(name: &str) -> Result<()> {
     patch_app_module_providers_only(&app_root, &pascal_plural)?;
 
     println!("Generated service `{}`", resource);
+    Ok(())
+}
+
+fn generate_module(name: &str) -> Result<()> {
+    let app_root = detect_app_root()?;
+    let module_name = normalize_resource_name(name);
+    let pascal_module = format!("{}Module", to_pascal_case(&module_name));
+    let module_file = app_root
+        .join("src")
+        .join(format!("{}_module.rs", module_name));
+
+    if module_file.exists() {
+        bail!("Module already exists: {}", module_file.display());
+    }
+
+    write_file(
+        &module_file,
+        &template_feature_module_rs(&module_name, &pascal_module),
+    )?;
+    patch_root_app_module_import(&app_root, &module_name, &pascal_module)?;
+    patch_root_app_module_imports_list(&app_root, &pascal_module)?;
+
+    println!("Generated module `{}`", module_name);
     Ok(())
 }
 
@@ -553,6 +615,9 @@ name = "{app_name}"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+members = []
+
 [dependencies]
 nestforge = "{framework_version}"
 axum = "0.8"
@@ -583,7 +648,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn template_app_module_rs() -> String {
-    r#"use nestforge::module;
+    r#"use nestforge::{module, Provider};
 
 use crate::{
     controllers::{AppController, HealthController},
@@ -591,15 +656,19 @@ use crate::{
 };
 
 #[module(
+    imports = [
+        /* nestforge:imports */
+    ],
     controllers = [
         AppController,
         HealthController,
         /* nestforge:controllers */
     ],
     providers = [
-        AppConfig { app_name: "NestForge App".to_string() },
+        Provider::value(AppConfig { app_name: "NestForge App".to_string() }),
         /* nestforge:providers */
-    ]
+    ],
+    exports = []
 )]
 pub struct AppModule;
 "#
@@ -699,17 +768,18 @@ impl Identifiable for {pascal_singular}Dto {{
 
 fn template_create_dto_rs(pascal_singular: &str) -> String {
     format!(
-        r#"use serde::Deserialize;
+        r#"use nestforge::{{Validate, ValidationErrors}};
+use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Create{pascal_singular}Dto {{
     pub name: String,
 }}
 
-impl Create{pascal_singular}Dto {{
-    pub fn validate(&self) -> Result<(), String> {{
+impl Validate for Create{pascal_singular}Dto {{
+    fn validate(&self) -> Result<(), ValidationErrors> {{
         if self.name.trim().is_empty() {{
-            return Err("name is required".to_string());
+            return Err(ValidationErrors::single("name", "name is required"));
         }}
 
         Ok(())
@@ -721,22 +791,23 @@ impl Create{pascal_singular}Dto {{
 
 fn template_update_dto_rs(pascal_singular: &str) -> String {
     format!(
-        r#"use serde::Deserialize;
+        r#"use nestforge::{{Validate, ValidationErrors}};
+use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Update{pascal_singular}Dto {{
     pub name: Option<String>,
 }}
 
-impl Update{pascal_singular}Dto {{
-    pub fn validate(&self) -> Result<(), String> {{
+impl Validate for Update{pascal_singular}Dto {{
+    fn validate(&self) -> Result<(), ValidationErrors> {{
         if self.name.is_none() {{
-            return Err("at least one field is required".to_string());
+            return Err(ValidationErrors::single("body", "at least one field is required"));
         }}
 
         if let Some(name) = &self.name {{
             if name.trim().is_empty() {{
-                return Err("name cannot be empty".to_string());
+                return Err(ValidationErrors::single("name", "name cannot be empty"));
             }}
         }}
 
@@ -807,7 +878,7 @@ fn template_resource_controller_rs(
 ) -> String {
     format!(
         r#"use axum::Json;
-use nestforge::{{controller, routes, Body, HttpException, Inject, Param}};
+use nestforge::{{controller, routes, HttpException, Inject, Param, ValidatedBody}};
 
 use crate::dto::{{Create{pascal_singular}Dto, Update{pascal_singular}Dto, {pascal_singular}Dto}};
 use crate::services::{pascal_plural}Service;
@@ -839,9 +910,8 @@ impl {pascal_plural}Controller {{
     #[nestforge::post("/")]
     async fn create(
         service: Inject<{pascal_plural}Service>,
-        body: Body<Create{pascal_singular}Dto>,
+        body: ValidatedBody<Create{pascal_singular}Dto>,
     ) -> Result<Json<{pascal_singular}Dto>, HttpException> {{
-        body.validate().map_err(HttpException::bad_request)?;
         Ok(Json(service.create(body.into_inner())))
     }}
 
@@ -849,10 +919,8 @@ impl {pascal_plural}Controller {{
     async fn update(
         id: Param<u64>,
         service: Inject<{pascal_plural}Service>,
-        body: Body<Update{pascal_singular}Dto>,
+        body: ValidatedBody<Update{pascal_singular}Dto>,
     ) -> Result<Json<{pascal_singular}Dto>, HttpException> {{
-        body.validate().map_err(HttpException::bad_request)?;
-
         let item = service
             .update(*id, body.into_inner())
             .ok_or_else(|| HttpException::not_found(format!("{pascal_singular} with id {{}} not found", *id)))?;
@@ -959,6 +1027,68 @@ fn patch_brace_import_list(content: &str, module_name: &str, item: &str) -> Stri
     content.to_string()
 }
 
+fn template_feature_module_rs(module_name: &str, pascal_module: &str) -> String {
+    format!(
+        r#"use nestforge::module;
+
+#[module(
+    imports = [],
+    controllers = [],
+    providers = [],
+    exports = []
+)]
+pub struct {pascal_module};
+
+// Module: {module_name}
+"#
+    )
+}
+
+fn patch_root_app_module_import(
+    app_root: &Path,
+    module_name: &str,
+    pascal_module: &str,
+) -> Result<()> {
+    let path = app_root.join("src/app_module.rs");
+    let mut content = fs::read_to_string(&path)?;
+    let import_line = format!("use crate::{}_module::{};\n", module_name, pascal_module);
+
+    if !content.contains(&import_line) {
+        content = format!("{import_line}{content}");
+        fs::write(path, content)?;
+    }
+
+    Ok(())
+}
+
+fn patch_root_app_module_imports_list(app_root: &Path, pascal_module: &str) -> Result<()> {
+    let path = app_root.join("src/app_module.rs");
+    let mut content = fs::read_to_string(&path)?;
+    let marker = "/* nestforge:imports */";
+    let entry = format!("{pascal_module},");
+
+    if content.contains(&entry) {
+        return Ok(());
+    }
+
+    if content.contains(marker) {
+        content = content.replace(marker, &format!("{marker}\n        {entry}"));
+        fs::write(path, content)?;
+        return Ok(());
+    }
+
+    if let Some(start) = content.find("imports = [") {
+        let segment = &content[start..];
+        if let Some(close_rel) = segment.find(']') {
+            let close_idx = start + close_rel;
+            content.insert_str(close_idx, &format!("\n        {entry}\n    "));
+            fs::write(path, content)?;
+        }
+    }
+
+    Ok(())
+}
+
 fn current_unix_timestamp() -> Result<u64> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1004,30 +1134,32 @@ fn list_migration_files(app_root: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-fn read_applied_migrations(app_root: &Path) -> Result<std::collections::HashSet<String>> {
+fn read_applied_migrations(app_root: &Path) -> Result<HashMap<String, String>> {
     let file = applied_migrations_file(app_root);
     if !file.exists() {
-        return Ok(std::collections::HashSet::new());
+        return Ok(HashMap::new());
     }
 
     let content = fs::read_to_string(&file)?;
-    let set = content
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .map(ToOwned::to_owned)
-        .collect::<std::collections::HashSet<_>>();
-    Ok(set)
+    let mut map = HashMap::new();
+    for line in content.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        if let Some((name, hash)) = line.split_once('|') {
+            map.insert(name.to_string(), hash.to_string());
+        } else {
+            map.insert(line.to_string(), String::new());
+        }
+    }
+    Ok(map)
 }
 
-fn append_applied_migration(app_root: &Path, migration_file_name: &str) -> Result<()> {
+fn append_applied_migration(app_root: &Path, migration_file_name: &str, hash: &str) -> Result<()> {
     let file = applied_migrations_file(app_root);
     let mut open = fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(&file)
         .with_context(|| format!("Failed to open {}", file.display()))?;
-    writeln!(open, "{migration_file_name}")?;
+    writeln!(open, "{migration_file_name}|{hash}")?;
     Ok(())
 }
 
@@ -1072,4 +1204,10 @@ fn split_sql_statements(sql: &str) -> Vec<String> {
         .filter(|s| !s.is_empty() && !s.starts_with("--"))
         .map(|stmt| format!("{stmt};"))
         .collect()
+}
+
+fn compute_content_hash(content: &str) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    content.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
 }

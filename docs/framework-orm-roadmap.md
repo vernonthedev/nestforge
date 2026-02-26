@@ -140,18 +140,18 @@ pub struct DbModule;
 ## CLI Evolution
 
 - [ ] Ensure installable command:
-  - [ ] `cargo install --path crates/nestforge-cli`
-  - [ ] binary name `nestforge`
-- [ ] Add command: `nestforge g module <name>`
+  - [x] `cargo install --path crates/nestforge-cli` (documented in CLI help)
+  - [x] binary name `nestforge`
+- [x] Add command: `nestforge g module <name>`
 - [x] Add command group: `nestforge db *`
   - [x] `nestforge db init`
   - [x] `nestforge db generate <name>`
   - [x] `nestforge db migrate`
   - [x] `nestforge db status`
-- [ ] Update templates to current API:
-  - [ ] `NestForgeFactory::<AppModule>::create()?.listen(3000).await`
-  - [ ] `#[module(imports, controllers, providers, exports)]`
-- [ ] Add optional command: `nestforge fmt`
+- [x] Update templates to current API:
+  - [x] `NestForgeFactory::<AppModule>::create()?.listen(3000).await`
+  - [x] `#[module(imports, controllers, providers, exports)]`
+- [x] Add optional command: `nestforge fmt`
 
 ## Validation Checklist for Every Phase
 

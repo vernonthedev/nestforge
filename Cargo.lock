@@ -286,6 +286,7 @@ dependencies = [
  "axum",
  "http",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 

@@ -1,3 +1,4 @@
+use nestforge::{Validate, ValidationErrors, ValidationIssue};
 use serde::Deserialize;
 
 /*
@@ -11,27 +12,45 @@ pub struct UpdateUserDto {
     pub email: Option<String>,
 }
 
-impl UpdateUserDto {
-    pub fn validate(&self) -> Result<(), String> {
+impl Validate for UpdateUserDto {
+    fn validate(&self) -> Result<(), ValidationErrors> {
+        let mut errors = Vec::new();
+
         if self.name.is_none() && self.email.is_none() {
-            return Err("at least one field is required (name or email)".to_string());
+            errors.push(ValidationIssue {
+                field: "body",
+                message: "at least one field is required (name or email)".to_string(),
+            });
         }
 
         if let Some(name) = &self.name {
             if name.trim().is_empty() {
-                return Err("name cannot be empty".to_string());
+                errors.push(ValidationIssue {
+                    field: "name",
+                    message: "name cannot be empty".to_string(),
+                });
             }
         }
 
         if let Some(email) = &self.email {
             if email.trim().is_empty() {
-                return Err("email cannot be empty".to_string());
+                errors.push(ValidationIssue {
+                    field: "email",
+                    message: "email cannot be empty".to_string(),
+                });
             }
-            if !email.contains('@') {
-                return Err("email must be valid".to_string());
+            if !email.trim().is_empty() && !email.contains('@') {
+                errors.push(ValidationIssue {
+                    field: "email",
+                    message: "email must be valid".to_string(),
+                });
             }
         }
 
-        Ok(())
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ValidationErrors::new(errors))
+        }
     }
 }

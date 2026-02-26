@@ -55,9 +55,10 @@ Status: In progress (core graph support implemented)
 
 ### A4 Validation / Pipes
 
-- [ ] Add `Validate` trait
-- [ ] Auto-run validation from `Body<T>`
-- [ ] Return structured 400 payloads
+- [x] Add `Validate` trait
+- [x] Add `ValidatedBody<T>` extractor that auto-runs validation
+- [x] Return structured 400 payloads with validation details
+- [ ] Optional future: make `Body<T>` invoke validation automatically (requires specialization-like approach)
 
 ### A5 Config Module
 

@@ -6,7 +6,7 @@ use axum::{
 };
 use serde::de::DeserializeOwned;
 
-use crate::HttpException;
+use crate::{HttpException, Validate};
 
 /*
 Param<T> = path param wrapper
@@ -91,6 +91,45 @@ where
         let axum::Json(value) = axum::Json::<T>::from_request(req, state)
             .await
             .map_err(|_| HttpException::bad_request("Invalid JSON body"))?;
+
+        Ok(Self(value))
+    }
+}
+
+pub struct ValidatedBody<T>(pub T);
+
+impl<T> Deref for ValidatedBody<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> ValidatedBody<T> {
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<S, T> FromRequest<S> for ValidatedBody<T>
+where
+    S: Send + Sync,
+    T: DeserializeOwned + Validate + Send + 'static,
+{
+    type Rejection = HttpException;
+
+    async fn from_request(
+        req: axum::extract::Request,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let axum::Json(value) = axum::Json::<T>::from_request(req, state)
+            .await
+            .map_err(|_| HttpException::bad_request("Invalid JSON body"))?;
+
+        value
+            .validate()
+            .map_err(HttpException::bad_request_validation)?;
 
         Ok(Self(value))
     }

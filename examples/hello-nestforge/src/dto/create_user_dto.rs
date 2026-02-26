@@ -1,3 +1,4 @@
+use nestforge::{Validate, ValidationErrors, ValidationIssue};
 use serde::Deserialize;
 
 /*
@@ -10,23 +11,35 @@ pub struct CreateUserDto {
     pub email: String,
 }
 
-impl CreateUserDto {
-    /*
-    Manual validation for now (simple and clear).
-    */
-    pub fn validate(&self) -> Result<(), String> {
+impl Validate for CreateUserDto {
+    fn validate(&self) -> Result<(), ValidationErrors> {
+        let mut errors = Vec::new();
+
         if self.name.trim().is_empty() {
-            return Err("name is required".to_string());
+            errors.push(ValidationIssue {
+                field: "name",
+                message: "name is required".to_string(),
+            });
         }
 
         if self.email.trim().is_empty() {
-            return Err("email is required".to_string());
+            errors.push(ValidationIssue {
+                field: "email",
+                message: "email is required".to_string(),
+            });
         }
 
-        if !self.email.contains('@') {
-            return Err("email must be valid".to_string());
+        if !self.email.trim().is_empty() && !self.email.contains('@') {
+            errors.push(ValidationIssue {
+                field: "email",
+                message: "email must be valid".to_string(),
+            });
         }
 
-        Ok(())
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ValidationErrors::new(errors))
+        }
     }
 }

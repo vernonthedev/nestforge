@@ -1,5 +1,5 @@
 use axum::Json;
-use nestforge::{controller, routes, Body, HttpException, Inject, Param};
+use nestforge::{controller, routes, HttpException, Inject, Param, ValidatedBody};
 
 use crate::dto::{CreateUserDto, UpdateUserDto, UserDto};
 use crate::services::UsersService;
@@ -31,9 +31,8 @@ impl UsersController {
     #[post("/")]
     async fn create(
         users: Inject<UsersService>,
-        body: Body<CreateUserDto>,
+        body: ValidatedBody<CreateUserDto>,
     ) -> Result<Json<UserDto>, HttpException> {
-        body.validate().map_err(HttpException::bad_request)?;
         Ok(Json(users.create(body.into_inner())))
     }
 
@@ -41,10 +40,8 @@ impl UsersController {
     async fn update(
         id: Param<u64>,
         users: Inject<UsersService>,
-        body: Body<UpdateUserDto>,
+        body: ValidatedBody<UpdateUserDto>,
     ) -> Result<Json<UserDto>, HttpException> {
-        body.validate().map_err(HttpException::bad_request)?;
-
         let updated = users
             .update(*id, body.into_inner())
             .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", *id)))?;

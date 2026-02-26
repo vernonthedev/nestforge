@@ -4,6 +4,9 @@ use axum::{
     Json,
 };
 use serde::Serialize;
+use serde_json::Value;
+
+use crate::ValidationErrors;
 
 /**
 * ErrorBody = standard JSON error response shape.
@@ -21,6 +24,8 @@ struct ErrorBody {
     status_code: u16,
     error: String,
     message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<Value>,
 }
 
 /**
@@ -31,6 +36,7 @@ struct ErrorBody {
 pub struct HttpException {
     pub status: StatusCode,
     pub message: String,
+    pub details: Option<Value>,
 }
 
 impl HttpException {
@@ -41,6 +47,19 @@ impl HttpException {
         Self {
             status,
             message: message.into(),
+            details: None,
+        }
+    }
+
+    pub fn with_details(
+        status: StatusCode,
+        message: impl Into<String>,
+        details: Value,
+    ) -> Self {
+        Self {
+            status,
+            message: message.into(),
+            details: Some(details),
         }
     }
 
@@ -49,6 +68,16 @@ impl HttpException {
     */
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, message)
+    }
+
+    pub fn bad_request_validation(errors: ValidationErrors) -> Self {
+        let message = if errors.is_empty() {
+            "Validation failed".to_string()
+        } else {
+            "Validation failed".to_string()
+        };
+        let details = serde_json::to_value(errors).unwrap_or_else(|_| Value::Null);
+        Self::with_details(StatusCode::BAD_REQUEST, message, details)
     }
 
     pub fn unauthorized(message: impl Into<String>) -> Self {
@@ -83,6 +112,7 @@ impl IntoResponse for HttpException {
             status_code: self.status.as_u16(),
             error: error_name,
             message: self.message,
+            details: self.details,
         };
 
         (self.status, Json(body)).into_response()

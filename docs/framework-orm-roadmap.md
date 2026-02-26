@@ -31,9 +31,12 @@ Status: In progress (core graph support implemented)
 
 ### A2 Provider Lifecycle and DI
 
-- [ ] Introduce provider registry API
-  - [ ] `Provider::value(expr)`
-  - [ ] `Provider::factory(|container| ...)`
+- [x] Introduce provider registry API
+  - [x] `Provider::value(expr)`
+  - [x] `Provider::factory(|container| ...)`
+- [x] Support mixed provider syntax in `#[module(providers = [...])]`:
+  - [x] plain values (auto-wrapped as `Provider::value`)
+  - [x] explicit provider helpers (`Provider::value`, `Provider::factory`)
 - [ ] Typed DI errors with:
   - [ ] requested type
   - [ ] current module

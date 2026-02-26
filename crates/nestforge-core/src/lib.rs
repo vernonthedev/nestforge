@@ -11,6 +11,7 @@ pub mod container;
 pub mod error;
 pub mod inject;
 pub mod module;
+pub mod provider;
 pub mod request;
 pub mod route_builder;
 pub mod store;
@@ -25,6 +26,7 @@ pub use module::{
     ModuleDefinition,
     ModuleRef,
 };
+pub use provider::{register_provider, Provider, RegisterProvider};
 pub use request::{Body, Param};
 pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};

@@ -1,4 +1,5 @@
 use proc_macro::TokenStream;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
     bracketed,
@@ -100,9 +101,7 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
         quote! { <#ty as nestforge::ControllerDefinition>::router() }
     });
 
-    let provider_regs = args.providers.iter().map(|expr| {
-        quote! { container.register(#expr)?; }
-    });
+    let provider_regs = args.providers.iter().map(build_provider_registration);
 
     let import_refs = args.imports.iter().map(|ty| {
         quote! { nestforge::ModuleRef::of::<#ty>() }
@@ -261,4 +260,36 @@ where
 
     let items: Punctuated<T, Token![,]> = content.parse_terminated(T::parse, Token![,])?;
     Ok(items.into_iter().collect())
+}
+
+fn build_provider_registration(expr: &Expr) -> TokenStream2 {
+    if is_provider_builder_expr(expr) {
+        quote! { nestforge::register_provider(container, #expr)?; }
+    } else {
+        quote! { nestforge::register_provider(container, nestforge::Provider::value(#expr))?; }
+    }
+}
+
+fn is_provider_builder_expr(expr: &Expr) -> bool {
+    let Expr::Call(call) = expr else {
+        return false;
+    };
+    let Expr::Path(path_expr) = call.func.as_ref() else {
+        return false;
+    };
+
+    let mut segments = path_expr.path.segments.iter().rev();
+    let Some(method) = segments.next() else {
+        return false;
+    };
+
+    if method.ident != "value" && method.ident != "factory" {
+        return false;
+    }
+
+    let Some(provider) = segments.next() else {
+        return false;
+    };
+
+    provider.ident == "Provider"
 }

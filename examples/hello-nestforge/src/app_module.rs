@@ -1,4 +1,4 @@
-use nestforge::module;
+use nestforge::{module, Provider};
 
 use crate::{
     controllers::{AppController, HealthController, UsersController},
@@ -8,8 +8,8 @@ use crate::{
     imports = [],
     controllers = [AppController, HealthController, UsersController],
     providers = [
-        AppConfig { app_name: "NestForge".to_string() },
-        UsersService::new()
+        Provider::value(AppConfig { app_name: "NestForge".to_string() }),
+        Provider::factory(|_| Ok(UsersService::new()))
     ],
     exports = [UsersService]
 )]

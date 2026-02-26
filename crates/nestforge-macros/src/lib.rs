@@ -54,6 +54,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             continue;
         };
         let (guards, interceptors) = extract_pipeline_meta(method);
+        let version = extract_version_meta(method);
 
         if let Some((http_method, path)) = extract_route_meta(method) {
             let method_name = &method.sig.ident;
@@ -64,6 +65,12 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let interceptor_inits = interceptors.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Interceptor> }
             });
+            let version_tokens = if let Some(version) = &version {
+                let lit = LitStr::new(version, method.sig.ident.span());
+                quote! { Some(#lit) }
+            } else {
+                quote! { None }
+            };
 
             let call = match http_method.as_str() {
                 "get" => quote! {
@@ -71,7 +78,8 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         #path_lit,
                         Self::#method_name,
                         vec![#(#guard_inits),*],
-                        vec![#(#interceptor_inits),*]
+                        vec![#(#interceptor_inits),*],
+                        #version_tokens
                     );
                 },
                 "post" => quote! {
@@ -79,7 +87,8 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         #path_lit,
                         Self::#method_name,
                         vec![#(#guard_inits),*],
-                        vec![#(#interceptor_inits),*]
+                        vec![#(#interceptor_inits),*],
+                        #version_tokens
                     );
                 },
                 "put" => quote! {
@@ -87,7 +96,8 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         #path_lit,
                         Self::#method_name,
                         vec![#(#guard_inits),*],
-                        vec![#(#interceptor_inits),*]
+                        vec![#(#interceptor_inits),*],
+                        #version_tokens
                     );
                 },
                 "delete" => quote! {
@@ -95,7 +105,8 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         #path_lit,
                         Self::#method_name,
                         vec![#(#guard_inits),*],
-                        vec![#(#interceptor_inits),*]
+                        vec![#(#interceptor_inits),*],
+                        #version_tokens
                     );
                 },
                 _ => continue,
@@ -211,6 +222,11 @@ pub fn put(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn delete(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn version(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
@@ -579,6 +595,32 @@ fn extract_pipeline_meta(method: &mut ImplItemFn) -> (Vec<Type>, Vec<Type>) {
 
     method.attrs = kept_attrs;
     (guards, interceptors)
+}
+
+fn extract_version_meta(method: &mut ImplItemFn) -> Option<String> {
+    let mut version: Option<String> = None;
+    let mut kept_attrs: Vec<Attribute> = Vec::new();
+
+    for attr in method.attrs.drain(..) {
+        let ident = attr
+            .path()
+            .segments
+            .last()
+            .map(|seg| seg.ident.to_string())
+            .unwrap_or_default();
+
+        if ident == "version" {
+            if let Ok(lit) = attr.parse_args::<LitStr>() {
+                version = Some(lit.value());
+            }
+            continue;
+        }
+
+        kept_attrs.push(attr);
+    }
+
+    method.attrs = kept_attrs;
+    version
 }
 
 fn parse_route_attr(attr: &Attribute) -> Option<(String, String)> {

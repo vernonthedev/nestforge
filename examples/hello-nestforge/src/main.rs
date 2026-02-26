@@ -21,7 +21,6 @@ const PORT: u16 = 3000;
 async fn bootstrap() -> anyhow::Result<()> {
     NestForgeFactory::<AppModule>::create()?
         .with_global_prefix("api")
-        .with_version("v1")
         .use_guard::<AllowAllGuard>()
         .use_interceptor::<LoggingInterceptor>()
         .listen(PORT)

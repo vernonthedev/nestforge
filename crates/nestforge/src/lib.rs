@@ -21,7 +21,7 @@ pub use nestforge_db::{Db, DbConfig, DbError, DbTransaction};
 pub use nestforge_http::NestForgeFactory;
 pub use nestforge_macros::{
     controller, delete, dto, entity, entity_dto, get, id, identifiable, module, post, put,
-    response_dto, routes, use_guard, use_interceptor, Identifiable, Validate,
+    response_dto, routes, use_guard, use_interceptor, version, Identifiable, Validate,
 };
 
 #[macro_export]

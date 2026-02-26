@@ -70,3 +70,9 @@ where
         })
     }
 }
+
+impl<T> AsRef<T> for Inject<T> {
+    fn as_ref(&self) -> &T {
+        &self.0
+    }
+}

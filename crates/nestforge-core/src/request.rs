@@ -17,6 +17,7 @@ id: Param<u64>
 Instead of:
 Path(id): Path<u64>
 */
+#[derive(Debug, Clone, Copy)]
 pub struct Param<T>(pub T);
 
 impl<T> Deref for Param<T> {
@@ -24,6 +25,12 @@ impl<T> Deref for Param<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl<T> Param<T> {
+    pub fn into_inner(self) -> T {
+        self.0
     }
 }
 

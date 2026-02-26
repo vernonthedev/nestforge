@@ -14,13 +14,13 @@ pub struct UsersController;
 impl UsersController {
     #[nestforge::get("/")]
     async fn list(users: Inject<UsersService>) -> ApiResult<List<UserDto>> {
-        Ok(Json(list_users(&*users)))
+        Ok(Json(list_users(users.as_ref())))
     }
 
     #[nestforge::get("/count")]
     async fn count(users: Inject<UsersService>) -> ApiResult<UsersCountDto> {
         Ok(Json(UsersCountDto {
-            total: users_count(&*users),
+            total: users_count(users.as_ref()),
         }))
     }
 
@@ -29,8 +29,10 @@ impl UsersController {
         id: Param<u64>,
         users: Inject<UsersService>,
     ) -> ApiResult<UserDto> {
-        let user = get_user_by_id(&*users, *id)
-            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", *id)))?;
+        let id_value = id.into_inner();
+        let user = get_user_by_id(users.as_ref(), id_value).ok_or_else(|| {
+            HttpException::not_found(format!("User with id {} not found", id_value))
+        })?;
 
         Ok(Json(user))
     }
@@ -40,7 +42,7 @@ impl UsersController {
         users: Inject<UsersService>,
         body: ValidatedBody<CreateUserDto>,
     ) -> ApiResult<UserDto> {
-        let user = create_user(&*users, body.into_inner())
+        let user = create_user(users.as_ref(), body.into_inner())
             .map_err(|err| HttpException::bad_request(err.to_string()))?;
         Ok(Json(user))
     }
@@ -51,9 +53,10 @@ impl UsersController {
         users: Inject<UsersService>,
         body: ValidatedBody<UpdateUserDto>,
     ) -> ApiResult<UserDto> {
-        let updated = update_user(&*users, *id, body.into_inner())
+        let id_value = id.into_inner();
+        let updated = update_user(users.as_ref(), id_value, body.into_inner())
             .map_err(|err| HttpException::bad_request(err.to_string()))?
-            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", *id)))?;
+            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", id_value)))?;
 
         Ok(Json(updated))
     }
@@ -64,9 +67,10 @@ impl UsersController {
         users: Inject<UsersService>,
         body: ValidatedBody<CreateUserDto>,
     ) -> ApiResult<UserDto> {
-        let replaced = replace_user(&*users, *id, body.into_inner())
+        let id_value = id.into_inner();
+        let replaced = replace_user(users.as_ref(), id_value, body.into_inner())
             .map_err(|err| HttpException::bad_request(err.to_string()))?
-            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", *id)))?;
+            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", id_value)))?;
 
         Ok(Json(replaced))
     }
@@ -76,9 +80,10 @@ impl UsersController {
         id: Param<u64>,
         users: Inject<UsersService>,
     ) -> ApiResult<UserExistsDto> {
+        let id_value = id.into_inner();
         Ok(Json(UserExistsDto {
-            id: *id,
-            exists: user_exists(&*users, *id),
+            id: id_value,
+            exists: user_exists(users.as_ref(), id_value),
         }))
     }
 
@@ -87,8 +92,10 @@ impl UsersController {
         id: Param<u64>,
         users: Inject<UsersService>,
     ) -> ApiResult<UserDto> {
-        let deleted = delete_user(&*users, *id)
-            .ok_or_else(|| HttpException::not_found(format!("User with id {} not found", *id)))?;
+        let id_value = id.into_inner();
+        let deleted = delete_user(users.as_ref(), id_value).ok_or_else(|| {
+            HttpException::not_found(format!("User with id {} not found", id_value))
+        })?;
 
         Ok(Json(deleted))
     }

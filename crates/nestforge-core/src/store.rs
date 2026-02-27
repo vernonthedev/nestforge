@@ -20,6 +20,15 @@ pub struct InMemoryStore<T> {
     items: Arc<RwLock<Vec<T>>>,
 }
 
+impl<T> Default for InMemoryStore<T>
+where
+    T: Identifiable + Clone,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> InMemoryStore<T>
 where
     T: Identifiable + Clone,
@@ -37,7 +46,10 @@ where
     }
 
     pub fn find_all(&self) -> Vec<T> {
-        self.items.read().map(|items| items.clone()).unwrap_or_default()
+        self.items
+            .read()
+            .map(|items| items.clone())
+            .unwrap_or_default()
     }
 
     pub fn find_by_id(&self, id: u64) -> Option<T> {
@@ -45,6 +57,10 @@ where
             .read()
             .ok()
             .and_then(|items| items.iter().find(|item| item.id() == id).cloned())
+    }
+
+    pub fn count(&self) -> usize {
+        self.items.read().map(|items| items.len()).unwrap_or(0)
     }
 
     /*
@@ -77,5 +93,19 @@ where
 
         updater(item);
         Some(item.clone())
+    }
+
+    pub fn replace_by_id(&self, id: u64, mut replacement: T) -> Option<T> {
+        let mut items = self.items.write().ok()?;
+        let existing = items.iter_mut().find(|item| item.id() == id)?;
+        replacement.set_id(id);
+        *existing = replacement;
+        Some(existing.clone())
+    }
+
+    pub fn delete_by_id(&self, id: u64) -> Option<T> {
+        let mut items = self.items.write().ok()?;
+        let index = items.iter().position(|item| item.id() == id)?;
+        Some(items.remove(index))
     }
 }

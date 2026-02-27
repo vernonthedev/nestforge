@@ -16,3 +16,5 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
+tokio = { workspace = true }
+nestforge-db = { version = "1.0.0", path = "../nestforge-db" }

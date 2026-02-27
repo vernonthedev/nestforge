@@ -1,0 +1,15 @@
+[package]
+name = "nestforge-testing"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "Testing utilities for NestForge modules and DI overrides"
+keywords = ["rust", "testing", "framework", "di", "nestforge"]
+categories = ["development-tools::testing"]
+
+[dependencies]
+anyhow = { workspace = true }
+nestforge-core = { version = "1.0.0", path = "../nestforge-core" }

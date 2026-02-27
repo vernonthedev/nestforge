@@ -9,16 +9,34 @@
 */
 pub mod container;
 pub mod error;
+pub mod http_ext;
 pub mod inject;
+pub mod logging;
 pub mod module;
+pub mod pipeline;
+pub mod provider;
 pub mod request;
+pub mod resource_service;
 pub mod route_builder;
 pub mod store;
+pub mod validation;
 
-pub use container::Container;
+pub use container::{Container, ContainerError};
 pub use error::HttpException;
+pub use http_ext::{OptionHttpExt, ResultHttpExt};
 pub use inject::Inject;
-pub use module::{ControllerBasePath, ControllerDefinition, ModuleDefinition};
+pub use logging::framework_log;
+pub use module::{
+    initialize_module_graph, ControllerBasePath, ControllerDefinition, ModuleDefinition, ModuleRef,
+};
+pub use pipeline::{execute_pipeline, run_guards, Guard, Interceptor, NextFn, NextFuture, RequestContext};
+pub use provider::{register_provider, Provider, RegisterProvider};
+pub use request::ValidatedBody;
 pub use request::{Body, Param};
+pub use resource_service::{ResourceError, ResourceService};
 pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};
+pub use validation::{Validate, ValidationErrors, ValidationIssue};
+
+pub type ApiResult<T> = Result<axum::Json<T>, HttpException>;
+pub type List<T> = Vec<T>;

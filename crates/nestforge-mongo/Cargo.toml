@@ -1,0 +1,14 @@
+[package]
+name = "nestforge-mongo"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "Mongo-style adapter primitives for NestForge data layer"
+keywords = ["rust", "mongo", "adapter", "nestforge"]
+categories = ["database"]
+
+[dependencies]
+nestforge-data = { version = "1.0.0", path = "../nestforge-data" }

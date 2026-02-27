@@ -2,26 +2,33 @@
 
 Base URL: `http://127.0.0.1:3000`
 
-## Health
-
-- `GET /health`
-- Response: `OK`
+The example app uses global prefix `api`, so routes start with `/api`.
 
 ## Root
 
-- `GET /`
-- Response: welcome text
+- `GET /api/`
+- Response: welcome string
 
-## Users
+## Health
 
-- `GET /users/`: list users
-- `GET /users/{id}`: get one user
-- `POST /users/`: create user
-- `PUT /users/{id}`: update user
+- `GET /api/health`
+- Response: `OK`
 
-## JSON shapes
+- `GET /api/health/db`
+- Response: `DB_READY`
 
-Create user body:
+## Users (v1)
+
+- `GET /api/v1/users/`
+- `GET /api/v1/users/count`
+- `GET /api/v1/users/{id}`
+- `GET /api/v1/users/{id}/exists`
+- `POST /api/v1/users/`
+- `PUT /api/v1/users/{id}`
+- `PUT /api/v1/users/{id}/replace`
+- `DELETE /api/v1/users/{id}`
+
+### Create User Body
 
 ```json
 {
@@ -30,7 +37,7 @@ Create user body:
 }
 ```
 
-Update user body:
+### Update User Body
 
 ```json
 {
@@ -39,17 +46,23 @@ Update user body:
 }
 ```
 
-User response:
+## Settings (v1)
 
-```json
-{
-  "id": 1,
-  "name": "Alice",
-  "email": "alice@example.com"
-}
-```
+- `GET /api/v1/settings/runtime`
+- `GET /api/v1/settings/`
+- `GET /api/v1/settings/{id}`
+- `POST /api/v1/settings/`
+- `PUT /api/v1/settings/{id}`
+- `DELETE /api/v1/settings/{id}`
 
-Error response shape:
+## Versioning Demo
+
+- `GET /api/v1/versioning/hello`
+- `GET /api/v2/versioning/hello`
+
+## Error Shape
+
+NestForge errors return a consistent JSON shape:
 
 ```json
 {

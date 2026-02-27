@@ -1,0 +1,1 @@
+nestforge::guard!(AllowAllGuard);

@@ -6,7 +6,7 @@ use axum::{
     http::request::Parts,
 };
 
-use crate::{Container, HttpException};
+use crate::{framework_log, Container, HttpException};
 
 /*
 Inject<T> = DI extractor wrapper
@@ -26,6 +26,7 @@ where
     Manual resolve helper (still useful internally/tests)
     */
     pub fn from(container: &Container) -> Result<Self> {
+        framework_log(format!("Injecting {}.", std::any::type_name::<T>()));
         let inner = container.resolve::<T>()?;
         Ok(Self(inner))
     }
@@ -61,7 +62,18 @@ where
             .await
             .map_err(|_| HttpException::internal_server_error("Container state not available"))?;
 
-        Self::from(&container)
-            .map_err(|_| HttpException::internal_server_error("Dependency not registered"))
+        Self::from(&container).map_err(|err| {
+            HttpException::internal_server_error(format!(
+                "Failed to resolve dependency `{}`: {}",
+                std::any::type_name::<T>(),
+                err
+            ))
+        })
+    }
+}
+
+impl<T> AsRef<T> for Inject<T> {
+    fn as_ref(&self) -> &T {
+        &self.0
     }
 }

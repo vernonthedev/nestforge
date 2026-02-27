@@ -2,25 +2,71 @@
 
 Path: `examples/hello-nestforge`
 
-## Boot flow
+## What This Example Shows
 
-1. `src/main.rs` calls `NestForgeFactory::<AppModule>::create()?.listen(3000)`
-2. `src/app_module.rs` defines controllers + providers via `#[module]`
-3. Factory builds container, registers providers, mounts controller routers
+- Nest-style module imports (`UsersModule`, `SettingsModule`, `VersioningModule`)
+- Root app controllers at `src/` level
+- Feature folders for each domain
+- Global guard + interceptor registration
+- Route-level guards/interceptors
+- Route versioning (`v1`, `v2`)
+- Config loading with schema checks
 
-## Controllers
+## Boot Flow
 
-- `AppController`: `GET /` welcome message
-- `HealthController`: `GET /health`
-- `UsersController`: CRUD-like user routes
+1. `main.rs` creates the app with `NestForgeFactory::<AppModule>::create()`
+2. Factory applies global prefix (`api`)
+3. Factory registers global guard/interceptor
+4. Module graph is resolved and providers/controllers are registered
+5. HTTP server starts on port `3000`
 
-## Providers
+## AppModule
 
-- `AppConfig`: basic app config
-- `UsersService`: user business logic backed by `InMemoryStore<UserDto>`
+`app_module.rs` does three main jobs:
 
-## DTOs
+- imports feature modules
+- registers root controllers (`AppController`, `HealthController`)
+- registers root providers (`AppConfig`, `Db`)
 
-- `UserDto`: response model + `Identifiable`
-- `CreateUserDto`: POST body + validation
-- `UpdateUserDto`: PUT body + validation
+It also validates env values using:
+
+- `ConfigModule::for_root`
+- `ConfigOptions`
+- `EnvSchema`
+
+## Users Feature
+
+`src/users/` contains:
+
+- `controllers/users_controller.rs`
+- `services/users_service.rs`
+- `dto/*`
+
+The controller demonstrates:
+
+- full CRUD routes
+- validation with `ValidatedBody<T>`
+- route-level guards/interceptors
+- cleaner error mapping with `or_bad_request()` and `or_not_found_id()`
+
+## Settings Feature
+
+`src/settings/` contains CRUD endpoints plus runtime config endpoint:
+
+- `GET /api/v1/settings/runtime`
+
+This endpoint shows DI config injection (`Inject<AppConfig>`).
+
+## Versioning Feature
+
+`src/versioning/controllers/versioning_controller.rs` has two versions of the same route:
+
+- `GET /api/v1/versioning/hello`
+- `GET /api/v2/versioning/hello`
+
+## Guards And Interceptors
+
+- Guards: `src/guards/`
+- Interceptors: `src/interceptors/`
+
+Example uses the macro-based short style (`nestforge::guard!`, `nestforge::interceptor!`) to keep code small.

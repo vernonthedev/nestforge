@@ -1,0 +1,14 @@
+[package]
+name = "nestforge-config"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "Environment configuration loading for NestForge"
+keywords = ["rust", "config", "env", "nestforge"]
+categories = ["config"]
+
+[dependencies]
+thiserror = { workspace = true }

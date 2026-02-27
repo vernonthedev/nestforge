@@ -2,46 +2,59 @@
 
 ## Requirements
 
-- Rust + Cargo installed
+- Rust and Cargo installed
 
-## Run checks
-
-```bash
-cargo check
-```
-
-## Run example app
+## Run The Workspace
 
 ```bash
+cargo check --workspace
+cargo test --workspace
 cargo run -p hello-nestforge
 ```
 
-Server starts at:
+Server URL:
 
 ```text
 http://127.0.0.1:3000
 ```
 
-## Useful commands
+## Install CLI
 
 ```bash
-cargo fmt
-cargo clippy --workspace --all-targets --all-features
-cargo test
+cargo install --path crates/nestforge-cli
 ```
 
-## Create a new app with CLI
+## Create A New App
 
 ```bash
-cargo install nestforge-cli
 nestforge new demo-api
 cd demo-api
 cargo run
 ```
 
-## Add NestForge to an existing project
+## Generate Code
 
-```toml
-[dependencies]
-nestforge = "1.0.0"
+```bash
+nestforge g module users
+nestforge g resource users --module users
+nestforge g guard auth
+nestforge g interceptor logging
+```
+
+## Run DB Commands
+
+```bash
+nestforge db init
+nestforge db generate create_users_table
+nestforge db migrate
+nestforge db status
+```
+
+## Useful Commands
+
+```bash
+cargo fmt --all
+cargo clippy --workspace --all-targets -D warnings
+nestforge docs
+nestforge fmt
 ```

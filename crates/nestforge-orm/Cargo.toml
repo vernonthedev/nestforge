@@ -1,0 +1,18 @@
+[package]
+name = "nestforge-orm"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "Tier 2 relational ORM primitives for NestForge"
+keywords = ["rust", "orm", "sql", "repository", "nestforge"]
+categories = ["database"]
+
+[dependencies]
+thiserror = { workspace = true }
+nestforge-db = { version = "1.0.0", path = "../nestforge-db" }
+
+[dev-dependencies]
+tokio = { workspace = true }

@@ -1,7 +1,8 @@
 use anyhow::Result;
 use axum::Router;
+use std::collections::HashSet;
 
-use crate::Container;
+use crate::{framework_log, Container};
 
 /*
 ControllerBasePath = metadata implemented by #[controller("/...")]
@@ -17,13 +18,283 @@ pub trait ControllerDefinition: Send + Sync + 'static {
     fn router() -> Router<Container>;
 }
 
+#[derive(Clone, Copy)]
+pub struct ModuleRef {
+    pub name: &'static str,
+    pub register: fn(&Container) -> Result<()>,
+    pub controllers: fn() -> Vec<Router<Container>>,
+    pub imports: fn() -> Vec<ModuleRef>,
+    pub exports: fn() -> Vec<&'static str>,
+    pub is_global: fn() -> bool,
+}
+
+impl ModuleRef {
+    pub fn of<M: ModuleDefinition>() -> Self {
+        Self {
+            name: M::module_name(),
+            register: M::register,
+            controllers: M::controllers,
+            imports: M::imports,
+            exports: M::exports,
+            is_global: M::is_global,
+        }
+    }
+}
+
 /*
 ModuleDefinition = app module contract (manual for now)
 */
 pub trait ModuleDefinition: Send + Sync + 'static {
+    fn module_name() -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
     fn register(container: &Container) -> Result<()>;
+
+    fn imports() -> Vec<ModuleRef> {
+        Vec::new()
+    }
+
+    fn is_global() -> bool {
+        false
+    }
+
+    fn exports() -> Vec<&'static str> {
+        Vec::new()
+    }
 
     fn controllers() -> Vec<Router<Container>> {
         Vec::new()
+    }
+}
+
+pub fn initialize_module_graph<M: ModuleDefinition>(
+    container: &Container,
+) -> Result<Vec<Router<Container>>> {
+    let mut state = ModuleGraphState::default();
+    visit_module(ModuleRef::of::<M>(), container, &mut state)?;
+    Ok(state.controllers)
+}
+
+#[derive(Default)]
+struct ModuleGraphState {
+    visited: HashSet<&'static str>,
+    visiting: HashSet<&'static str>,
+    stack: Vec<&'static str>,
+    controllers: Vec<Router<Container>>,
+    global_modules: HashSet<&'static str>,
+}
+
+fn visit_module(
+    module: ModuleRef,
+    container: &Container,
+    state: &mut ModuleGraphState,
+) -> Result<()> {
+    if state.visited.contains(module.name) {
+        return Ok(());
+    }
+
+    if state.visiting.contains(module.name) {
+        let mut cycle = state.stack.clone();
+        cycle.push(module.name);
+        anyhow::bail!("Detected module import cycle: {}", cycle.join(" -> "));
+    }
+
+    state.visiting.insert(module.name);
+    state.stack.push(module.name);
+    framework_log(format!("Registering module {}.", module.name));
+
+    for imported in (module.imports)() {
+        visit_module(imported, container, state)?;
+    }
+
+    (module.register)(container)
+        .map_err(|err| anyhow::anyhow!("Failed to register module `{}`: {}", module.name, err))?;
+
+    state.controllers.extend((module.controllers)());
+
+    if (module.is_global)() {
+        state.global_modules.insert(module.name);
+    }
+
+    for export in (module.exports)() {
+        let is_registered = container.is_type_registered_name(export).map_err(|err| {
+            anyhow::anyhow!(
+                "Failed to verify exports for module `{}`: {}",
+                module.name,
+                err
+            )
+        })?;
+        if !is_registered {
+            anyhow::bail!(
+                "Module `{}` exports `{}` but that provider is not registered in the container",
+                module.name,
+                export
+            );
+        }
+    }
+
+    state.stack.pop();
+    state.visiting.remove(module.name);
+    state.visited.insert(module.name);
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct ImportedConfig;
+    struct AppService;
+
+    struct ImportedModule;
+    impl ModuleDefinition for ImportedModule {
+        fn register(container: &Container) -> Result<()> {
+            container.register(ImportedConfig)?;
+            Ok(())
+        }
+    }
+
+    struct AppModule;
+    impl ModuleDefinition for AppModule {
+        fn imports() -> Vec<ModuleRef> {
+            vec![ModuleRef::of::<ImportedModule>()]
+        }
+
+        fn register(container: &Container) -> Result<()> {
+            let imported = container.resolve::<ImportedConfig>()?;
+            container.register(AppService::from(imported))?;
+            Ok(())
+        }
+    }
+
+    impl From<std::sync::Arc<ImportedConfig>> for AppService {
+        fn from(_: std::sync::Arc<ImportedConfig>) -> Self {
+            Self
+        }
+    }
+
+    #[test]
+    fn registers_imported_modules_before_local_providers() {
+        let container = Container::new();
+        let result = initialize_module_graph::<AppModule>(&container);
+
+        assert!(result.is_ok(), "module graph registration should succeed");
+        assert!(container.resolve::<ImportedConfig>().is_ok());
+        assert!(container.resolve::<AppService>().is_ok());
+    }
+
+    struct SharedImportedModule;
+    impl ModuleDefinition for SharedImportedModule {
+        fn register(container: &Container) -> Result<()> {
+            container.register(SharedMarker)?;
+            Ok(())
+        }
+    }
+
+    struct SharedMarker;
+    struct LeftModule;
+    struct RightModule;
+    struct RootModule;
+
+    impl ModuleDefinition for LeftModule {
+        fn imports() -> Vec<ModuleRef> {
+            vec![ModuleRef::of::<SharedImportedModule>()]
+        }
+
+        fn register(_container: &Container) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    impl ModuleDefinition for RightModule {
+        fn imports() -> Vec<ModuleRef> {
+            vec![ModuleRef::of::<SharedImportedModule>()]
+        }
+
+        fn register(_container: &Container) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    impl ModuleDefinition for RootModule {
+        fn imports() -> Vec<ModuleRef> {
+            vec![
+                ModuleRef::of::<LeftModule>(),
+                ModuleRef::of::<RightModule>(),
+            ]
+        }
+
+        fn register(_container: &Container) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn deduplicates_shared_imported_modules() {
+        let container = Container::new();
+        let result = initialize_module_graph::<RootModule>(&container);
+
+        assert!(
+            result.is_ok(),
+            "shared imported modules should only register once"
+        );
+        assert!(container.resolve::<SharedMarker>().is_ok());
+    }
+
+    struct CycleA;
+    struct CycleB;
+
+    impl ModuleDefinition for CycleA {
+        fn imports() -> Vec<ModuleRef> {
+            vec![ModuleRef::of::<CycleB>()]
+        }
+
+        fn register(_container: &Container) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    impl ModuleDefinition for CycleB {
+        fn imports() -> Vec<ModuleRef> {
+            vec![ModuleRef::of::<CycleA>()]
+        }
+
+        fn register(_container: &Container) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn detects_module_import_cycles() {
+        let container = Container::new();
+        let err = initialize_module_graph::<CycleA>(&container).unwrap_err();
+
+        assert!(
+            err.to_string().contains("Detected module import cycle"),
+            "error should include cycle detection message"
+        );
+    }
+
+    struct MissingDependency;
+    struct BrokenModule;
+
+    impl ModuleDefinition for BrokenModule {
+        fn register(container: &Container) -> Result<()> {
+            let _ = container.resolve_in_module::<MissingDependency>(Self::module_name())?;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn module_registration_error_includes_module_and_type_context() {
+        let container = Container::new();
+        let err = initialize_module_graph::<BrokenModule>(&container).unwrap_err();
+        let message = err.to_string();
+
+        assert!(message.contains("Failed to register module"));
+        assert!(message.contains("BrokenModule"));
+        assert!(message.contains("MissingDependency"));
     }
 }

@@ -12,7 +12,8 @@ categories = ["database"]
 
 [dependencies]
 thiserror = { workspace = true }
-nestforge-db = { version = "1.0.0", path = "../nestforge-db" }
+nestforge-db = { version = "1.1.0", path = "../nestforge-db" }
 
 [dev-dependencies]
 tokio = { workspace = true }
+

@@ -11,17 +11,17 @@ keywords = ["rust", "framework", "backend", "di", "axum"]
 categories = ["web-programming", "web-programming::http-server"]
 
 [dependencies]
-nestforge-core = { version = "1.0.0", path = "../nestforge-core" }
-nestforge-http = { version = "1.0.0", path = "../nestforge-http" }
-nestforge-macros = { version = "1.0.0", path = "../nestforge-macros" }
-nestforge-testing = { version = "1.0.0", path = "../nestforge-testing", optional = true }
-nestforge-db = { version = "1.0.0", path = "../nestforge-db", optional = true }
-nestforge-orm = { version = "1.0.0", path = "../nestforge-orm", optional = true }
-nestforge-config = { version = "1.0.0", path = "../nestforge-config", optional = true }
-nestforge-openapi = { version = "1.0.0", path = "../nestforge-openapi", optional = true }
-nestforge-data = { version = "1.0.0", path = "../nestforge-data", optional = true }
-nestforge-mongo = { version = "1.0.0", path = "../nestforge-mongo", optional = true }
-nestforge-redis = { version = "1.0.0", path = "../nestforge-redis", optional = true }
+nestforge-core = { version = "1.1.0", path = "../nestforge-core" }
+nestforge-http = { version = "1.1.0", path = "../nestforge-http" }
+nestforge-macros = { version = "1.1.0", path = "../nestforge-macros" }
+nestforge-testing = { version = "1.1.0", path = "../nestforge-testing", optional = true }
+nestforge-db = { version = "1.1.0", path = "../nestforge-db", optional = true }
+nestforge-orm = { version = "1.1.0", path = "../nestforge-orm", optional = true }
+nestforge-config = { version = "1.1.0", path = "../nestforge-config", optional = true }
+nestforge-openapi = { version = "1.1.0", path = "../nestforge-openapi", optional = true }
+nestforge-data = { version = "1.1.0", path = "../nestforge-data", optional = true }
+nestforge-mongo = { version = "1.1.0", path = "../nestforge-mongo", optional = true }
+nestforge-redis = { version = "1.1.0", path = "../nestforge-redis", optional = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 
@@ -35,3 +35,4 @@ openapi = ["dep:nestforge-openapi"]
 data = ["dep:nestforge-data"]
 mongo = ["dep:nestforge-mongo", "data"]
 redis = ["dep:nestforge-redis", "data"]
+

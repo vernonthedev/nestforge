@@ -15,4 +15,5 @@ axum = { workspace = true } # axum is the HTTP engine under the hood.
 tokio = { workspace = true } # tokio runs the async server.
 anyhow = { workspace = true } # anyhow for simple Result returns while we build the foundation.
 tower-http = { workspace = true } # tower-http gives us middleware (like request tracing).
-nestforge-core = { version = "1.0.0", path = "../nestforge-core" } # local core crate (DI container + traits).
+nestforge-core = { version = "1.1.0", path = "../nestforge-core" } # local core crate (DI container + traits).
+

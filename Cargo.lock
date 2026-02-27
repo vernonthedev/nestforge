@@ -428,7 +428,7 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hello-nestforge"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -773,7 +773,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "nestforge-config",
@@ -792,7 +792,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-cli"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "nestforge-db",
@@ -801,14 +801,14 @@ dependencies = [
 
 [[package]]
 name = "nestforge-config"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "nestforge-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -820,14 +820,14 @@ dependencies = [
 
 [[package]]
 name = "nestforge-data"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "nestforge-db"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "sqlx",
  "thiserror",
@@ -836,7 +836,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-http"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -847,7 +847,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-macros"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -856,14 +856,14 @@ dependencies = [
 
 [[package]]
 name = "nestforge-mongo"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "nestforge-data",
 ]
 
 [[package]]
 name = "nestforge-openapi"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "axum",
  "serde",
@@ -872,7 +872,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-orm"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "nestforge-db",
  "thiserror",
@@ -881,14 +881,14 @@ dependencies = [
 
 [[package]]
 name = "nestforge-redis"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "nestforge-data",
 ]
 
 [[package]]
 name = "nestforge-testing"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "nestforge-core",

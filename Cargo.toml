@@ -21,7 +21,7 @@ resolver = "2"
 # Shared package settings for all crates in this workspace.
 edition = "2021"
 license = "MIT"
-version = "1.0.0"
+version = "1.1.0"
 repository = "https://github.com/vernonthedev/nestforge"
 homepage = "https://github.com/vernonthedev/nestforge"
 readme = "README.md"
@@ -38,3 +38,4 @@ thiserror = "2"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "any", "postgres"] }
+

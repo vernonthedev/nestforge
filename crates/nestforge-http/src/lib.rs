@@ -12,4 +12,4 @@ pub mod middleware;
 Re-export the app factory so the public crate can expose it.
 */
 pub use factory::NestForgeFactory;
-pub use middleware::{MiddlewareConsumer, NestMiddleware};
+pub use middleware::{MiddlewareConsumer, MiddlewareRoute, NestMiddleware};

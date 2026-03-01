@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{body::Body, extract::Request, http::Method, response::Response};
+use axum::{body::Body, extract::Request, http::Method};
 use nestforge_core::{framework_log_event, NextFn, NextFuture};
 
 pub trait NestMiddleware: Send + Sync + 'static {

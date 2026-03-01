@@ -218,7 +218,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
             async move { execute_pipeline(req, next, guards, interceptors, filters).await }
         }));
 
-        let app = app.layer(from_fn(move |req, next| {
+        let app = app.layer(from_fn(move |req: axum::extract::Request, next: axum::middleware::Next| {
             let middlewares = Arc::clone(&middleware_bindings);
             async move {
                 if middlewares.is_empty() {

@@ -89,7 +89,7 @@ impl WebSocketContext {
     where
         T: Send + Sync + 'static,
     {
-        self.container.resolve::<T>()
+        Ok(self.container.resolve::<T>()?)
     }
 
     pub fn is_authenticated(&self) -> bool {
@@ -207,7 +207,7 @@ where
         get(move |ws: WebSocketUpgrade,
                   Extension(container): Extension<Container>,
                   headers: HeaderMap,
-                  request_id: Option<RequestId>| {
+                  Extension(request_id): Extension<RequestId>| {
                 let gateway = Arc::clone(&gateway);
                 let auth_identity = container
                     .resolve::<AuthIdentity>()
@@ -215,7 +215,7 @@ where
                     .map(|value| (*value).clone());
                 async move {
                     let context =
-                        WebSocketContext::new(container, request_id, auth_identity, headers);
+                        WebSocketContext::new(container, Some(request_id), auth_identity, headers);
                     ws.on_upgrade(move |socket| async move {
                         gateway.on_connect(context, socket).await;
                     })
@@ -246,7 +246,7 @@ where
         get(move |ws: WebSocketUpgrade,
                   Extension(container): Extension<Container>,
                   headers: HeaderMap,
-                  request_id: Option<RequestId>| {
+                  Extension(request_id): Extension<RequestId>| {
                 let handler = handler.clone();
                 let auth_identity = container
                     .resolve::<AuthIdentity>()
@@ -254,7 +254,7 @@ where
                     .map(|value| (*value).clone());
                 async move {
                     let context =
-                        WebSocketContext::new(container, request_id, auth_identity, headers);
+                        WebSocketContext::new(container, Some(request_id), auth_identity, headers);
                     ws.on_upgrade(move |socket| handler(context, socket))
                 }
             }),

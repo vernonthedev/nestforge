@@ -195,12 +195,32 @@ where
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug)]
 pub struct DefaultCachePolicy<S>
 where
     S: CacheStore + Send + Sync + 'static,
 {
     _marker: std::marker::PhantomData<fn() -> S>,
+}
+
+impl<S> Clone for DefaultCachePolicy<S>
+where
+    S: CacheStore + Send + Sync + 'static,
+{
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl<S> Default for DefaultCachePolicy<S>
+where
+    S: CacheStore + Send + Sync + 'static,
+{
+    fn default() -> Self {
+        Self {
+            _marker: std::marker::PhantomData,
+        }
+    }
 }
 
 impl<S> CachePolicy for DefaultCachePolicy<S>

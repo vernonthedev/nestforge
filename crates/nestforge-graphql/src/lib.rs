@@ -17,15 +17,21 @@ pub use async_graphql;
 pub type GraphQlSchema<Query, Mutation = EmptyMutation, Subscription = EmptySubscription> =
     Schema<Query, Mutation, Subscription>;
 
-pub fn graphql_container(ctx: &async_graphql::Context<'_>) -> async_graphql::Result<&Container> {
+pub fn graphql_container<'ctx>(
+    ctx: &'ctx async_graphql::Context<'ctx>,
+) -> async_graphql::Result<&'ctx Container> {
     ctx.data::<Container>()
 }
 
-pub fn graphql_request_id(ctx: &async_graphql::Context<'_>) -> Option<&RequestId> {
+pub fn graphql_request_id<'ctx>(
+    ctx: &'ctx async_graphql::Context<'ctx>,
+) -> Option<&'ctx RequestId> {
     ctx.data_opt::<RequestId>()
 }
 
-pub fn graphql_auth_identity(ctx: &async_graphql::Context<'_>) -> Option<&AuthIdentity> {
+pub fn graphql_auth_identity<'ctx>(
+    ctx: &'ctx async_graphql::Context<'ctx>,
+) -> Option<&'ctx AuthIdentity> {
     ctx.data_opt::<Arc<AuthIdentity>>().map(AsRef::as_ref)
 }
 
@@ -118,7 +124,7 @@ where
 async fn graphql_handler<Query, Mutation, Subscription>(
     State(container): State<Container>,
     scoped_container: Option<Extension<Container>>,
-    request_id: Option<RequestId>,
+    Extension(request_id): Extension<RequestId>,
     auth_identity: Option<Extension<Arc<AuthIdentity>>>,
     Extension(schema): Extension<GraphQlSchema<Query, Mutation, Subscription>>,
     request: GraphQLRequest,
@@ -130,9 +136,7 @@ where
 {
     let container = scoped_container.map(|value| value.0).unwrap_or(container);
     let mut request = request.into_inner().data(container);
-    if let Some(request_id) = request_id {
-        request = request.data(request_id);
-    }
+    request = request.data(request_id);
     if let Some(Extension(auth_identity)) = auth_identity {
         request = request.data(auth_identity);
     }

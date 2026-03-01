@@ -98,9 +98,10 @@ http://127.0.0.1:3000
 
 ## Releases
 
-NestForge now uses a Rust-native release flow based on `release-plz`.
+NestForge now uses a Rust-native direct release flow driven by the repository release script.
 
-- Pushes to `main` run the release job directly against the workspace manifest.
+- Pushes to `main` run the repository release script directly.
+- Conventional commits since the last version tag determine the next semver bump automatically.
 - Changed crates are versioned, tagged, released on GitHub, and published to crates.io in dependency order.
 - The primary published changelog is updated at `crates/nestforge/CHANGELOG.md`, so conventional commits remain the source for changelog entries.
 

@@ -1,5 +1,5 @@
 param(
-    [string]$TargetVersion = "1.1.0",
+    [string]$TargetVersion = "",
     [switch]$SkipChecks,
     [switch]$DryRun,
     [switch]$NoPublish
@@ -13,6 +13,103 @@ function Write-Step {
     param([string]$Message)
     Write-Host ""
     Write-Host "==> $Message" -ForegroundColor Cyan
+}
+
+function Invoke-Git {
+    param(
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$Args
+    )
+
+    $output = & git @Args 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "git $($Args -join ' ') failed.`n$($output | Out-String)"
+    }
+    $output
+}
+
+function Get-WorkspaceVersion {
+    param([string]$Path)
+
+    $content = Get-Content -Raw -Path $Path
+    $match = [regex]::Match($content, '(?ms)^\[workspace\.package\].*?^version\s*=\s*"(?<version>\d+\.\d+\.\d+)"\s*$')
+    if (-not $match.Success) {
+        throw "Could not locate [workspace.package] version in $Path"
+    }
+    $match.Groups["version"].Value
+}
+
+function Get-LatestVersionTag {
+    $tag = (& git tag --list "v*" --sort=-version:refname | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to list git tags."
+    }
+    $tag
+}
+
+function Get-CommitObjects {
+    param([string]$SinceTag)
+
+    $range = if ([string]::IsNullOrWhiteSpace($SinceTag)) { "HEAD" } else { "$SinceTag..HEAD" }
+    $lines = & git log $range --format="%H`t%s"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to read git history for range $range"
+    }
+
+    $commits = foreach ($line in $lines) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $parts = $line -split "`t", 2
+        if ($parts.Count -lt 2) { continue }
+        [PSCustomObject]@{
+            Sha     = $parts[0]
+            Subject = $parts[1]
+        }
+    }
+
+    $commits
+}
+
+function Get-ReleasableCommits {
+    param([object[]]$Commits)
+
+    $Commits | Where-Object {
+        $_.Subject -match '^(feat|fix|perf|refactor|docs|chore)(\(.+\))?(!)?:' -and
+        $_.Subject -notmatch '^chore\(release\):' -and
+        $_.Subject -ne 'docs: sync from repository'
+    }
+}
+
+function Get-VersionBump {
+    param([object[]]$Commits)
+
+    if ($Commits | Where-Object { $_.Subject -match '^(feat|fix|perf|refactor|docs|chore)(\(.+\))?!:' }) {
+        return "major"
+    }
+    if ($Commits | Where-Object { $_.Subject -match 'BREAKING CHANGE' }) {
+        return "major"
+    }
+    if ($Commits | Where-Object { $_.Subject -match '^feat(\(.+\))?:' }) {
+        return "minor"
+    }
+    "patch"
+}
+
+function Get-NextVersion {
+    param(
+        [string]$CurrentVersion,
+        [string]$Bump
+    )
+
+    $parts = $CurrentVersion.Split(".") | ForEach-Object { [int]$_ }
+    $major = $parts[0]
+    $minor = $parts[1]
+    $patch = $parts[2]
+
+    switch ($Bump) {
+        "major" { return "{0}.0.0" -f ($major + 1) }
+        "minor" { return "{0}.{1}.0" -f $major, ($minor + 1) }
+        default { return "{0}.{1}.{2}" -f $major, $minor, ($patch + 1) }
+    }
 }
 
 function Update-FileContent {
@@ -30,6 +127,64 @@ function Update-FileContent {
     return $false
 }
 
+function Convert-ToChangelogSection {
+    param(
+        [string]$Version,
+        [string]$PreviousTag,
+        [object[]]$Commits
+    )
+
+    $date = (Get-Date).ToString("yyyy-MM-dd")
+    $compareFrom = if ([string]::IsNullOrWhiteSpace($PreviousTag)) { "v$Version" } else { $PreviousTag }
+    $header = "## [$Version](https://github.com/vernonthedev/nestforge/compare/$compareFrom...v$Version) ($date)"
+
+    $groups = [ordered]@{
+        "Features" = @($Commits | Where-Object { $_.Subject -match '^feat(\(.+\))?(!)?:' })
+        "Fixes"    = @($Commits | Where-Object { $_.Subject -match '^fix(\(.+\))?(!)?:' })
+        "Other"    = @($Commits | Where-Object { $_.Subject -notmatch '^(feat|fix)(\(.+\))?(!)?:' })
+    }
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add($header)
+    $lines.Add("")
+
+    foreach ($group in $groups.GetEnumerator()) {
+        if ($group.Value.Count -eq 0) { continue }
+        $lines.Add("### $($group.Key)")
+        $lines.Add("")
+        foreach ($commit in $group.Value) {
+            $shortSha = $commit.Sha.Substring(0, 7)
+            $lines.Add("* $($commit.Subject) ([${shortSha}](https://github.com/vernonthedev/nestforge/commit/$($commit.Sha)))")
+        }
+        $lines.Add("")
+    }
+
+    ($lines -join "`n").TrimEnd()
+}
+
+function Update-Changelog {
+    param(
+        [string]$Path,
+        [string]$Section
+    )
+
+    $existing = Get-Content -Raw -Path $Path
+    if ($existing -match [regex]::Escape($Section)) {
+        return $false
+    }
+
+    $prefix = "# Changelog`n`nAll notable changes to the ``nestforge`` crate are documented in this file."
+    if ($existing.StartsWith($prefix)) {
+        $rest = $existing.Substring($prefix.Length).TrimStart("`r", "`n")
+        $updated = "$prefix`n`n$Section`n`n$rest".TrimEnd() + "`n"
+    } else {
+        $updated = "$existing`n`n$Section`n"
+    }
+
+    Set-Content -Path $Path -Value $updated
+    $true
+}
+
 function Invoke-CargoPublish {
     param(
         [string]$CrateName,
@@ -42,8 +197,7 @@ function Invoke-CargoPublish {
     }
 
     Write-Host ("cargo " + ($args -join " ")) -ForegroundColor DarkGray
-    $cmdLine = "cargo " + ($args -join " ") + " 2>&1"
-    $output = cmd /c $cmdLine
+    $output = & cargo @args 2>&1
     $output | ForEach-Object { Write-Host $_ }
 
     if ($LASTEXITCODE -eq 0) {
@@ -61,10 +215,36 @@ function Invoke-CargoPublish {
 
 $repoRoot = Resolve-Path "."
 $rootCargo = Join-Path $repoRoot "Cargo.toml"
+$crateChangelog = Join-Path $repoRoot "crates\nestforge\CHANGELOG.md"
+$rootChangelog = Join-Path $repoRoot "CHANGELOG.md"
+$releaseNotesPath = Join-Path $repoRoot "target\release-notes.md"
 
 if (-not (Test-Path $rootCargo)) {
     throw "Run this script from the repository root (Cargo.toml not found)."
 }
+
+$currentVersion = Get-WorkspaceVersion -Path $rootCargo
+$latestTag = Get-LatestVersionTag
+$allCommits = Get-CommitObjects -SinceTag $latestTag
+$releasableCommits = @(Get-ReleasableCommits -Commits $allCommits)
+
+if ([string]::IsNullOrWhiteSpace($TargetVersion)) {
+    if ($releasableCommits.Count -eq 0) {
+        Write-Step "No releasable commits found since $latestTag"
+        exit 0
+    }
+
+    $bump = Get-VersionBump -Commits $releasableCommits
+    $TargetVersion = Get-NextVersion -CurrentVersion $currentVersion -Bump $bump
+}
+
+if ($TargetVersion -eq $currentVersion -and $releasableCommits.Count -eq 0) {
+    Write-Step "Current version already matches target and there are no releasable commits"
+    exit 0
+}
+
+$newTag = "v$TargetVersion"
+$section = Convert-ToChangelogSection -Version $TargetVersion -PreviousTag $latestTag -Commits $releasableCommits
 
 Write-Step "Bumping workspace version to $TargetVersion"
 $changed = @()
@@ -73,22 +253,22 @@ $rootChanged = Update-FileContent -Path $rootCargo -Transform {
     param($content)
     [regex]::Replace(
         $content,
-        '(?m)^version\s*=\s*"\d+\.\d+\.\d+"\s*$',
-        "version = `"$TargetVersion`"",
+        '(?ms)(^\[workspace\.package\].*?^version\s*=\s*")(\d+\.\d+\.\d+)(")',
+        ('$1' + $TargetVersion + '$3'),
         1
     )
 }
 if ($rootChanged) { $changed += "Cargo.toml" }
 
 Write-Step "Updating internal nestforge dependency pins to $TargetVersion"
-$crateCargoFiles = Get-ChildItem -Path (Join-Path $repoRoot "crates") -Directory |
+$cargoFiles = Get-ChildItem -Path (Join-Path $repoRoot "crates") -Directory |
     ForEach-Object { Join-Path $_.FullName "Cargo.toml" } |
     Where-Object { Test-Path $_ }
 
-foreach ($file in $crateCargoFiles) {
+foreach ($file in $cargoFiles) {
     $didChange = Update-FileContent -Path $file -Transform {
         param($content)
-        $pattern = '(nestforge-[A-Za-z0-9_-]+\s*=\s*\{[^}]*\bversion\s*=\s*")([^"]+)(")'
+        $pattern = '(nestforge(?:-[A-Za-z0-9_-]+)?\s*=\s*\{[^}]*\bversion\s*=\s*")([^"]+)(")'
         [regex]::Replace($content, $pattern, {
             param($m)
             $m.Groups[1].Value + $TargetVersion + $m.Groups[3].Value
@@ -100,12 +280,18 @@ foreach ($file in $crateCargoFiles) {
     }
 }
 
-if ($changed.Count -eq 0) {
-    Write-Host "No version text changes were needed."
-} else {
-    Write-Host "Updated files:"
-    $changed | ForEach-Object { Write-Host " - $_" }
+Write-Step "Updating changelogs"
+if (Update-Changelog -Path $crateChangelog -Section $section) {
+    $changed += "crates/nestforge/CHANGELOG.md"
 }
+if (Test-Path $rootChangelog) {
+    if (Update-Changelog -Path $rootChangelog -Section $section) {
+        $changed += "CHANGELOG.md"
+    }
+}
+
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $releaseNotesPath) | Out-Null
+Set-Content -Path $releaseNotesPath -Value $section
 
 if (-not $SkipChecks) {
     Write-Step "Running workspace checks"
@@ -113,8 +299,18 @@ if (-not $SkipChecks) {
     if ($LASTEXITCODE -ne 0) { throw "cargo check failed." }
 }
 
+Write-Step "Creating release commit and tag"
+$filesToAdd = @("Cargo.toml", "crates/nestforge/CHANGELOG.md")
+$filesToAdd += $cargoFiles | ForEach-Object { Resolve-Path -Relative $_ }
+if (Test-Path $rootChangelog) {
+    $filesToAdd += "CHANGELOG.md"
+}
+Invoke-Git add @filesToAdd
+Invoke-Git commit -m "chore(release): $TargetVersion [skip ci]"
+Invoke-Git tag $newTag
+
 if ($NoPublish) {
-    Write-Step "NoPublish flag set, stopping after version/check steps"
+    Write-Step "NoPublish flag set, stopping after commit/tag steps"
     exit 0
 }
 
@@ -124,12 +320,18 @@ $publishOrder = @(
     "nestforge-config",
     "nestforge-data",
     "nestforge-db",
+    "nestforge-orm",
     "nestforge-openapi",
+    "nestforge-graphql",
+    "nestforge-grpc",
+    "nestforge-schedule",
     "nestforge-http",
-    "nestforge-testing",
+    "nestforge-cache",
+    "nestforge-microservices",
+    "nestforge-websockets",
     "nestforge-mongo",
     "nestforge-redis",
-    "nestforge-orm",
+    "nestforge-testing",
     "nestforge-cli",
     "nestforge"
 )
@@ -138,12 +340,25 @@ Write-Step "Publishing crates in dependency order"
 foreach ($crate in $publishOrder) {
     Invoke-CargoPublish -CrateName $crate -DryRunMode:$DryRun
     if (-not $DryRun) {
-        Start-Sleep -Seconds 20
+        Start-Sleep -Seconds 15
+    }
+}
+
+if (-not $DryRun -and $env:GITHUB_TOKEN) {
+    Write-Step "Pushing release commit and tag"
+    Invoke-Git push origin HEAD:main
+    Invoke-Git push origin $newTag
+
+    Write-Step "Creating GitHub release"
+    & gh release create $newTag --title $newTag --notes-file $releaseNotesPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "gh release create failed."
     }
 }
 
 Write-Step "Done"
 Write-Host "Target version: $TargetVersion"
+Write-Host "Tag: $newTag"
 if ($DryRun) {
     Write-Host "Mode: dry-run"
 } else {

@@ -23,6 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: main
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -30,11 +31,17 @@ jobs:
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Publish released crates and create GitHub releases
-        uses: release-plz/action@v0.5
-        with:
-          command: release
-          manifest_path: Cargo.toml
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup GitHub CLI
+        run: gh --version
+
+      - name: Run direct release script
+        shell: pwsh
+        run: ./scripts/release_publish.ps1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

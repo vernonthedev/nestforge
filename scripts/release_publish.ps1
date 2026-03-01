@@ -40,21 +40,14 @@ function Get-WorkspaceVersion {
 }
 
 function Get-LatestVersionTag {
-    $tag = (& git tag --list "v*" --sort=-version:refname | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to list git tags."
-    }
-    $tag
+    @(Invoke-Git tag --list "v*" --sort=-version:refname | Select-Object -First 1)[0]
 }
 
 function Get-CommitObjects {
     param([string]$SinceTag)
 
     $range = if ([string]::IsNullOrWhiteSpace($SinceTag)) { "HEAD" } else { "$SinceTag..HEAD" }
-    $lines = & git log $range --format="%H`t%s"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to read git history for range $range"
-    }
+    $lines = Invoke-Git log $range --format="%H`t%s"
 
     $commits = foreach ($line in $lines) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }

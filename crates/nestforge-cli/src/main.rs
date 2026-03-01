@@ -14,6 +14,7 @@ enum AppTransport {
     Http,
     Graphql,
     Grpc,
+    Microservices,
     Websockets,
 }
 
@@ -23,8 +24,9 @@ impl AppTransport {
             "http" => Ok(Self::Http),
             "graphql" => Ok(Self::Graphql),
             "grpc" => Ok(Self::Grpc),
+            "microservices" | "ms" => Ok(Self::Microservices),
             "websockets" | "ws" => Ok(Self::Websockets),
-            _ => bail!("Unknown transport `{value}`. Use: http | graphql | grpc | websockets"),
+            _ => bail!("Unknown transport `{value}`. Use: http | graphql | grpc | microservices | websockets"),
         }
     }
 
@@ -33,6 +35,7 @@ impl AppTransport {
             Self::Http => "HTTP",
             Self::Graphql => "GraphQL",
             Self::Grpc => "gRPC",
+            Self::Microservices => "Microservices",
             Self::Websockets => "WebSocket",
         }
     }
@@ -99,7 +102,7 @@ fn print_help() {
     println!();
     println!("Usage:");
     println!("  nestforge new <app-name>");
-    println!("  nestforge new <app-name> --transport <http|graphql|grpc|websockets>");
+    println!("  nestforge new <app-name> --transport <http|graphql|grpc|microservices|websockets>");
     println!("  nestforge g resource <name>");
     println!("  nestforge g controller <name>");
     println!("  nestforge g service <name>");
@@ -128,6 +131,7 @@ fn print_help() {
     println!("  nestforge new care-api");
     println!("  nestforge new catalog-api --transport graphql");
     println!("  nestforge new greeter-service --transport grpc");
+    println!("  nestforge new app-bus --transport microservices");
     println!("  nestforge new realtime-events --transport websockets");
     println!("  nestforge g resource users");
     println!("  nestforge g filter rewrite_bad_request");
@@ -263,6 +267,17 @@ fn scaffold_transport_files(app_dir: &Path, transport: AppTransport) -> Result<(
             write_file(
                 &app_dir.join("src/grpc/service.rs"),
                 &template_grpc_service_rs(),
+            )?;
+        }
+        AppTransport::Microservices => {
+            fs::create_dir_all(app_dir.join("src/microservices"))?;
+            write_file(
+                &app_dir.join("src/microservices/mod.rs"),
+                &template_microservices_app_mod_rs(),
+            )?;
+            write_file(
+                &app_dir.join("src/microservices/app_patterns.rs"),
+                &template_microservices_app_patterns_rs(),
             )?;
         }
         AppTransport::Websockets => {
@@ -1497,7 +1512,7 @@ fn parse_new_transport_arg(args: &[String]) -> Result<AppTransport> {
         return AppTransport::parse(&args[1]);
     }
 
-    bail!("Invalid new app options. Use: nestforge new <app-name> --transport <http|graphql|grpc|websockets>")
+    bail!("Invalid new app options. Use: nestforge new <app-name> --transport <http|graphql|grpc|microservices|websockets>")
 }
 
 fn resolve_nestforge_dependency_line(transport: AppTransport) -> String {
@@ -1506,6 +1521,7 @@ fn resolve_nestforge_dependency_line(transport: AppTransport) -> String {
         AppTransport::Http => "\"config\"",
         AppTransport::Graphql => "\"config\", \"graphql\"",
         AppTransport::Grpc => "\"config\", \"grpc\"",
+        AppTransport::Microservices => "\"config\", \"microservices\", \"testing\"",
         AppTransport::Websockets => "\"config\", \"websockets\"",
     };
     let local_path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1548,6 +1564,9 @@ fn template_app_cargo_toml(
         }
         AppTransport::Grpc => {
             "tokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\ntonic = { version = \"0.12\", features = [\"transport\"] }\nprost = \"0.13\"\n"
+        }
+        AppTransport::Microservices => {
+            "tokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n"
         }
         AppTransport::Websockets => {
             "tokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
@@ -1661,6 +1680,39 @@ async fn main() -> anyhow::Result<()> {
 }
 "#
           .to_string(),
+        AppTransport::Microservices => r#"mod app_module;
+mod microservices;
+mod services;
+
+use app_module::AppModule;
+use microservices::AppPatterns;
+use nestforge::{MicroserviceClient, TestFactory, TransportMetadata};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let module = TestFactory::<AppModule>::create().build()?;
+    let patterns = module.resolve::<AppPatterns>()?;
+    let client = module.microservice_client_with_metadata(
+        patterns.registry().clone(),
+        "app-cli",
+        TransportMetadata::new().insert("source", "scaffold"),
+    );
+
+    let response: serde_json::Value = client
+        .send(
+            "app.ping",
+            serde_json::json!({{
+                "name": "NestForge"
+            }}),
+        )
+        .await?;
+
+    println!("{}", serde_json::to_string_pretty(&response)?);
+    module.shutdown()?;
+    Ok(())
+}
+"#
+        .to_string(),
         AppTransport::Websockets => r#"mod app_module;
 mod services;
 mod ws;
@@ -1731,6 +1783,30 @@ fn load_app_config() -> anyhow::Result<AppConfig> {
     controllers = [],
     providers = [load_app_config()?],
     exports = [AppConfig]
+)]
+pub struct AppModule;
+"#
+        .to_string(),
+        AppTransport::Microservices => r#"use nestforge::{module, ConfigModule, ConfigOptions};
+
+use crate::{
+    microservices::AppPatterns,
+    services::AppConfig,
+};
+
+fn load_app_config() -> anyhow::Result<AppConfig> {
+    Ok(ConfigModule::for_root::<AppConfig>(ConfigOptions::new().env_file(".env"))?)
+}
+
+fn load_patterns() -> anyhow::Result<AppPatterns> {
+    Ok(AppPatterns::new())
+}
+
+#[module(
+    imports = [],
+    controllers = [],
+    providers = [load_app_config()?, load_patterns()?],
+    exports = [AppConfig, AppPatterns]
 )]
 pub struct AppModule;
 "#
@@ -1971,6 +2047,44 @@ fn template_ws_mod_rs() -> String {
     r#"mod events_gateway;
 
 pub use events_gateway::EventsGateway;
+"#
+    .to_string()
+}
+
+fn template_microservices_app_mod_rs() -> String {
+    r#"mod app_patterns;
+
+pub use app_patterns::AppPatterns;
+"#
+    .to_string()
+}
+
+fn template_microservices_app_patterns_rs() -> String {
+    r#"#[derive(Clone)]
+pub struct AppPatterns {
+    registry: nestforge::MicroserviceRegistry,
+}
+
+impl AppPatterns {
+    pub fn new() -> Self {
+        Self {
+            registry: nestforge::MicroserviceRegistry::builder()
+                .message("app.ping", |payload: serde_json::Value, ctx| async move {
+                    let config = ctx.resolve::<crate::services::AppConfig>()?;
+                    Ok(serde_json::json!({
+                        "app_name": config.app_name,
+                        "received": payload,
+                        "transport": ctx.transport(),
+                    }))
+                })
+                .build(),
+        }
+    }
+
+    pub fn registry(&self) -> &nestforge::MicroserviceRegistry {
+        &self.registry
+    }
+}
 "#
     .to_string()
 }
@@ -2848,6 +2962,16 @@ mod tests {
         assert!(matches!(
             parse_new_transport_arg(&args).expect("transport should parse"),
             AppTransport::Graphql
+        ));
+    }
+
+    #[test]
+    fn parse_new_transport_accepts_microservices() {
+        let args = vec!["--transport".to_string(), "microservices".to_string()];
+
+        assert!(matches!(
+            parse_new_transport_arg(&args).expect("transport should parse"),
+            AppTransport::Microservices
         ));
     }
 

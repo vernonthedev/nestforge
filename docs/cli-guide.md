@@ -10,7 +10,7 @@ cargo install --path crates/nestforge-cli
 
 ```text
 nestforge new <app-name>
-nestforge new <app-name> --transport <http|graphql|grpc|websockets>
+nestforge new <app-name> --transport <http|graphql|grpc|microservices|websockets>
 nestforge g module <name>
 nestforge g resource <name>
 nestforge g controller <name>
@@ -84,6 +84,18 @@ Creates:
 - `src/ws/events_gateway.rs`
 - `src/ws/mod.rs`
 - WebSocket bootstrap in `main.rs`
+
+Generate a microservices-first app:
+
+```bash
+nestforge new demo-bus --transport microservices
+```
+
+Creates:
+
+- `src/microservices/app_patterns.rs`
+- `src/microservices/mod.rs`
+- in-process client bootstrap in `main.rs`
 
 ### Module
 
@@ -221,5 +233,6 @@ Shows `applied`, `pending`, and `drift` migration status.
 - Run generator commands inside an app folder (`Cargo.toml` + `src/`).
 - Use `--module <feature>` to generate inside a feature module.
 - GraphQL and gRPC app templates still include `APP_NAME` and an optional `DATABASE_URL` placeholder in `.env`.
+- The microservices app template uses the `testing` feature as a lightweight runtime bootstrap for the in-process client example.
 - The gRPC template expects `protoc` to be available when you build the generated app.
 - The microservice generator expects the `microservices` feature to be enabled in the target app.

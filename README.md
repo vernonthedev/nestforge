@@ -54,6 +54,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - `examples/hello-nestforge`: full example app
 - `examples/hello-nestforge-graphql`: GraphQL-first example app
 - `examples/hello-nestforge-grpc`: gRPC-first example app
+- `examples/hello-nestforge-microservices`: microservice registry + in-process client example app
 - `examples/hello-nestforge-websockets`: WebSocket-first example app
 
 ## Quick Start (Repo)
@@ -81,6 +82,12 @@ WebSocket-first example:
 
 ```bash
 cargo run -p hello-nestforge-websockets
+```
+
+Microservices-first example:
+
+```bash
+cargo run -p hello-nestforge-microservices
 ```
 
 Server runs on:
@@ -115,6 +122,12 @@ Create a gRPC-first app:
 
 ```bash
 nestforge new demo-grpc --transport grpc
+```
+
+Create a microservices-first app:
+
+```bash
+nestforge new demo-bus --transport microservices
 ```
 
 Create a WebSocket-first app:

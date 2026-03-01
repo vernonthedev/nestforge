@@ -10,7 +10,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use nestforge_core::Container;
+use nestforge_core::{AuthIdentity, Container, RequestId};
 
 pub use async_graphql;
 
@@ -19,6 +19,14 @@ pub type GraphQlSchema<Query, Mutation = EmptyMutation, Subscription = EmptySubs
 
 pub fn graphql_container(ctx: &async_graphql::Context<'_>) -> async_graphql::Result<&Container> {
     ctx.data::<Container>()
+}
+
+pub fn graphql_request_id(ctx: &async_graphql::Context<'_>) -> Option<&RequestId> {
+    ctx.data_opt::<RequestId>()
+}
+
+pub fn graphql_auth_identity(ctx: &async_graphql::Context<'_>) -> Option<&AuthIdentity> {
+    ctx.data_opt::<Arc<AuthIdentity>>().map(AsRef::as_ref)
 }
 
 pub fn resolve_graphql<T>(ctx: &async_graphql::Context<'_>) -> async_graphql::Result<Arc<T>>
@@ -109,6 +117,9 @@ where
 
 async fn graphql_handler<Query, Mutation, Subscription>(
     State(container): State<Container>,
+    scoped_container: Option<Extension<Container>>,
+    request_id: Option<RequestId>,
+    auth_identity: Option<Extension<Arc<AuthIdentity>>>,
     Extension(schema): Extension<GraphQlSchema<Query, Mutation, Subscription>>,
     request: GraphQLRequest,
 ) -> GraphQLResponse
@@ -117,7 +128,16 @@ where
     Mutation: ObjectType + Send + Sync + 'static,
     Subscription: SubscriptionType + Send + Sync + 'static,
 {
-    schema.execute(request.into_inner().data(container)).await.into()
+    let container = scoped_container.map(|value| value.0).unwrap_or(container);
+    let mut request = request.into_inner().data(container);
+    if let Some(request_id) = request_id {
+        request = request.data(request_id);
+    }
+    if let Some(Extension(auth_identity)) = auth_identity {
+        request = request.data(auth_identity);
+    }
+
+    schema.execute(request).await.into()
 }
 
 fn normalize_path(path: String) -> String {

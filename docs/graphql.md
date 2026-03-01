@@ -64,3 +64,8 @@ async fn app_name(&self, ctx: &Context<'_>) -> String {
     config.app_name.clone()
 }
 ```
+
+When GraphQL is mounted through `NestForgeFactory`, resolvers also receive the per-request scoped container plus request metadata helpers:
+
+- `graphql_request_id(ctx)`
+- `graphql_auth_identity(ctx)`

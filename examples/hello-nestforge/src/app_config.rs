@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct AppConfig {
     pub app_name: String,
     pub log_level: String,

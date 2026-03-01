@@ -1398,6 +1398,7 @@ dependencies = [
  "nestforge-grpc",
  "nestforge-http",
  "nestforge-macros",
+ "nestforge-microservices",
  "nestforge-mongo",
  "nestforge-openapi",
  "nestforge-orm",
@@ -1507,6 +1508,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "nestforge-microservices"
+version = "1.1.0"
+dependencies = [
+ "anyhow",
+ "nestforge-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

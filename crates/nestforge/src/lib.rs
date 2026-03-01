@@ -26,6 +26,11 @@ pub use nestforge_config::{
 pub use nestforge_data::{CacheStore, DataError, DataFuture, DocumentRepo};
 #[cfg(feature = "cache")]
 pub use nestforge_cache::{cached_response_interceptor, CacheInterceptor, CachePolicy, DefaultCachePolicy};
+#[cfg(feature = "microservices")]
+pub use nestforge_microservices::{
+    EventEnvelope, MessageEnvelope, MicroserviceContext, MicroserviceRegistry,
+    MicroserviceRegistryBuilder, TransportMetadata,
+};
 #[cfg(feature = "db")]
 pub use nestforge_db::{Db, DbConfig, DbError, DbTransaction};
 pub use nestforge_http::NestForgeFactory;

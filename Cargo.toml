@@ -20,6 +20,7 @@ members = [
   "crates/nestforge-websockets",
   "crates/nestforge-data",
   "crates/nestforge-cache",
+  "crates/nestforge-microservices",
   "crates/nestforge-mongo",
   "crates/nestforge-redis",
   ]

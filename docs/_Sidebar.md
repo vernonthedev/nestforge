@@ -12,6 +12,7 @@
 - [WebSockets](websockets)
 - [Schedule](schedule)
 - [Cache](cache)
+- [Microservices](microservices)
 - [Testing](testing)
 - [Config Module](config-module)
 - [Resource Service Patterns](resource-service-patterns)

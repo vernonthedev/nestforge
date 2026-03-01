@@ -42,6 +42,18 @@ let ctx = nestforge::MicroserviceContext::new(
 let response = registry.dispatch_message(envelope, ctx).await?;
 ```
 
+## Client
+
+`InProcessMicroserviceClient` lets app code and tests call patterns without manually building envelopes:
+
+```rust
+use nestforge::MicroserviceClient;
+
+let client = nestforge::InProcessMicroserviceClient::new(container.clone(), registry.clone());
+let count: usize = client.send("users.count", ()).await?;
+client.emit("users.created", CreateUserEvent { user_id: 7 }).await?;
+```
+
 ## Context
 
 `MicroserviceContext` exposes:

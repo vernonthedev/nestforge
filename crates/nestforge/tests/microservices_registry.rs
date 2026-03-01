@@ -5,6 +5,8 @@ use std::sync::{
     Arc,
 };
 
+use nestforge::MicroserviceClient;
+
 #[derive(Clone)]
 struct Counter(Arc<AtomicUsize>);
 
@@ -68,6 +70,51 @@ async fn dispatches_event_patterns_without_response_payloads() {
 
     registry
         .dispatch_event(envelope, ctx)
+        .await
+        .expect("event should dispatch");
+
+    assert_eq!(counter.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn in_process_client_sends_and_deserializes_message_responses() {
+    let container = nestforge::Container::new();
+    let registry = nestforge::MicroserviceRegistry::builder()
+        .message("users.count", |_payload: (), _ctx| async move { Ok(42usize) })
+        .build();
+    let client = nestforge::InProcessMicroserviceClient::new(container, registry)
+        .with_transport("test-client");
+
+    let response: usize = client
+        .send("users.count", ())
+        .await
+        .expect("response should deserialize");
+
+    assert_eq!(response, 42);
+}
+
+#[tokio::test]
+async fn in_process_client_emits_events() {
+    let counter = Arc::new(AtomicUsize::new(0));
+    let registry = nestforge::MicroserviceRegistry::builder()
+        .event("users.created", {
+            let counter = Arc::clone(&counter);
+            move |_payload: (), _ctx| {
+                let counter = Arc::clone(&counter);
+                async move {
+                    counter.fetch_add(1, Ordering::Relaxed);
+                    Ok(())
+                }
+            }
+        })
+        .build();
+    let client = nestforge::InProcessMicroserviceClient::new(
+        nestforge::Container::new(),
+        registry,
+    );
+
+    client
+        .emit("users.created", ())
         .await
         .expect("event should dispatch");
 

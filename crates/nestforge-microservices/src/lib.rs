@@ -13,6 +13,25 @@ use serde_json::Value;
 type MessageFuture = Pin<Box<dyn Future<Output = Result<Value>> + Send>>;
 type EventFuture = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
 
+pub trait MicroserviceClient: Send + Sync + 'static {
+    fn send<Payload, Response>(
+        &self,
+        pattern: impl Into<String>,
+        payload: Payload,
+    ) -> Pin<Box<dyn Future<Output = Result<Response>> + Send>>
+    where
+        Payload: Serialize + Send + 'static,
+        Response: DeserializeOwned + Send + 'static;
+
+    fn emit<Payload>(
+        &self,
+        pattern: impl Into<String>,
+        payload: Payload,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send>>
+    where
+        Payload: Serialize + Send + 'static;
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TransportMetadata {
     pub values: BTreeMap<String, String>,
@@ -291,5 +310,83 @@ impl MicroserviceRegistryBuilder {
             message_handlers: Arc::new(self.message_handlers),
             event_handlers: Arc::new(self.event_handlers),
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct InProcessMicroserviceClient {
+    container: Container,
+    registry: MicroserviceRegistry,
+    transport: Arc<str>,
+    metadata: TransportMetadata,
+}
+
+impl InProcessMicroserviceClient {
+    pub fn new(container: Container, registry: MicroserviceRegistry) -> Self {
+        Self {
+            container,
+            registry,
+            transport: Arc::<str>::from("in-process"),
+            metadata: TransportMetadata::default(),
+        }
+    }
+
+    pub fn with_transport(mut self, transport: impl Into<String>) -> Self {
+        self.transport = Arc::<str>::from(transport.into());
+        self
+    }
+
+    pub fn with_metadata(mut self, metadata: TransportMetadata) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    fn context(&self, pattern: impl Into<String>) -> MicroserviceContext {
+        MicroserviceContext::new(
+            self.container.clone(),
+            self.transport.to_string(),
+            pattern,
+            self.metadata.clone(),
+        )
+    }
+}
+
+impl MicroserviceClient for InProcessMicroserviceClient {
+    fn send<Payload, Response>(
+        &self,
+        pattern: impl Into<String>,
+        payload: Payload,
+    ) -> Pin<Box<dyn Future<Output = Result<Response>> + Send>>
+    where
+        Payload: Serialize + Send + 'static,
+        Response: DeserializeOwned + Send + 'static,
+    {
+        let registry = self.registry.clone();
+        let pattern = pattern.into();
+        let envelope = MessageEnvelope::new(pattern.clone(), payload);
+        let context = self.context(pattern);
+
+        Box::pin(async move {
+            let response = registry
+                .dispatch_message(envelope?, context)
+                .await?;
+            serde_json::from_value(response).context("Failed to deserialize microservice response")
+        })
+    }
+
+    fn emit<Payload>(
+        &self,
+        pattern: impl Into<String>,
+        payload: Payload,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send>>
+    where
+        Payload: Serialize + Send + 'static,
+    {
+        let registry = self.registry.clone();
+        let pattern = pattern.into();
+        let envelope = EventEnvelope::new(pattern.clone(), payload);
+        let context = self.context(pattern);
+
+        Box::pin(async move { registry.dispatch_event(envelope?, context).await })
     }
 }

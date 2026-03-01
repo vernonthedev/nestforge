@@ -178,6 +178,32 @@ function Update-Changelog {
     $true
 }
 
+function Get-PublishRetryDelaySeconds {
+    param([string]$PublishOutput)
+
+    $match = [regex]::Match(
+        $PublishOutput,
+        'Please try again after (?<retry>[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT)'
+    )
+
+    if (-not $match.Success) {
+        return 60
+    }
+
+    $retryAt = [DateTimeOffset]::ParseExact(
+        $match.Groups["retry"].Value,
+        "ddd, dd MMM yyyy HH:mm:ss 'GMT'",
+        [System.Globalization.CultureInfo]::InvariantCulture
+    )
+
+    $delay = [Math]::Ceiling(($retryAt - [DateTimeOffset]::UtcNow).TotalSeconds) + 5
+    if ($delay -lt 5) {
+        return 5
+    }
+
+    [int]$delay
+}
+
 function Invoke-CargoPublish {
     param(
         [string]$CrateName,
@@ -189,21 +215,34 @@ function Invoke-CargoPublish {
         $args += "--dry-run"
     }
 
-    Write-Host ("cargo " + ($args -join " ")) -ForegroundColor DarkGray
-    $output = & cargo @args 2>&1
-    $output | ForEach-Object { Write-Host $_ }
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        Write-Host ("cargo " + ($args -join " ")) -ForegroundColor DarkGray
+        $output = & cargo @args 2>&1
+        $output | ForEach-Object { Write-Host $_ }
 
-    if ($LASTEXITCODE -eq 0) {
-        return
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
+
+        $all = ($output | Out-String)
+        if ($all -match "already exists on crates.io index") {
+            Write-Host "Skipping $CrateName (already published for this version)." -ForegroundColor Yellow
+            return
+        }
+
+        if ($all -match "429 Too Many Requests") {
+            if ($attempt -eq 5) {
+                throw "Publish failed for $CrateName after repeated crates.io rate limiting."
+            }
+
+            $delaySeconds = Get-PublishRetryDelaySeconds -PublishOutput $all
+            Write-Host "crates.io rate limited $CrateName. Retrying in $delaySeconds seconds." -ForegroundColor Yellow
+            Start-Sleep -Seconds $delaySeconds
+            continue
+        }
+
+        throw "Publish failed for $CrateName."
     }
-
-    $all = ($output | Out-String)
-    if ($all -match "already exists on crates.io index") {
-        Write-Host "Skipping $CrateName (already published for this version)." -ForegroundColor Yellow
-        return
-    }
-
-    throw "Publish failed for $CrateName."
 }
 
 $repoRoot = Resolve-Path "."

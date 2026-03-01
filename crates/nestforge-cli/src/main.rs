@@ -72,6 +72,7 @@ fn main() -> Result<()> {
                 "service" => generate_service_only(name, target_module.as_deref())?,
                 "module" => generate_module(name)?,
                 "guard" => generate_guard_only(name)?,
+                "decorator" => generate_request_decorator_only(name)?,
                 "filter" => generate_exception_filter_only(name)?,
                 "middleware" => generate_middleware_only(name)?,
                 "interceptor" => generate_interceptor_only(name)?,
@@ -81,7 +82,7 @@ fn main() -> Result<()> {
                 "gateway" => generate_websocket_gateway_only(name)?,
                 "microservice" => generate_microservice_patterns_only(name)?,
                 _ => bail!(
-                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | filter | middleware | interceptor | serializer | graphql | grpc | gateway | microservice",
+                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | decorator | filter | middleware | interceptor | serializer | graphql | grpc | gateway | microservice",
                     kind
                 ),
             }
@@ -109,6 +110,7 @@ fn print_help() {
     println!("  nestforge g resource <name> --module <feature>");
     println!("  nestforge g module <name>");
     println!("  nestforge g guard <name>");
+    println!("  nestforge g decorator <name>");
     println!("  nestforge g filter <name>");
     println!("  nestforge g middleware <name>");
     println!("  nestforge g interceptor <name>");
@@ -134,6 +136,7 @@ fn print_help() {
     println!("  nestforge new app-bus --transport microservices");
     println!("  nestforge new realtime-events --transport websockets");
     println!("  nestforge g resource users");
+    println!("  nestforge g decorator correlation_id");
     println!("  nestforge g filter rewrite_bad_request");
     println!("  nestforge g middleware audit");
     println!("  nestforge g serializer user");
@@ -684,6 +687,31 @@ fn generate_guard_only(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn generate_request_decorator_only(name: &str) -> Result<()> {
+    let app_root = detect_app_root()?;
+    let decorator_name = normalize_resource_name(name);
+    let pascal_decorator = to_pascal_case(&decorator_name);
+    let decorator_file = app_root
+        .join("src/decorators")
+        .join(format!("{}_decorator.rs", decorator_name));
+
+    if decorator_file.exists() {
+        println!("Request decorator already exists: {}", decorator_file.display());
+        return Ok(());
+    }
+
+    fs::create_dir_all(app_root.join("src/decorators"))?;
+    write_file(
+        &decorator_file,
+        &template_request_decorator_rs(&pascal_decorator),
+    )?;
+    patch_decorators_mod(&app_root, &decorator_name, &pascal_decorator)?;
+    patch_main_mod_decl(&app_root, "decorators")?;
+
+    println!("Generated request decorator `{}`", decorator_name);
+    Ok(())
+}
+
 fn generate_exception_filter_only(name: &str) -> Result<()> {
     let app_root = detect_app_root()?;
     let filter_name = normalize_resource_name(name);
@@ -1086,6 +1114,35 @@ fn patch_guards_mod(app_root: &Path, guard_name: &str, pascal_guard: &str) -> Re
 
     let mod_line = format!("pub mod {}_guard;", guard_name);
     let use_line = format!("pub use {}_guard::{};", guard_name, pascal_guard);
+
+    if !content.contains(&mod_line) {
+        content.push_str(&format!("\n{}", mod_line));
+    }
+    if !content.contains(&use_line) {
+        content.push_str(&format!("\n{}", use_line));
+    }
+
+    fs::write(path, content)?;
+    Ok(())
+}
+
+fn patch_decorators_mod(
+    app_root: &Path,
+    decorator_name: &str,
+    pascal_decorator: &str,
+) -> Result<()> {
+    let path = app_root.join("src/decorators/mod.rs");
+    let mut content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        template_decorators_mod_rs()
+    };
+
+    let mod_line = format!("pub mod {}_decorator;", decorator_name);
+    let use_line = format!(
+        "pub use {}_decorator::{};",
+        decorator_name, pascal_decorator
+    );
 
     if !content.contains(&mod_line) {
         content.push_str(&format!("\n{}", mod_line));
@@ -1836,6 +1893,10 @@ fn template_guards_mod_rs() -> String {
     "/* Guard exports get generated here */\n".to_string()
 }
 
+fn template_decorators_mod_rs() -> String {
+    "/* Request decorator exports get generated here */\n".to_string()
+}
+
 fn template_middleware_mod_rs() -> String {
     "/* Middleware exports get generated here */\n".to_string()
 }
@@ -2351,6 +2412,30 @@ fn template_guard_rs(pascal_guard: &str) -> String {
     format!(
         r#"nestforge::guard!({pascal_guard});
 "#
+    )
+}
+
+fn template_request_decorator_rs(pascal_decorator: &str) -> String {
+    format!(
+        r#"pub struct {pascal_decorator};
+
+impl nestforge::RequestDecorator for {pascal_decorator} {{
+    type Output = String;
+
+    fn extract(
+        _ctx: &nestforge::RequestContext,
+        parts: &axum::http::request::Parts,
+    ) -> Result<Self::Output, nestforge::HttpException> {{
+        parts
+            .headers
+            .get("x-{header_name}")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string)
+            .ok_or_else(|| nestforge::HttpException::bad_request("Missing x-{header_name}"))
+    }}
+}}
+"#,
+        header_name = to_snake_case(&pascal_decorator).replace('_', "-")
     )
 }
 
@@ -2919,7 +3004,8 @@ fn contains_sql_content(sql: &str) -> bool {
 mod tests {
     use super::{
         compute_content_hash, contains_sql_content, parse_new_transport_arg,
-        template_microservice_patterns_rs, template_serializer_rs, AppTransport,
+        template_microservice_patterns_rs, template_request_decorator_rs, template_serializer_rs,
+        AppTransport,
     };
 
     #[test]
@@ -2992,6 +3078,15 @@ mod tests {
         assert!(template.contains("pub struct UsersPatterns;"));
         assert!(template.contains(".message(\"users.ping\""));
         assert!(template.contains(".event(\"users.created\""));
+    }
+
+    #[test]
+    fn template_request_decorator_uses_requested_type_name() {
+        let template = template_request_decorator_rs("CorrelationId");
+
+        assert!(template.contains("pub struct CorrelationId;"));
+        assert!(template.contains("impl nestforge::RequestDecorator for CorrelationId"));
+        assert!(template.contains("x-correlation-id"));
     }
 
     #[test]

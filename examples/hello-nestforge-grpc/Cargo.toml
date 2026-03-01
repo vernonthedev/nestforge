@@ -8,6 +8,8 @@ build = "build.rs"
 
 [dependencies]
 nestforge = { path = "../../crates/nestforge", features = ["config", "grpc", "microservices"] }
+axum = { workspace = true }
+serde_json = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 

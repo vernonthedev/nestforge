@@ -1,4 +1,4 @@
-use axum::{routing::get, Json, Router};
+use axum::{response::Html, routing::get, Json, Router};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -78,5 +78,5 @@ pub fn docs_router(doc: OpenApiDoc) -> Router {
                 move || async move { Json(payload.clone()) }
             }),
         )
-        .route("/docs", get(move || async move { docs_html }))
+        .route("/docs", get(move || async move { Html(docs_html) }))
 }

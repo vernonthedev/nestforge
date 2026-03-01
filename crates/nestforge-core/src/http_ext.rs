@@ -11,7 +11,7 @@ where
     E: Display,
 {
     fn or_bad_request(self) -> Result<T, HttpException> {
-        self.map_err(|err| HttpException::bad_request(err.to_string()))
+        self.map_err(|_err| HttpException::bad_request("invalid request"))
     }
 }
 
@@ -26,6 +26,8 @@ impl<T> OptionHttpExt<T> for Option<T> {
     }
 
     fn or_not_found_id(self, resource: &str, id: impl Display) -> Result<T, HttpException> {
-        self.ok_or_else(|| HttpException::not_found(format!("{} with id {} not found", resource, id)))
+        self.ok_or_else(|| {
+            HttpException::not_found(format!("{} with id {} not found", resource, id))
+        })
     }
 }

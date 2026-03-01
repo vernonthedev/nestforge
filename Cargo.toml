@@ -35,7 +35,8 @@ serde_json = "1"
 http = "1"
 anyhow = "1"
 thiserror = "2"
+sha2 = "0.10"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors"] }
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "any", "postgres"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "any", "postgres", "mysql", "sqlite"] }
 

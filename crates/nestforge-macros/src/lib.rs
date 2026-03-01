@@ -4,11 +4,11 @@ use quote::quote;
 use syn::{
     bracketed,
     parse::{Parse, ParseStream},
-    parse_macro_input,
+    parse_macro_input, parse_quote,
     punctuated::Punctuated,
     spanned::Spanned,
-    parse_quote, Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, ImplItem, ImplItemFn,
-    ItemImpl, ItemStruct, LitStr, Meta, Token, Type,
+    Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, ImplItem, ImplItemFn, ItemImpl,
+    ItemStruct, LitStr, Meta, Token, Type,
 };
 
 /*
@@ -122,7 +122,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         impl nestforge::ControllerDefinition for #self_ty {
             fn router() -> axum::Router<nestforge::Container> {
                 nestforge::framework_log(format!(
-                    "Registering controller {}.",
+                    "event=controller_register controller={}",
                     std::any::type_name::<#self_ty>()
                 ));
                 let mut builder = nestforge::RouteBuilder::<#self_ty>::new();
@@ -266,9 +266,12 @@ pub fn identifiable(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
     let ty_ok = matches!(id_field_ty, Type::Path(ref tp) if tp.path.is_ident("u64"));
     if !ty_ok {
-        return syn::Error::new(id_field_ty.span(), "identifiable id field must be of type `u64`")
-            .to_compile_error()
-            .into();
+        return syn::Error::new(
+            id_field_ty.span(),
+            "identifiable id field must be of type `u64`",
+        )
+        .to_compile_error()
+        .into();
     }
 
     TokenStream::from(quote! {
@@ -311,9 +314,12 @@ pub fn entity_dto(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
     let ty_ok = matches!(id_field_ty, Type::Path(ref tp) if tp.path.is_ident("u64"));
     if !ty_ok {
-        return syn::Error::new(id_field_ty.span(), "entity_dto id field must be of type `u64`")
-            .to_compile_error()
-            .into();
+        return syn::Error::new(
+            id_field_ty.span(),
+            "entity_dto id field must be of type `u64`",
+        )
+        .to_compile_error()
+        .into();
     }
 
     input.attrs.push(parse_quote!(

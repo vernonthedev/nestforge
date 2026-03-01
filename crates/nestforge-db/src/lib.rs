@@ -33,9 +33,8 @@ impl DbConfig {
 pub enum DbError {
     #[error("Invalid database configuration: {0}")]
     InvalidConfig(&'static str),
-    #[error("Failed to connect to database `{url}`: {source}")]
+    #[error("Failed to connect to database")]
     Connect {
-        url: String,
         #[source]
         source: sqlx::Error,
     },
@@ -202,10 +201,7 @@ async fn connect_pool(config: &DbConfig) -> Result<AnyPool, DbError> {
         .acquire_timeout(config.acquire_timeout)
         .connect(&config.url)
         .await
-        .map_err(|source| DbError::Connect {
-            url: config.url.clone(),
-            source,
-        })
+        .map_err(|source| DbError::Connect { source })
 }
 
 fn connect_pool_lazy(config: &DbConfig) -> Result<AnyPool, DbError> {
@@ -220,10 +216,7 @@ fn connect_pool_lazy(config: &DbConfig) -> Result<AnyPool, DbError> {
         .min_connections(config.min_connections)
         .acquire_timeout(config.acquire_timeout)
         .connect_lazy(&config.url)
-        .map_err(|source| DbError::Connect {
-            url: config.url.clone(),
-            source,
-        })
+        .map_err(|source| DbError::Connect { source })
 }
 
 #[cfg(test)]

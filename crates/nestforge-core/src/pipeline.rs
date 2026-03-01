@@ -7,8 +7,8 @@ use std::{
 use axum::{
     body::Body,
     extract::Request,
-    middleware::Next,
     http::{Method, Uri},
+    middleware::Next,
     response::IntoResponse,
     response::Response,
 };
@@ -55,7 +55,13 @@ fn next_to_fn(next: Next) -> NextFn {
         let next = Arc::clone(&next);
         Box::pin(async move {
             let next = {
-                let mut guard = next.lock().expect("next lock poisoned");
+                let mut guard = match next.lock() {
+                    Ok(guard) => guard,
+                    Err(_) => {
+                        return HttpException::internal_server_error("Pipeline lock poisoned")
+                            .into_response();
+                    }
+                };
                 guard.take()
             };
 

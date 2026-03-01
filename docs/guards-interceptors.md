@@ -14,8 +14,10 @@ Quick macro style:
 
 ```rust
 nestforge::guard!(RequireValidIdGuard, |ctx| {
-    if ctx.uri.path().ends_with("/0") {
-        return Err(nestforge::HttpException::bad_request("id must be greater than 0"));
+    if let Some(last_segment) = ctx.uri.path().rsplit('/').next() {
+        if last_segment == "0" {
+            return Err(nestforge::HttpException::bad_request("id must be greater than 0"));
+        }
     }
     Ok(())
 });

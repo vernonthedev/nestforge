@@ -19,6 +19,7 @@ nestforge g guard <name>
 nestforge g filter <name>
 nestforge g middleware <name>
 nestforge g interceptor <name>
+nestforge g serializer <name>
 nestforge g graphql <name>
 nestforge g grpc <name>
 nestforge g gateway <name>
@@ -114,11 +115,14 @@ nestforge g guard auth
 nestforge g filter rewrite_bad_request
 nestforge g middleware audit
 nestforge g interceptor logging
+nestforge g serializer user
 ```
 
 `nestforge g filter <name>` creates `src/filters/<name>_filter.rs` plus export wiring in `src/filters/mod.rs`.
 
 `nestforge g middleware <name>` creates `src/middleware/<name>_middleware.rs` plus export wiring in `src/middleware/mod.rs`.
+
+`nestforge g serializer <name>` creates `src/serializers/<name>_serializer.rs` plus export wiring in `src/serializers/mod.rs`.
 
 ## GraphQL, gRPC, And Messaging Generators
 

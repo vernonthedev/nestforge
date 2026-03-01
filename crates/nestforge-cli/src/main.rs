@@ -72,12 +72,13 @@ fn main() -> Result<()> {
                 "filter" => generate_exception_filter_only(name)?,
                 "middleware" => generate_middleware_only(name)?,
                 "interceptor" => generate_interceptor_only(name)?,
+                "serializer" => generate_serializer_only(name)?,
                 "graphql" => generate_graphql_resolver_only(name)?,
                 "grpc" => generate_grpc_service_only(name)?,
                 "gateway" => generate_websocket_gateway_only(name)?,
                 "microservice" => generate_microservice_patterns_only(name)?,
                 _ => bail!(
-                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | filter | middleware | interceptor | graphql | grpc | gateway | microservice",
+                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | filter | middleware | interceptor | serializer | graphql | grpc | gateway | microservice",
                     kind
                 ),
             }
@@ -108,6 +109,7 @@ fn print_help() {
     println!("  nestforge g filter <name>");
     println!("  nestforge g middleware <name>");
     println!("  nestforge g interceptor <name>");
+    println!("  nestforge g serializer <name>");
     println!("  nestforge g graphql <name>");
     println!("  nestforge g grpc <name>");
     println!("  nestforge g gateway <name>");
@@ -130,6 +132,7 @@ fn print_help() {
     println!("  nestforge g resource users");
     println!("  nestforge g filter rewrite_bad_request");
     println!("  nestforge g middleware audit");
+    println!("  nestforge g serializer user");
     println!("  nestforge g graphql users");
     println!("  nestforge g grpc billing");
     println!("  nestforge g gateway events");
@@ -738,6 +741,33 @@ fn generate_interceptor_only(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn generate_serializer_only(name: &str) -> Result<()> {
+    let app_root = detect_app_root()?;
+    let serializer_name = normalize_resource_name(name);
+    let pascal_serializer = format!("{}Serializer", to_pascal_case(&serializer_name));
+    let serializer_file = app_root
+        .join("src/serializers")
+        .join(format!("{}_serializer.rs", serializer_name));
+
+    fs::create_dir_all(app_root.join("src/serializers"))?;
+
+    if !serializer_file.exists() {
+        write_file(
+            &serializer_file,
+            &template_serializer_rs(&serializer_name, &pascal_serializer),
+        )?;
+    } else {
+        println!("Serializer already exists: {}", serializer_file.display());
+    }
+
+    patch_serializers_mod(&app_root, &serializer_name, &pascal_serializer)?;
+    patch_main_mod_decl(&app_root, "serializers")?;
+
+    println!("Generated serializer `{}`", serializer_name);
+    println!("Next: implement `ResponseSerializer<T>` for your domain type");
+    Ok(())
+}
+
 fn generate_websocket_gateway_only(name: &str) -> Result<()> {
     let app_root = detect_app_root()?;
     let gateway_name = normalize_resource_name(name);
@@ -1119,6 +1149,35 @@ fn patch_middleware_mod(
     let use_line = format!(
         "pub use {}_middleware::{};",
         middleware_name, pascal_middleware
+    );
+    let mut next = content;
+
+    if !next.contains(&mod_line) {
+        next.push_str(&format!("\n{}", mod_line));
+    }
+    if !next.contains(&use_line) {
+        next.push_str(&format!("\n{}", use_line));
+    }
+
+    fs::write(path, next)?;
+    Ok(())
+}
+
+fn patch_serializers_mod(
+    app_root: &Path,
+    serializer_name: &str,
+    pascal_serializer: &str,
+) -> Result<()> {
+    let path = app_root.join("src/serializers/mod.rs");
+    let content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        template_serializers_mod_rs()
+    };
+    let mod_line = format!("pub mod {}_serializer;", serializer_name);
+    let use_line = format!(
+        "pub use {}_serializer::{};",
+        serializer_name, pascal_serializer
     );
     let mut next = content;
 
@@ -1713,6 +1772,10 @@ fn template_interceptors_mod_rs() -> String {
     "/* Interceptor exports get generated here */\n".to_string()
 }
 
+fn template_serializers_mod_rs() -> String {
+    "/* Serializer exports get generated here */\n".to_string()
+}
+
 fn template_dto_mod_rs() -> String {
     "/* DTO exports get generated here */\n".to_string()
 }
@@ -2210,6 +2273,34 @@ impl nestforge::ExceptionFilter for {pascal_filter} {{
 fn template_interceptor_rs(pascal_interceptor: &str) -> String {
     format!(
         r#"nestforge::interceptor!({pascal_interceptor});
+"#
+    )
+}
+
+fn template_serializer_rs(serializer_name: &str, pascal_serializer: &str) -> String {
+    format!(
+        r#"#[derive(serde::Serialize)]
+pub struct {pascal_serializer}Dto {{
+    pub id: u64,
+    pub label: String,
+}}
+
+pub struct {pascal_serializer};
+
+impl nestforge::ResponseSerializer<serde_json::Value> for {pascal_serializer} {{
+    type Output = {pascal_serializer}Dto;
+
+    fn serialize(value: serde_json::Value) -> Self::Output {{
+        {pascal_serializer}Dto {{
+            id: value.get("id").and_then(|value| value.as_u64()).unwrap_or_default(),
+            label: value
+                .get("label")
+                .and_then(|value| value.as_str())
+                .unwrap_or("{serializer_name}")
+                .to_string(),
+        }}
+    }}
+}}
 "#
     )
 }
@@ -2714,7 +2805,7 @@ fn contains_sql_content(sql: &str) -> bool {
 mod tests {
     use super::{
         compute_content_hash, contains_sql_content, parse_new_transport_arg,
-        template_microservice_patterns_rs, AppTransport,
+        template_microservice_patterns_rs, template_serializer_rs, AppTransport,
     };
 
     #[test]
@@ -2777,6 +2868,15 @@ mod tests {
         assert!(template.contains("pub struct UsersPatterns;"));
         assert!(template.contains(".message(\"users.ping\""));
         assert!(template.contains(".event(\"users.created\""));
+    }
+
+    #[test]
+    fn template_serializer_uses_requested_type_name() {
+        let template = template_serializer_rs("user", "UserSerializer");
+
+        assert!(template.contains("pub struct UserSerializerDto"));
+        assert!(template.contains("pub struct UserSerializer;"));
+        assert!(template.contains("impl nestforge::ResponseSerializer<serde_json::Value> for UserSerializer"));
     }
 
     #[test]

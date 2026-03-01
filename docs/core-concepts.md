@@ -156,6 +156,8 @@ impl nestforge::ResponseSerializer<UserEntity> for UserSerializer {
 
 Then return `ApiSerializedResult<UserEntity, UserSerializer>` from the handler.
 
+The `hello-nestforge` example uses this pattern for `GET /api/info` by returning a serialized public view of `AppConfig`.
+
 ## Guards And Interceptors
 
 - `Guard`: authorization/route checks before handler

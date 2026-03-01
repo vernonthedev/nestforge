@@ -10,6 +10,7 @@ mod app_controller;
 mod guards;
 mod health_controller;
 mod interceptors;
+mod serializers;
 mod settings;
 mod users;
 mod versioning;

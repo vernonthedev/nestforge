@@ -1,7 +1,9 @@
 use std::{future::Future, net::SocketAddr, sync::Arc};
 
 use anyhow::{Context, Result};
-use nestforge_core::{framework_log_event, initialize_module_graph, Container, ModuleDefinition};
+use nestforge_core::{
+    framework_log_event, initialize_module_runtime, Container, InitializedModule, ModuleDefinition,
+};
 use tonic::Status;
 
 pub use prost;
@@ -63,17 +65,21 @@ impl GrpcContext {
 pub struct NestForgeGrpcFactory<M: ModuleDefinition> {
     _marker: std::marker::PhantomData<M>,
     container: Container,
+    runtime: Arc<InitializedModule>,
     config: GrpcServerConfig,
 }
 
 impl<M: ModuleDefinition> NestForgeGrpcFactory<M> {
     pub fn create() -> Result<Self> {
         let container = Container::new();
-        let _ = initialize_module_graph::<M>(&container)?;
+        let runtime = Arc::new(initialize_module_runtime::<M>(&container)?);
+        runtime.run_module_init(&container)?;
+        runtime.run_application_bootstrap(&container)?;
 
         Ok(Self {
             _marker: std::marker::PhantomData,
             container,
+            runtime,
             config: GrpcServerConfig::default(),
         })
     }
@@ -106,11 +112,16 @@ impl<M: ModuleDefinition> NestForgeGrpcFactory<M> {
         Fut: Future<Output = std::result::Result<(), E>>,
         E: std::error::Error + Send + Sync + 'static,
     {
+        let runtime = Arc::clone(&self.runtime);
+        let container = self.container.clone();
         let addr = self.socket_addr()?;
         framework_log_event("grpc_server_listening", &[("addr", addr.to_string())]);
         serve(self.context(), addr)
             .await
             .map_err(anyhow::Error::new)
-            .context("gRPC transport server failed")
+            .context("gRPC transport server failed")?;
+        runtime.run_module_destroy(&container)?;
+        runtime.run_application_shutdown(&container)?;
+        Ok(())
     }
 }

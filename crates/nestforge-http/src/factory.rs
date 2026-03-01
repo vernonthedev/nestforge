@@ -17,8 +17,8 @@ use axum::{
     Router,
 };
 use nestforge_core::{
-    execute_pipeline, framework_log_event, initialize_module_graph, AuthIdentity, Container,
-    Guard, HttpException, Interceptor, ModuleDefinition, RequestId,
+    execute_pipeline, framework_log_event, initialize_module_runtime, AuthIdentity, Container,
+    Guard, HttpException, InitializedModule, Interceptor, ModuleDefinition, RequestId,
 };
 
 /*
@@ -35,6 +35,7 @@ Now it:
 pub struct NestForgeFactory<M: ModuleDefinition> {
     _marker: std::marker::PhantomData<M>,
     container: Container,
+    runtime: Arc<InitializedModule>,
     controllers: Vec<Router<Container>>,
     extra_routers: Vec<Router<Container>>,
     global_prefix: Option<String>,
@@ -50,11 +51,15 @@ type AuthResolver = dyn Fn(Option<String>, Container) -> AuthFuture + Send + Syn
 impl<M: ModuleDefinition> NestForgeFactory<M> {
     pub fn create() -> Result<Self> {
         let container = Container::new();
-        let controllers = initialize_module_graph::<M>(&container)?;
+        let runtime = Arc::new(initialize_module_runtime::<M>(&container)?);
+        runtime.run_module_init(&container)?;
+        runtime.run_application_bootstrap(&container)?;
+        let controllers = runtime.controllers.clone();
 
         Ok(Self {
             _marker: std::marker::PhantomData,
             container,
+            runtime,
             controllers,
             extra_routers: Vec::new(),
             global_prefix: None,
@@ -182,6 +187,8 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
     }
 
     pub async fn listen(self, port: u16) -> Result<()> {
+        let runtime = Arc::clone(&self.runtime);
+        let container = self.container.clone();
         let app = self.into_router();
 
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
@@ -190,6 +197,8 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         framework_log_event("server_listening", &[("addr", addr.to_string())]);
 
         axum::serve(listener, app).await?;
+        runtime.run_module_destroy(&container)?;
+        runtime.run_application_shutdown(&container)?;
         Ok(())
     }
 }

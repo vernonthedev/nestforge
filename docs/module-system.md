@@ -59,3 +59,31 @@ For each module, NestForge does:
 3. mount current module controllers
 
 This makes provider order deterministic.
+
+## Lifecycle Hooks
+
+Modules can also define Nest-style lifecycle hooks in `#[module(...)]`:
+
+```rust
+#[module(
+    providers = [load_config()?],
+    on_module_init = [warm_cache],
+    on_application_bootstrap = [log_startup],
+    on_module_destroy = [flush_metrics],
+    on_application_shutdown = [close_resources]
+)]
+pub struct AppModule;
+```
+
+Each hook is a function:
+
+```rust
+fn hook(container: &nestforge::Container) -> anyhow::Result<()>
+```
+
+Available hook lists:
+
+- `on_module_init`
+- `on_application_bootstrap`
+- `on_module_destroy`
+- `on_application_shutdown`

@@ -231,6 +231,18 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
     let import_refs = args.imports.iter().map(|ty| {
         quote! { nestforge::ModuleRef::of::<#ty>() }
     });
+    let module_init_hooks = args.on_module_init.iter().map(|expr| {
+        quote! { #expr as nestforge::LifecycleHook }
+    });
+    let module_destroy_hooks = args.on_module_destroy.iter().map(|expr| {
+        quote! { #expr as nestforge::LifecycleHook }
+    });
+    let application_bootstrap_hooks = args.on_application_bootstrap.iter().map(|expr| {
+        quote! { #expr as nestforge::LifecycleHook }
+    });
+    let application_shutdown_hooks = args.on_application_shutdown.iter().map(|expr| {
+        quote! { #expr as nestforge::LifecycleHook }
+    });
 
     let exported_types = args.exports.iter().map(|ty| {
         quote! { std::any::type_name::<#ty>() }
@@ -272,6 +284,22 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let mut docs = Vec::new();
                 #(#controller_doc_calls)*
                 docs
+            }
+
+            fn on_module_init() -> Vec<nestforge::LifecycleHook> {
+                vec![#(#module_init_hooks),*]
+            }
+
+            fn on_module_destroy() -> Vec<nestforge::LifecycleHook> {
+                vec![#(#module_destroy_hooks),*]
+            }
+
+            fn on_application_bootstrap() -> Vec<nestforge::LifecycleHook> {
+                vec![#(#application_bootstrap_hooks),*]
+            }
+
+            fn on_application_shutdown() -> Vec<nestforge::LifecycleHook> {
+                vec![#(#application_shutdown_hooks),*]
             }
         }
     };
@@ -917,6 +945,10 @@ struct ModuleArgs {
     controllers: Vec<Type>,
     providers: Vec<Expr>,
     exports: Vec<Type>,
+    on_module_init: Vec<Expr>,
+    on_module_destroy: Vec<Expr>,
+    on_application_bootstrap: Vec<Expr>,
+    on_application_shutdown: Vec<Expr>,
     global: bool,
 }
 
@@ -990,6 +1022,10 @@ impl Parse for ModuleArgs {
         let mut controllers: Vec<Type> = Vec::new();
         let mut providers: Vec<Expr> = Vec::new();
         let mut exports: Vec<Type> = Vec::new();
+        let mut on_module_init: Vec<Expr> = Vec::new();
+        let mut on_module_destroy: Vec<Expr> = Vec::new();
+        let mut on_application_bootstrap: Vec<Expr> = Vec::new();
+        let mut on_application_shutdown: Vec<Expr> = Vec::new();
         let mut global = false;
 
         while !input.is_empty() {
@@ -1004,13 +1040,21 @@ impl Parse for ModuleArgs {
                 providers = parse_bracket_list::<Expr>(input)?;
             } else if key == "exports" {
                 exports = parse_bracket_list::<Type>(input)?;
+            } else if key == "on_module_init" {
+                on_module_init = parse_bracket_list::<Expr>(input)?;
+            } else if key == "on_module_destroy" {
+                on_module_destroy = parse_bracket_list::<Expr>(input)?;
+            } else if key == "on_application_bootstrap" {
+                on_application_bootstrap = parse_bracket_list::<Expr>(input)?;
+            } else if key == "on_application_shutdown" {
+                on_application_shutdown = parse_bracket_list::<Expr>(input)?;
             } else if key == "global" {
                 let lit: syn::LitBool = input.parse()?;
                 global = lit.value;
             } else {
                 return Err(syn::Error::new(
                     key.span(),
-                    "Unsupported module key. Use `imports`, `controllers`, `providers`, `exports`, or `global`.",
+                    "Unsupported module key. Use `imports`, `controllers`, `providers`, `exports`, lifecycle hook lists, or `global`.",
                 ));
             }
 
@@ -1024,6 +1068,10 @@ impl Parse for ModuleArgs {
             controllers,
             providers,
             exports,
+            on_module_init,
+            on_module_destroy,
+            on_application_bootstrap,
+            on_application_shutdown,
             global,
         })
     }

@@ -31,8 +31,9 @@ pub use http_ext::{OptionHttpExt, ResultHttpExt};
 pub use inject::Inject;
 pub use logging::{framework_log, framework_log_event};
 pub use module::{
-    collect_module_route_docs, initialize_module_graph, ControllerBasePath, ControllerDefinition,
-    ModuleDefinition, ModuleRef,
+    collect_module_route_docs, initialize_module_graph, initialize_module_runtime,
+    ControllerBasePath, ControllerDefinition, InitializedModule, LifecycleHook, ModuleDefinition,
+    ModuleRef,
 };
 pub use pipeline::{execute_pipeline, run_guards, Guard, Interceptor, NextFn, NextFuture, RequestContext};
 pub use provider::{register_provider, Provider, RegisterProvider};

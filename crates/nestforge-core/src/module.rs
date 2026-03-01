@@ -4,6 +4,8 @@ use std::collections::HashSet;
 
 use crate::{framework_log_event, Container, RouteDocumentation};
 
+pub type LifecycleHook = fn(&Container) -> Result<()>;
+
 /*
 ControllerBasePath = metadata implemented by #[controller("/...")]
 */
@@ -24,6 +26,10 @@ pub struct ModuleRef {
     pub register: fn(&Container) -> Result<()>,
     pub controllers: fn() -> Vec<Router<Container>>,
     pub route_docs: fn() -> Vec<RouteDocumentation>,
+    pub on_module_init: fn() -> Vec<LifecycleHook>,
+    pub on_module_destroy: fn() -> Vec<LifecycleHook>,
+    pub on_application_bootstrap: fn() -> Vec<LifecycleHook>,
+    pub on_application_shutdown: fn() -> Vec<LifecycleHook>,
     pub imports: fn() -> Vec<ModuleRef>,
     pub exports: fn() -> Vec<&'static str>,
     pub is_global: fn() -> bool,
@@ -36,6 +42,10 @@ impl ModuleRef {
             register: M::register,
             controllers: M::controllers,
             route_docs: M::route_docs,
+            on_module_init: M::on_module_init,
+            on_module_destroy: M::on_module_destroy,
+            on_application_bootstrap: M::on_application_bootstrap,
+            on_application_shutdown: M::on_application_shutdown,
             imports: M::imports,
             exports: M::exports,
             is_global: M::is_global,
@@ -72,14 +82,76 @@ pub trait ModuleDefinition: Send + Sync + 'static {
     fn route_docs() -> Vec<RouteDocumentation> {
         Vec::new()
     }
+
+    fn on_module_init() -> Vec<LifecycleHook> {
+        Vec::new()
+    }
+
+    fn on_module_destroy() -> Vec<LifecycleHook> {
+        Vec::new()
+    }
+
+    fn on_application_bootstrap() -> Vec<LifecycleHook> {
+        Vec::new()
+    }
+
+    fn on_application_shutdown() -> Vec<LifecycleHook> {
+        Vec::new()
+    }
+}
+
+pub struct InitializedModule {
+    pub controllers: Vec<Router<Container>>,
+    module_init_hooks: Vec<LifecycleHook>,
+    module_destroy_hooks: Vec<LifecycleHook>,
+    application_bootstrap_hooks: Vec<LifecycleHook>,
+    application_shutdown_hooks: Vec<LifecycleHook>,
+}
+
+impl InitializedModule {
+    pub fn run_module_init(&self, container: &Container) -> Result<()> {
+        run_lifecycle_hooks("module_init", &self.module_init_hooks, container)
+    }
+
+    pub fn run_module_destroy(&self, container: &Container) -> Result<()> {
+        run_lifecycle_hooks("module_destroy", &self.module_destroy_hooks, container)
+    }
+
+    pub fn run_application_bootstrap(&self, container: &Container) -> Result<()> {
+        run_lifecycle_hooks(
+            "application_bootstrap",
+            &self.application_bootstrap_hooks,
+            container,
+        )
+    }
+
+    pub fn run_application_shutdown(&self, container: &Container) -> Result<()> {
+        run_lifecycle_hooks(
+            "application_shutdown",
+            &self.application_shutdown_hooks,
+            container,
+        )
+    }
+}
+
+pub fn initialize_module_runtime<M: ModuleDefinition>(container: &Container) -> Result<InitializedModule> {
+    let mut state = ModuleGraphState::default();
+    visit_module(ModuleRef::of::<M>(), container, &mut state)?;
+    state.module_destroy_hooks.reverse();
+    state.application_shutdown_hooks.reverse();
+    Ok(InitializedModule {
+        controllers: state.controllers,
+        module_init_hooks: state.module_init_hooks,
+        module_destroy_hooks: state.module_destroy_hooks,
+        application_bootstrap_hooks: state.application_bootstrap_hooks,
+        application_shutdown_hooks: state.application_shutdown_hooks,
+    })
 }
 
 pub fn initialize_module_graph<M: ModuleDefinition>(
     container: &Container,
 ) -> Result<Vec<Router<Container>>> {
-    let mut state = ModuleGraphState::default();
-    visit_module(ModuleRef::of::<M>(), container, &mut state)?;
-    Ok(state.controllers)
+    Ok(initialize_module_runtime::<M>(container)?.controllers)
 }
 
 pub fn collect_module_route_docs<M: ModuleDefinition>() -> Result<Vec<RouteDocumentation>> {
@@ -94,6 +166,10 @@ struct ModuleGraphState {
     visiting: HashSet<&'static str>,
     stack: Vec<&'static str>,
     controllers: Vec<Router<Container>>,
+    module_init_hooks: Vec<LifecycleHook>,
+    module_destroy_hooks: Vec<LifecycleHook>,
+    application_bootstrap_hooks: Vec<LifecycleHook>,
+    application_shutdown_hooks: Vec<LifecycleHook>,
     global_modules: HashSet<&'static str>,
 }
 
@@ -135,6 +211,14 @@ fn visit_module(
         .map_err(|err| anyhow::anyhow!("Failed to register module `{}`: {}", module.name, err))?;
 
     state.controllers.extend((module.controllers)());
+    state.module_init_hooks.extend((module.on_module_init)());
+    state.module_destroy_hooks.extend((module.on_module_destroy)());
+    state
+        .application_bootstrap_hooks
+        .extend((module.on_application_bootstrap)());
+    state
+        .application_shutdown_hooks
+        .extend((module.on_application_shutdown)());
 
     if (module.is_global)() {
         state.global_modules.insert(module.name);
@@ -160,6 +244,19 @@ fn visit_module(
     state.stack.pop();
     state.visiting.remove(module.name);
     state.visited.insert(module.name);
+
+    Ok(())
+}
+
+fn run_lifecycle_hooks(
+    phase: &'static str,
+    hooks: &[LifecycleHook],
+    container: &Container,
+) -> Result<()> {
+    for hook in hooks {
+        framework_log_event("lifecycle_hook_run", &[("phase", phase.to_string())]);
+        hook(container)?;
+    }
 
     Ok(())
 }
@@ -195,6 +292,7 @@ fn visit_module_docs(module: ModuleRef, state: &mut DocumentationGraphState) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
 
     struct ImportedConfig;
     struct AppService;
@@ -347,5 +445,88 @@ mod tests {
         assert!(message.contains("Failed to register module"));
         assert!(message.contains("BrokenModule"));
         assert!(message.contains("MissingDependency"));
+    }
+
+    #[derive(Clone)]
+    struct HookLog(Arc<Mutex<Vec<&'static str>>>);
+
+    fn push_hook(container: &Container, label: &'static str) -> Result<()> {
+        let log = container.resolve::<HookLog>()?;
+        log.0.lock().expect("hook log should be writable").push(label);
+        Ok(())
+    }
+
+    fn hook_init(container: &Container) -> Result<()> {
+        push_hook(container, "module_init")
+    }
+
+    fn hook_bootstrap(container: &Container) -> Result<()> {
+        push_hook(container, "application_bootstrap")
+    }
+
+    fn hook_destroy(container: &Container) -> Result<()> {
+        push_hook(container, "module_destroy")
+    }
+
+    fn hook_shutdown(container: &Container) -> Result<()> {
+        push_hook(container, "application_shutdown")
+    }
+
+    struct HookModule;
+
+    impl ModuleDefinition for HookModule {
+        fn register(container: &Container) -> Result<()> {
+            container.register(HookLog(Arc::new(Mutex::new(Vec::new()))))?;
+            Ok(())
+        }
+
+        fn on_module_init() -> Vec<LifecycleHook> {
+            vec![hook_init]
+        }
+
+        fn on_application_bootstrap() -> Vec<LifecycleHook> {
+            vec![hook_bootstrap]
+        }
+
+        fn on_module_destroy() -> Vec<LifecycleHook> {
+            vec![hook_destroy]
+        }
+
+        fn on_application_shutdown() -> Vec<LifecycleHook> {
+            vec![hook_shutdown]
+        }
+    }
+
+    #[test]
+    fn initialized_runtime_runs_lifecycle_hooks_in_expected_order() {
+        let container = Container::new();
+        let runtime = initialize_module_runtime::<HookModule>(&container)
+            .expect("module runtime should initialize");
+
+        runtime
+            .run_module_init(&container)
+            .expect("module init hooks should run");
+        runtime
+            .run_application_bootstrap(&container)
+            .expect("application bootstrap hooks should run");
+        runtime
+            .run_module_destroy(&container)
+            .expect("module destroy hooks should run");
+        runtime
+            .run_application_shutdown(&container)
+            .expect("application shutdown hooks should run");
+
+        let log = container.resolve::<HookLog>().expect("hook log should resolve");
+        let entries = log.0.lock().expect("hook log should be readable").clone();
+
+        assert_eq!(
+            entries,
+            vec![
+                "module_init",
+                "application_bootstrap",
+                "module_destroy",
+                "application_shutdown"
+            ]
+        );
     }
 }

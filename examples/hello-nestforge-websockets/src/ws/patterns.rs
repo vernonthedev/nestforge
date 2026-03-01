@@ -1,4 +1,4 @@
-use nestforge::{MicroserviceRegistry, TransportMetadata};
+use nestforge::MicroserviceRegistry;
 
 #[derive(Clone)]
 pub struct WsPatterns {
@@ -25,9 +25,5 @@ impl WsPatterns {
 
     pub fn registry(&self) -> &MicroserviceRegistry {
         &self.registry
-    }
-
-    pub fn metadata(&self) -> TransportMetadata {
-        TransportMetadata::new().insert("example", "hello-nestforge-websockets")
     }
 }

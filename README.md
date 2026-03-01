@@ -94,6 +94,18 @@ cd demo-api
 cargo run
 ```
 
+Create a GraphQL-first app:
+
+```bash
+nestforge new demo-graphql --transport graphql
+```
+
+Create a gRPC-first app:
+
+```bash
+nestforge new demo-grpc --transport grpc
+```
+
 Generate code:
 
 ```bash

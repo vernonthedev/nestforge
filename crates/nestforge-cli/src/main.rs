@@ -9,6 +9,32 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AppTransport {
+    Http,
+    Graphql,
+    Grpc,
+}
+
+impl AppTransport {
+    fn parse(value: &str) -> Result<Self> {
+        match value {
+            "http" => Ok(Self::Http),
+            "graphql" => Ok(Self::Graphql),
+            "grpc" => Ok(Self::Grpc),
+            _ => bail!("Unknown transport `{value}`. Use: http | graphql | grpc"),
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Http => "HTTP",
+            Self::Graphql => "GraphQL",
+            Self::Grpc => "gRPC",
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
@@ -22,7 +48,8 @@ fn main() -> Result<()> {
             let app_name = args
                 .get(2)
                 .context("Missing app name. Example: nestforge new demo-app")?;
-            create_new_app(app_name)?;
+            let transport = parse_new_transport_arg(&args[3..])?;
+            create_new_app(app_name, transport)?;
         }
         "g" | "generate" => {
             let kind = args
@@ -62,6 +89,7 @@ fn print_help() {
     println!();
     println!("Usage:");
     println!("  nestforge new <app-name>");
+    println!("  nestforge new <app-name> --transport <http|graphql|grpc>");
     println!("  nestforge g resource <name>");
     println!("  nestforge g controller <name>");
     println!("  nestforge g service <name>");
@@ -81,6 +109,8 @@ fn print_help() {
     println!();
     println!("Examples:");
     println!("  nestforge new care-api");
+    println!("  nestforge new catalog-api --transport graphql");
+    println!("  nestforge new greeter-service --transport grpc");
     println!("  nestforge g resource users");
     println!("  nestforge db init");
     println!("  nestforge db generate create_users_table");
@@ -90,47 +120,28 @@ fn print_help() {
    NEW APP SCAFFOLD
 ------------------------------ */
 
-fn create_new_app(app_name: &str) -> Result<()> {
+fn create_new_app(app_name: &str, transport: AppTransport) -> Result<()> {
     let app_dir = env::current_dir()?.join(app_name);
 
     if app_dir.exists() {
         bail!("App `{}` already exists at {}", app_name, app_dir.display());
     }
 
-    /* Create folders */
-    fs::create_dir_all(app_dir.join("src/controllers"))?;
     fs::create_dir_all(app_dir.join("src/services"))?;
-    fs::create_dir_all(app_dir.join("src/dto"))?;
-    fs::create_dir_all(app_dir.join("src/guards"))?;
-    fs::create_dir_all(app_dir.join("src/interceptors"))?;
 
     /* Cargo.toml */
     write_file(
         &app_dir.join("Cargo.toml"),
-        &template_app_cargo_toml(app_name, resolve_nestforge_dependency_line()),
+        &template_app_cargo_toml(app_name, resolve_nestforge_dependency_line(transport), transport),
     )?;
 
     /* main.rs */
-    write_file(&app_dir.join("src/main.rs"), &template_main_rs())?;
+    write_file(&app_dir.join("src/main.rs"), &template_main_rs(transport))?;
 
     /* app_module.rs */
     write_file(
         &app_dir.join("src/app_module.rs"),
-        &template_app_module_rs(),
-    )?;
-
-    /* controllers */
-    write_file(
-        &app_dir.join("src/controllers/mod.rs"),
-        &template_controllers_mod_rs(),
-    )?;
-    write_file(
-        &app_dir.join("src/controllers/app_controller.rs"),
-        &template_app_controller_rs(),
-    )?;
-    write_file(
-        &app_dir.join("src/controllers/health_controller.rs"),
-        &template_health_controller_rs(),
+        &template_app_module_rs(transport),
     )?;
 
     /* services */
@@ -140,36 +151,92 @@ fn create_new_app(app_name: &str) -> Result<()> {
     )?;
     write_file(
         &app_dir.join("src/services/app_config.rs"),
-        &template_app_config_rs(),
-    )?;
-    write_file(
-        &app_dir.join("src/guards/mod.rs"),
-        &template_guards_mod_rs(),
-    )?;
-    write_file(
-        &app_dir.join("src/interceptors/mod.rs"),
-        &template_interceptors_mod_rs(),
+        &template_app_config_rs(transport),
     )?;
 
-    /* dto */
-    write_file(&app_dir.join("src/dto/mod.rs"), &template_dto_mod_rs())?;
+    scaffold_transport_files(&app_dir, transport)?;
+
     write_file(
         &app_dir.join(".env.example"),
-        "# Set your local database connection string before running DB commands.\nDATABASE_URL=postgres://<user>:<password>@localhost/<database>\n",
+        &template_env_file(app_name, transport),
     )?;
     write_file(
         &app_dir.join(".env"),
-        "# Set your local database connection string before running the app.\nDATABASE_URL=postgres://<user>:<password>@localhost/<database>\n",
+        &template_env_file(app_name, transport),
     )?;
 
-    println!("Created NestForge app at {}", app_dir.display());
+    println!(
+        "Created NestForge {} app at {}",
+        transport.label(),
+        app_dir.display()
+    );
     println!();
     println!("Next:");
     println!("  cd {}", app_dir.display());
     println!("  cargo run");
-    println!();
-    println!("Then generate your first resource:");
-    println!("  nestforge g resource users");
+
+    if matches!(transport, AppTransport::Http) {
+        println!();
+        println!("Then generate your first resource:");
+        println!("  nestforge g resource users");
+    }
+
+    Ok(())
+}
+
+fn scaffold_transport_files(app_dir: &Path, transport: AppTransport) -> Result<()> {
+    match transport {
+        AppTransport::Http => {
+            fs::create_dir_all(app_dir.join("src/controllers"))?;
+            fs::create_dir_all(app_dir.join("src/dto"))?;
+            fs::create_dir_all(app_dir.join("src/guards"))?;
+            fs::create_dir_all(app_dir.join("src/interceptors"))?;
+
+            write_file(
+                &app_dir.join("src/controllers/mod.rs"),
+                &template_controllers_mod_rs(),
+            )?;
+            write_file(
+                &app_dir.join("src/controllers/app_controller.rs"),
+                &template_app_controller_rs(),
+            )?;
+            write_file(
+                &app_dir.join("src/controllers/health_controller.rs"),
+                &template_health_controller_rs(),
+            )?;
+            write_file(
+                &app_dir.join("src/guards/mod.rs"),
+                &template_guards_mod_rs(),
+            )?;
+            write_file(
+                &app_dir.join("src/interceptors/mod.rs"),
+                &template_interceptors_mod_rs(),
+            )?;
+            write_file(&app_dir.join("src/dto/mod.rs"), &template_dto_mod_rs())?;
+        }
+        AppTransport::Graphql => {
+            fs::create_dir_all(app_dir.join("src/graphql"))?;
+            write_file(&app_dir.join("src/graphql/mod.rs"), "pub mod schema;\n")?;
+            write_file(
+                &app_dir.join("src/graphql/schema.rs"),
+                &template_graphql_schema_rs(),
+            )?;
+        }
+        AppTransport::Grpc => {
+            fs::create_dir_all(app_dir.join("src/grpc"))?;
+            fs::create_dir_all(app_dir.join("proto"))?;
+            write_file(&app_dir.join("build.rs"), &template_grpc_build_rs())?;
+            write_file(
+                &app_dir.join("proto/greeter.proto"),
+                &template_grpc_proto(),
+            )?;
+            write_file(&app_dir.join("src/grpc/mod.rs"), &template_grpc_mod_rs())?;
+            write_file(
+                &app_dir.join("src/grpc/service.rs"),
+                &template_grpc_service_rs(),
+            )?;
+        }
+    }
 
     Ok(())
 }
@@ -927,8 +994,25 @@ fn patch_app_module_providers_only(app_root: &Path, pascal_plural: &str) -> Resu
    TEMPLATE HELPERS
 ------------------------------ */
 
-fn resolve_nestforge_dependency_line() -> String {
+fn parse_new_transport_arg(args: &[String]) -> Result<AppTransport> {
+    if args.is_empty() {
+        return Ok(AppTransport::Http);
+    }
+
+    if args.len() == 2 && args[0] == "--transport" {
+        return AppTransport::parse(&args[1]);
+    }
+
+    bail!("Invalid new app options. Use: nestforge new <app-name> --transport <http|graphql|grpc>")
+}
+
+fn resolve_nestforge_dependency_line(transport: AppTransport) -> String {
     let framework_version = env!("CARGO_PKG_VERSION");
+    let features = match transport {
+        AppTransport::Http => "\"config\"",
+        AppTransport::Graphql => "\"config\", \"graphql\"",
+        AppTransport::Grpc => "\"config\", \"grpc\"",
+    };
     let local_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .map(|p| p.join("nestforge"));
@@ -937,38 +1021,68 @@ fn resolve_nestforge_dependency_line() -> String {
         if path.exists() {
             let normalized = path.to_string_lossy().replace('\\', "/");
             return format!(
-                "nestforge = {{ path = \"{}\", features = [\"config\"] }}",
-                normalized
+                "nestforge = {{ path = \"{}\", features = [{}] }}",
+                normalized, features
             );
         }
     }
 
     format!(
-        "nestforge = {{ version = \"{}\", features = [\"config\"] }}",
-        framework_version
+        "nestforge = {{ version = \"{}\", features = [{}] }}",
+        framework_version, features
     )
 }
 
-fn template_app_cargo_toml(app_name: &str, nestforge_dep: String) -> String {
+fn template_app_cargo_toml(
+    app_name: &str,
+    nestforge_dep: String,
+    transport: AppTransport,
+) -> String {
+    let package_extra = if matches!(transport, AppTransport::Grpc) {
+        "build = \"build.rs\"\n"
+    } else {
+        ""
+    };
+
+    let dependency_lines = match transport {
+        AppTransport::Http => {
+            "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nserde = { version = \"1\", features = [\"derive\"] }\nanyhow = \"1\"\n"
+        }
+        AppTransport::Graphql => {
+            "tokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
+        }
+        AppTransport::Grpc => {
+            "tokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\ntonic = { version = \"0.12\", features = [\"transport\"] }\nprost = \"0.13\"\n"
+        }
+    };
+
+    let build_dependencies = if matches!(transport, AppTransport::Grpc) {
+        "\n[build-dependencies]\ntonic-build = \"0.12\"\n"
+    } else {
+        ""
+    };
+
     format!(
         r#"[package]
 name = "{app_name}"
 version = "0.1.0"
 edition = "2021"
+{package_extra}
 
 [dependencies]
 {nestforge_dep}
-axum = "0.8"
-tokio = {{ version = "1", features = ["full"] }}
-serde = {{ version = "1", features = ["derive"] }}
-anyhow = "1"
+{dependency_lines}{build_dependencies}
 "#,
-        nestforge_dep = nestforge_dep
+        nestforge_dep = nestforge_dep,
+        package_extra = package_extra,
+        dependency_lines = dependency_lines,
+        build_dependencies = build_dependencies,
     )
 }
 
-fn template_main_rs() -> String {
-    r#"mod app_module;
+fn template_main_rs(transport: AppTransport) -> String {
+    match transport {
+        AppTransport::Http => r#"mod app_module;
 mod controllers;
 mod dto;
 mod guards;
@@ -993,11 +1107,68 @@ async fn main() -> anyhow::Result<()> {
     bootstrap().await
 }
 "#
-    .to_string()
+        .to_string(),
+        AppTransport::Graphql => r#"mod app_module;
+mod graphql;
+mod services;
+
+use app_module::AppModule;
+use graphql::schema::build_schema;
+use nestforge::{GraphQlConfig, NestForgeFactory, NestForgeFactoryGraphQlExt};
+
+const PORT: u16 = 3000;
+
+async fn bootstrap() -> anyhow::Result<()> {
+    let factory = NestForgeFactory::<AppModule>::create()?;
+    let config = factory.container().resolve::<crate::services::AppConfig>()?;
+    let schema = build_schema(config.app_name.clone());
+
+    factory
+        .with_graphql_config(schema, GraphQlConfig::new("/graphql").with_graphiql("/"))
+        .listen(PORT)
+        .await
 }
 
-fn template_app_module_rs() -> String {
-    r#"use nestforge::{module, ConfigModule, ConfigOptions};
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    bootstrap().await
+}
+"#
+        .to_string(),
+        AppTransport::Grpc => r#"mod app_module;
+mod grpc;
+mod services;
+
+use app_module::AppModule;
+use grpc::{proto::greeter_server::GreeterServer, service::GreeterGrpcService};
+use nestforge::NestForgeGrpcFactory;
+
+const ADDR: &str = "127.0.0.1:50051";
+
+async fn bootstrap() -> anyhow::Result<()> {
+    NestForgeGrpcFactory::<AppModule>::create()?
+        .with_addr(ADDR)
+        .listen_with(|ctx, addr| async move {
+            nestforge::tonic::transport::Server::builder()
+                .add_service(GreeterServer::new(GreeterGrpcService::new(ctx)))
+                .serve(addr)
+                .await
+        })
+        .await
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    bootstrap().await
+}
+"#
+        .to_string(),
+    }
+}
+
+fn template_app_module_rs(transport: AppTransport) -> String {
+    match transport {
+        AppTransport::Http => r#"use nestforge::{module, ConfigModule, ConfigOptions};
 
 use crate::{
     controllers::{AppController, HealthController},
@@ -1025,7 +1196,25 @@ fn load_app_config() -> anyhow::Result<AppConfig> {
 )]
 pub struct AppModule;
 "#
-    .to_string()
+        .to_string(),
+        AppTransport::Graphql | AppTransport::Grpc => r#"use nestforge::{module, ConfigModule, ConfigOptions};
+
+use crate::services::AppConfig;
+
+fn load_app_config() -> anyhow::Result<AppConfig> {
+    Ok(ConfigModule::for_root::<AppConfig>(ConfigOptions::new().env_file(".env"))?)
+}
+
+#[module(
+    imports = [],
+    controllers = [],
+    providers = [load_app_config()?],
+    exports = [AppConfig]
+)]
+pub struct AppModule;
+"#
+        .to_string(),
+    }
 }
 
 fn template_controllers_mod_rs() -> String {
@@ -1094,20 +1283,154 @@ impl HealthController {
     .to_string()
 }
 
-fn template_app_config_rs() -> String {
-    r#"#[derive(Clone)]
+fn template_app_config_rs(transport: AppTransport) -> String {
+    let default_app_name = match transport {
+        AppTransport::Http => "NestForge HTTP",
+        AppTransport::Graphql => "NestForge GraphQL",
+        AppTransport::Grpc => "NestForge gRPC",
+    };
+
+    format!(
+        r#"#[derive(Clone)]
 pub struct AppConfig {
     pub app_name: String,
 }
 
 impl nestforge::FromEnv for AppConfig {
     fn from_env(env: &nestforge::EnvStore) -> Result<Self, nestforge::ConfigError> {
-        let app_name = env.get("APP_NAME").unwrap_or("NestForge").to_string();
+        let app_name = env.get("APP_NAME").unwrap_or("{default_app_name}").to_string();
         Ok(Self { app_name })
     }
 }
 "#
+    )
+}
+
+fn template_graphql_schema_rs() -> String {
+    r#"use nestforge::async_graphql::{EmptyMutation, EmptySubscription, Object, Schema};
+
+pub type AppSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
+
+pub fn build_schema(app_name: String) -> AppSchema {
+    Schema::build(QueryRoot { app_name }, EmptyMutation, EmptySubscription).finish()
+}
+
+pub struct QueryRoot {
+    app_name: String,
+}
+
+#[Object]
+impl QueryRoot {
+    async fn health(&self) -> &str {
+        "ok"
+    }
+
+    async fn app_name(&self) -> &str {
+        &self.app_name
+    }
+}
+"#
     .to_string()
+}
+
+fn template_grpc_build_rs() -> String {
+    r#"fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tonic_build::configure()
+        .build_client(true)
+        .build_server(true)
+        .compile_protos(&["proto/greeter.proto"], &["proto"])?;
+
+    println!("cargo:rerun-if-changed=proto/greeter.proto");
+    Ok(())
+}
+"#
+    .to_string()
+}
+
+fn template_grpc_proto() -> String {
+    r#"syntax = "proto3";
+
+package hello;
+
+service Greeter {
+  rpc SayHello (HelloRequest) returns (HelloReply);
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message = 1;
+}
+"#
+    .to_string()
+}
+
+fn template_grpc_mod_rs() -> String {
+    r#"pub mod proto {
+    nestforge::tonic::include_proto!("hello");
+}
+
+pub mod service;
+"#
+    .to_string()
+}
+
+fn template_grpc_service_rs() -> String {
+    r#"use nestforge::{
+    tonic::{Request, Response, Status},
+    GrpcContext,
+};
+
+use crate::{
+    grpc::proto::{greeter_server::Greeter, HelloReply, HelloRequest},
+    services::AppConfig,
+};
+
+#[derive(Clone)]
+pub struct GreeterGrpcService {
+    ctx: GrpcContext,
+}
+
+impl GreeterGrpcService {
+    pub fn new(ctx: GrpcContext) -> Self {
+        Self { ctx }
+    }
+}
+
+#[nestforge::tonic::async_trait]
+impl Greeter for GreeterGrpcService {
+    async fn say_hello(
+        &self,
+        request: Request<HelloRequest>,
+    ) -> Result<Response<HelloReply>, Status> {
+        let name = request.into_inner().name.trim().to_string();
+        if name.is_empty() {
+            return Err(Status::invalid_argument("name is required"));
+        }
+
+        let config = self.ctx.resolve::<AppConfig>()?;
+        Ok(Response::new(HelloReply {
+            message: format!("Hello, {name}! Welcome to {}.", config.app_name),
+        }))
+    }
+}
+"#
+    .to_string()
+}
+
+fn template_env_file(app_name: &str, transport: AppTransport) -> String {
+    let transport_note = match transport {
+        AppTransport::Http => "# Generated for a NestForge HTTP app.\n",
+        AppTransport::Graphql => "# Generated for a NestForge GraphQL app.\n",
+        AppTransport::Grpc => "# Generated for a NestForge gRPC app.\n",
+    };
+
+    format!(
+        "{transport_note}APP_NAME={}\n# Optional when you add SQL migrations later.\nDATABASE_URL=postgres://<user>:<password>@localhost/<database>\n",
+        to_pascal_case(app_name).replace('_', " ")
+    )
 }
 
 fn template_entity_dto_rs(pascal_singular: &str) -> String {
@@ -1693,7 +2016,9 @@ fn contains_sql_content(sql: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{compute_content_hash, contains_sql_content};
+    use super::{
+        compute_content_hash, contains_sql_content, parse_new_transport_arg, AppTransport,
+    };
 
     #[test]
     fn contains_sql_content_ignores_comment_only_input() {
@@ -1716,5 +2041,25 @@ mod tests {
 
         assert_eq!(first, second);
         assert_eq!(first.len(), 64);
+    }
+
+    #[test]
+    fn parse_new_transport_defaults_to_http() {
+        let args: Vec<String> = Vec::new();
+
+        assert!(matches!(
+            parse_new_transport_arg(&args).expect("transport should parse"),
+            AppTransport::Http
+        ));
+    }
+
+    #[test]
+    fn parse_new_transport_accepts_graphql() {
+        let args = vec!["--transport".to_string(), "graphql".to_string()];
+
+        assert!(matches!(
+            parse_new_transport_arg(&args).expect("transport should parse"),
+            AppTransport::Graphql
+        ));
     }
 }

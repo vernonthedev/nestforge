@@ -10,6 +10,7 @@ cargo install --path crates/nestforge-cli
 
 ```text
 nestforge new <app-name>
+nestforge new <app-name> --transport <http|graphql|grpc>
 nestforge g module <name>
 nestforge g resource <name>
 nestforge g controller <name>
@@ -39,6 +40,31 @@ Creates a runnable app with:
 - root app/health controllers
 - guards/interceptors folders
 - `.env` and `.env.example`
+
+Generate a GraphQL-first app:
+
+```bash
+nestforge new demo-graphql --transport graphql
+```
+
+Creates:
+
+- `src/graphql/schema.rs`
+- GraphQL bootstrap in `main.rs`
+- GraphiQL mounted at `/`
+
+Generate a gRPC-first app:
+
+```bash
+nestforge new demo-grpc --transport grpc
+```
+
+Creates:
+
+- `proto/greeter.proto`
+- `build.rs` for tonic code generation
+- `src/grpc/service.rs`
+- gRPC bootstrap in `main.rs`
 
 ### Module
 
@@ -116,3 +142,5 @@ Shows `applied`, `pending`, and `drift` migration status.
 
 - Run generator commands inside an app folder (`Cargo.toml` + `src/`).
 - Use `--module <feature>` to generate inside a feature module.
+- GraphQL and gRPC app templates still include `APP_NAME` and an optional `DATABASE_URL` placeholder in `.env`.
+- The gRPC template expects `protoc` to be available when you build the generated app.

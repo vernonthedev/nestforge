@@ -1,7 +1,12 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use anyhow::Result;
-use nestforge_core::{initialize_module_graph, Container, ContainerError, ModuleDefinition};
+use async_graphql::{ObjectType, Schema, SubscriptionType};
+use axum::Router;
+use nestforge_core::{
+    initialize_module_runtime, Container, ContainerError, InitializedModule, ModuleDefinition,
+};
+use nestforge_graphql::{graphql_router, graphql_router_with_config, GraphQlConfig};
 
 type OverrideFn = Box<dyn Fn(&Container) -> Result<()> + Send + Sync>;
 
@@ -36,14 +41,21 @@ impl<M: ModuleDefinition> TestFactory<M> {
             override_fn(&container)?;
         }
 
-        let _ = initialize_module_graph::<M>(&container)?;
-        Ok(TestingModule { container })
+        let runtime = initialize_module_runtime::<M>(&container)?;
+        runtime.run_module_init(&container)?;
+        runtime.run_application_bootstrap(&container)?;
+
+        Ok(TestingModule {
+            container,
+            runtime: Arc::new(runtime),
+        })
     }
 }
 
 #[derive(Clone)]
 pub struct TestingModule {
     container: Container,
+    runtime: Arc<InitializedModule>,
 }
 
 impl TestingModule {
@@ -57,12 +69,57 @@ impl TestingModule {
     {
         self.container.resolve::<T>()
     }
+
+    pub fn http_router(&self) -> Router {
+        let mut app: Router<Container> = Router::new();
+        for controller_router in &self.runtime.controllers {
+            app = app.merge(controller_router.clone());
+        }
+
+        app.with_state(self.container.clone())
+    }
+
+    pub fn graphql_router<Query, Mutation, Subscription>(
+        &self,
+        schema: Schema<Query, Mutation, Subscription>,
+    ) -> Router
+    where
+        Query: ObjectType + Send + Sync + 'static,
+        Mutation: ObjectType + Send + Sync + 'static,
+        Subscription: SubscriptionType + Send + Sync + 'static,
+    {
+        self.http_router()
+            .merge(graphql_router(schema).with_state(self.container.clone()))
+    }
+
+    pub fn graphql_router_with_paths<Query, Mutation, Subscription>(
+        &self,
+        schema: Schema<Query, Mutation, Subscription>,
+        endpoint: impl Into<String>,
+        graphiql_endpoint: Option<String>,
+    ) -> Router
+    where
+        Query: ObjectType + Send + Sync + 'static,
+        Mutation: ObjectType + Send + Sync + 'static,
+        Subscription: SubscriptionType + Send + Sync + 'static,
+    {
+        let config = if let Some(graphiql_endpoint) = graphiql_endpoint {
+            GraphQlConfig::new(endpoint).with_graphiql(graphiql_endpoint)
+        } else {
+            GraphQlConfig::new(endpoint).without_graphiql()
+        };
+
+        self.http_router()
+            .merge(graphql_router_with_config(schema, config).with_state(self.container.clone()))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nestforge_core::{register_provider, Provider};
+    use async_graphql::{EmptyMutation, EmptySubscription};
+    use nestforge_core::{register_provider, ControllerDefinition, Provider};
+    use tower::ServiceExt;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     struct AppConfig {
@@ -143,5 +200,88 @@ mod tests {
             .resolve::<GreetingService>()
             .expect("greeting service should resolve");
         assert_eq!(greeting.greeting, "hello override");
+    }
+
+    struct HttpController;
+
+    impl ControllerDefinition for HttpController {
+        fn router() -> Router<Container> {
+            Router::new().route(
+                "/health",
+                axum::routing::get(|| async { axum::Json(serde_json::json!({ "ok": true })) }),
+            )
+        }
+    }
+
+    struct HttpModule;
+    impl ModuleDefinition for HttpModule {
+        fn register(_container: &Container) -> Result<()> {
+            Ok(())
+        }
+
+        fn controllers() -> Vec<Router<Container>> {
+            vec![HttpController::router()]
+        }
+    }
+
+    #[tokio::test]
+    async fn builds_http_router_from_testing_module_runtime() {
+        let module = TestFactory::<HttpModule>::create()
+            .build()
+            .expect("http testing module should build");
+
+        let response = module
+            .http_router()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/health")
+                    .body(axum::body::Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("request should succeed");
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+    }
+
+    struct QueryRoot;
+
+    #[async_graphql::Object]
+    impl QueryRoot {
+        async fn app_name(&self, ctx: &async_graphql::Context<'_>) -> &str {
+            let config = ctx
+                .data::<Container>()
+                .expect("container should be present")
+                .resolve::<AppConfig>()
+                .expect("app config should resolve");
+
+            config.app_name
+        }
+    }
+
+    #[tokio::test]
+    async fn builds_graphql_router_from_testing_module_runtime() {
+        let module = TestFactory::<AppModule>::create()
+            .override_provider(AppConfig { app_name: "graphql" })
+            .build()
+            .expect("graphql testing module should build");
+        let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish();
+
+        let response = module
+            .graphql_router_with_paths(schema, "/graphql", None)
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/graphql")
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(axum::body::Body::from(
+                        serde_json::json!({ "query": "{ appName }" }).to_string(),
+                    ))
+                    .expect("request should build"),
+            )
+            .await
+            .expect("graphql request should succeed");
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
     }
 }

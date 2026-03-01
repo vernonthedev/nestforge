@@ -11,6 +11,7 @@
 - [gRPC](grpc)
 - [WebSockets](websockets)
 - [Schedule](schedule)
+- [Testing](testing)
 - [Config Module](config-module)
 - [Resource Service Patterns](resource-service-patterns)
 - [Macros](macros)

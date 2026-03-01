@@ -12,5 +12,13 @@ categories = ["development-tools::testing"]
 
 [dependencies]
 anyhow = { workspace = true }
+async-graphql = { workspace = true }
+axum = { workspace = true }
 nestforge-core = { version = "1.1.0", path = "../nestforge-core" }
+nestforge-graphql = { version = "1.1.0", path = "../nestforge-graphql" }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true }
 

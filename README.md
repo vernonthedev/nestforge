@@ -37,6 +37,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - Optional scheduler support through a dedicated `nestforge-schedule` crate
 - Config module with env loading and schema validation
 - Data layer crates (`nestforge-db`, `nestforge-orm`, `nestforge-data`)
+- Testing helpers with module overrides plus HTTP and GraphQL test routers
 - CLI for scaffolding, generators, DB migrations, docs skeleton, formatting
 
 ## Workspace Layout

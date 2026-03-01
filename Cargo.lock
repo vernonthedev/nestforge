@@ -1542,7 +1542,13 @@ name = "nestforge-testing"
 version = "1.1.0"
 dependencies = [
  "anyhow",
+ "async-graphql",
+ "axum 0.8.8",
  "nestforge-core",
+ "nestforge-graphql",
+ "serde_json",
+ "tokio",
+ "tower 0.5.3",
 ]
 
 [[package]]

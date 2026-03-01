@@ -14,14 +14,15 @@ This folder explains how NestForge works with simple language and practical exam
 8. [gRPC](grpc.md)
 9. [WebSockets](websockets.md)
 10. [Schedule](schedule.md)
-11. [Config Module](config-module.md)
-12. [Resource Service Patterns](resource-service-patterns.md)
-13. [Macros](macros.md)
-14. [CLI Guide](cli-guide.md)
-15. [Project Structure](project-structure.md)
-16. [Example App Walkthrough](example-app.md)
-17. [Example API Endpoints](example-api.md)
-18. [File Map](file-map.md)
+11. [Testing](testing.md)
+12. [Config Module](config-module.md)
+13. [Resource Service Patterns](resource-service-patterns.md)
+14. [Macros](macros.md)
+15. [CLI Guide](cli-guide.md)
+16. [Project Structure](project-structure.md)
+17. [Example App Walkthrough](example-app.md)
+18. [Example API Endpoints](example-api.md)
+19. [File Map](file-map.md)
 
 ## Who This Is For
 

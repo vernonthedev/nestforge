@@ -10,7 +10,7 @@ git_release_enable = false
 
 [[package]]
 name = "nestforge"
-changelog_path = "CHANGELOG.md"
+changelog_path = "crates/nestforge/CHANGELOG.md"
 git_release_enable = true
 
 [[package]]

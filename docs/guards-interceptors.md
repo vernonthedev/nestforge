@@ -36,6 +36,13 @@ NestForgeFactory::<AppModule>::create()?
     .use_guard::<AllowAllGuard>()
 ```
 
+Auth helpers:
+
+```rust
+nestforge::auth_guard!(RequireAuthGuard);
+nestforge::role_guard!(RequireAdminGuard, "admin");
+```
+
 ## Interceptor
 
 An interceptor wraps handler execution.

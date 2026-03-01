@@ -23,10 +23,13 @@ NestForge is a high-performance backend framework designed for developers who cr
 - Dependency Injection with simple provider registration
 - Controller macros (`#[controller]`, `#[routes]`, `#[get]`, `#[post]`, `#[put]`, `#[delete]`)
 - Request extractors (`Inject<T>`, `Param<T>`, `Body<T>`, `ValidatedBody<T>`)
+- Extended request extractors (`Query<T>`, `Headers`, `Cookies`, `RequestId`)
 - Built-in HTTP error type (`HttpException`)
 - Guard and interceptor pipeline (global + route-level)
+- Auth primitives (`AuthUser`, `OptionalAuthUser`, `BearerToken`, auth resolvers, auth guards)
 - Route versioning (`#[nestforge::version("1")]`)
 - Global prefix support (`.with_global_prefix("api")`)
+- Generated OpenAPI docs from controller metadata with runtime mounting helpers
 - Config module with env loading and schema validation
 - Data layer crates (`nestforge-db`, `nestforge-orm`, `nestforge-data`)
 - CLI for scaffolding, generators, DB migrations, docs skeleton, formatting
@@ -107,6 +110,7 @@ use nestforge::NestForgeFactory;
 
 NestForgeFactory::<AppModule>::create()?
     .with_global_prefix("api")
+    .with_openapi_docs("My API", "1.0.0")?
     .use_guard::<AllowAllGuard>()
     .use_interceptor::<LoggingInterceptor>()
     .listen(3000)
@@ -122,6 +126,7 @@ NestForgeFactory::<AppModule>::create()?
 - CRUD controllers + services with `ResourceService<T>`
 - Validation via `ValidatedBody<T>`
 - Guard/interceptor usage at route level
+- Generated `/docs` and `/openapi.json` routes from controller metadata
 - Config loading with `ConfigModule::for_root`
 - Versioned routes (`v1`, `v2`)
 

@@ -97,6 +97,42 @@ where
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct OptionalAuthUser(pub Option<Arc<AuthIdentity>>);
+
+impl OptionalAuthUser {
+    pub fn into_inner(self) -> Option<Arc<AuthIdentity>> {
+        self.0
+    }
+
+    pub fn value(&self) -> Option<&AuthIdentity> {
+        self.0.as_deref()
+    }
+
+    pub fn is_authenticated(&self) -> bool {
+        self.0.is_some()
+    }
+}
+
+impl Deref for OptionalAuthUser {
+    type Target = Option<Arc<AuthIdentity>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<S> FromRequestParts<S> for OptionalAuthUser
+where
+    S: Send + Sync,
+{
+    type Rejection = HttpException;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(Self(parts.extensions.get::<Arc<AuthIdentity>>().cloned()))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BearerToken(pub Arc<str>);
 

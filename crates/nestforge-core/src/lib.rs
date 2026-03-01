@@ -23,7 +23,7 @@ pub mod route_builder;
 pub mod store;
 pub mod validation;
 
-pub use auth::{AuthIdentity, AuthUser, BearerToken};
+pub use auth::{AuthIdentity, AuthUser, BearerToken, OptionalAuthUser};
 pub use container::{Container, ContainerError};
 pub use documentation::{DocumentedController, RouteDocumentation, RouteResponseDocumentation};
 pub use error::HttpException;

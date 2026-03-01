@@ -8,10 +8,10 @@ pub use nestforge_core::{
     AuthIdentity, AuthUser, BearerToken, Body, Container, ContainerError, ControllerBasePath,
     ControllerDefinition, Cookies, DocumentedController, Guard, Headers, HttpException,
     Identifiable, InMemoryStore, Inject, Interceptor, List, ModuleDefinition, ModuleRef, NextFn,
-    NextFuture, OptionHttpExt, Param, Provider, Query, RegisterProvider, RequestContext,
-    RequestId, ResourceError, ResourceService, ResultHttpExt, RouteBuilder, RouteDocumentation,
-    RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors, ValidationIssue,
-    framework_log, framework_log_event,
+    NextFuture, OptionHttpExt, OptionalAuthUser, Param, Provider, Query, RegisterProvider,
+    RequestContext, RequestId, ResourceError, ResourceService, ResultHttpExt, RouteBuilder,
+    RouteDocumentation, RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors,
+    ValidationIssue, framework_log, framework_log_event,
 };
 
 #[cfg(feature = "config")]
@@ -184,4 +184,27 @@ pub fn openapi_docs_router_for_module<M: ModuleDefinition>(
 ) -> anyhow::Result<axum::Router<Container>> {
     let doc = openapi_doc_for_module::<M>(title, version)?;
     Ok(docs_router(doc))
+}
+
+#[cfg(feature = "openapi")]
+pub trait NestForgeFactoryOpenApiExt<M: ModuleDefinition> {
+    fn with_openapi_docs(
+        self,
+        title: impl Into<String>,
+        version: impl Into<String>,
+    ) -> anyhow::Result<Self>
+    where
+        Self: Sized;
+}
+
+#[cfg(feature = "openapi")]
+impl<M: ModuleDefinition> NestForgeFactoryOpenApiExt<M> for NestForgeFactory<M> {
+    fn with_openapi_docs(
+        self,
+        title: impl Into<String>,
+        version: impl Into<String>,
+    ) -> anyhow::Result<Self> {
+        let router = openapi_docs_router_for_module::<M>(title, version)?;
+        Ok(self.merge_router(router))
+    }
 }

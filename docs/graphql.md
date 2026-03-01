@@ -53,15 +53,13 @@ That router can also be mounted manually with `NestForgeFactory::merge_router(..
 
 ## Resolver Access To NestForge Providers
 
-NestForge injects the framework `Container` into each GraphQL request, so resolvers can resolve providers directly from `async_graphql::Context`:
+NestForge injects the framework `Container` into each GraphQL request, and `resolve_graphql::<T>(...)` can resolve providers directly from `async_graphql::Context`:
 
 ```rust
-use nestforge::{async_graphql::Context, Container};
+use nestforge::{async_graphql::Context, resolve_graphql};
 
 async fn app_name(&self, ctx: &Context<'_>) -> String {
-    let container = ctx.data_unchecked::<Container>();
-    let config = container
-        .resolve::<AppConfig>()
+    let config = resolve_graphql::<AppConfig>(ctx)
         .expect("app config should be registered");
     config.app_name.clone()
 }

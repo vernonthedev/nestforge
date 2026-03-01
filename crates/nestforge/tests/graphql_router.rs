@@ -2,8 +2,7 @@
 
 use nestforge::{
     async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema},
-    Container,
-    graphql_router_with_config, GraphQlConfig,
+    graphql_router_with_config, resolve_graphql, Container, GraphQlConfig,
 };
 use tower::ServiceExt;
 
@@ -17,12 +16,7 @@ struct QueryRoot;
 #[Object]
 impl QueryRoot {
     async fn health(&self, ctx: &Context<'_>) -> &str {
-        let container = ctx
-            .data::<Container>()
-            .expect("container should be present in graphql context");
-        let config = container
-            .resolve::<AppConfig>()
-            .expect("app config should resolve");
+        let config = resolve_graphql::<AppConfig>(ctx).expect("app config should resolve");
 
         config.app_name
     }

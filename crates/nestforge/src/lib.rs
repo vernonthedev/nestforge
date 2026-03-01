@@ -163,7 +163,8 @@ pub use nestforge_mongo::{InMemoryMongoRepo, MongoConfig};
 pub use nestforge_openapi::{docs_router, OpenApiDoc, OpenApiRoute};
 #[cfg(feature = "graphql")]
 pub use nestforge_graphql::{
-    async_graphql, graphql_router, graphql_router_with_config, GraphQlConfig, GraphQlSchema,
+    async_graphql, graphql_container, graphql_router, graphql_router_with_config, resolve_graphql,
+    GraphQlConfig, GraphQlSchema,
 };
 #[cfg(feature = "grpc")]
 pub use nestforge_grpc::{prost, tonic, GrpcContext, GrpcServerConfig, NestForgeGrpcFactory};

@@ -1,3 +1,5 @@
+use std::{any::type_name, sync::Arc};
+
 use async_graphql::{
     http::GraphiQLSource, EmptyMutation, EmptySubscription, ObjectType, Schema, SubscriptionType,
 };
@@ -14,6 +16,23 @@ pub use async_graphql;
 
 pub type GraphQlSchema<Query, Mutation = EmptyMutation, Subscription = EmptySubscription> =
     Schema<Query, Mutation, Subscription>;
+
+pub fn graphql_container(ctx: &async_graphql::Context<'_>) -> async_graphql::Result<&Container> {
+    ctx.data::<Container>()
+}
+
+pub fn resolve_graphql<T>(ctx: &async_graphql::Context<'_>) -> async_graphql::Result<Arc<T>>
+where
+    T: Send + Sync + 'static,
+{
+    let container = graphql_container(ctx)?;
+    container.resolve::<T>().map_err(|_| {
+        async_graphql::Error::new(format!(
+            "Failed to resolve dependency `{}` from GraphQL context",
+            type_name::<T>()
+        ))
+    })
+}
 
 #[derive(Debug, Clone)]
 pub struct GraphQlConfig {

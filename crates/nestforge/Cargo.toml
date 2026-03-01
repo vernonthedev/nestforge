@@ -36,3 +36,8 @@ data = ["dep:nestforge-data"]
 mongo = ["dep:nestforge-mongo", "data"]
 redis = ["dep:nestforge-redis", "data"]
 
+[dev-dependencies]
+axum = { workspace = true }
+serde = { workspace = true }
+tower = { workspace = true }
+

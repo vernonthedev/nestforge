@@ -463,16 +463,18 @@ pub fn derive_validate(item: TokenStream) -> TokenStream {
             continue;
         };
         let field_name_lit = field_ident.to_string();
-        let (required, email) = parse_validate_rules(&field.attrs);
-        if !(required || email) {
+        let rules = parse_validate_rules(&field.attrs);
+        if !rules.has_rules() {
             continue;
         }
 
         let is_string = is_type_named(&field.ty, "String");
         let is_option_string = is_option_of(&field.ty, "String");
         let is_option_any = is_option_any(&field.ty);
+        let is_numeric = is_numeric_type(&field.ty);
+        let is_option_numeric = is_option_numeric_type(&field.ty);
 
-        if required {
+        if rules.required {
             if is_string {
                 checks.push(quote! {
                     if self.#field_ident.trim().is_empty() {
@@ -506,7 +508,7 @@ pub fn derive_validate(item: TokenStream) -> TokenStream {
             }
         }
 
-        if email {
+        if rules.email {
             if is_string {
                 checks.push(quote! {
                     if !self.#field_ident.trim().is_empty() && !self.#field_ident.contains('@') {
@@ -523,6 +525,102 @@ pub fn derive_validate(item: TokenStream) -> TokenStream {
                             errors.push(nestforge::ValidationIssue {
                                 field: #field_name_lit,
                                 message: format!("{} must be a valid email", #field_name_lit),
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        if let Some(min_length) = rules.min_length {
+            if is_string {
+                checks.push(quote! {
+                    if self.#field_ident.len() < #min_length {
+                        errors.push(nestforge::ValidationIssue {
+                            field: #field_name_lit,
+                            message: format!("{} must be at least {} characters", #field_name_lit, #min_length),
+                        });
+                    }
+                });
+            } else if is_option_string {
+                checks.push(quote! {
+                    if let Some(v) = &self.#field_ident {
+                        if v.len() < #min_length {
+                            errors.push(nestforge::ValidationIssue {
+                                field: #field_name_lit,
+                                message: format!("{} must be at least {} characters", #field_name_lit, #min_length),
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        if let Some(max_length) = rules.max_length {
+            if is_string {
+                checks.push(quote! {
+                    if self.#field_ident.len() > #max_length {
+                        errors.push(nestforge::ValidationIssue {
+                            field: #field_name_lit,
+                            message: format!("{} must be at most {} characters", #field_name_lit, #max_length),
+                        });
+                    }
+                });
+            } else if is_option_string {
+                checks.push(quote! {
+                    if let Some(v) = &self.#field_ident {
+                        if v.len() > #max_length {
+                            errors.push(nestforge::ValidationIssue {
+                                field: #field_name_lit,
+                                message: format!("{} must be at most {} characters", #field_name_lit, #max_length),
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        if let Some(min) = &rules.min {
+            if is_numeric {
+                checks.push(quote! {
+                    if self.#field_ident < #min {
+                        errors.push(nestforge::ValidationIssue {
+                            field: #field_name_lit,
+                            message: format!("{} must be at least {}", #field_name_lit, #min),
+                        });
+                    }
+                });
+            } else if is_option_numeric {
+                checks.push(quote! {
+                    if let Some(v) = self.#field_ident {
+                        if v < #min {
+                            errors.push(nestforge::ValidationIssue {
+                                field: #field_name_lit,
+                                message: format!("{} must be at least {}", #field_name_lit, #min),
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        if let Some(max) = &rules.max {
+            if is_numeric {
+                checks.push(quote! {
+                    if self.#field_ident > #max {
+                        errors.push(nestforge::ValidationIssue {
+                            field: #field_name_lit,
+                            message: format!("{} must be at most {}", #field_name_lit, #max),
+                        });
+                    }
+                });
+            } else if is_option_numeric {
+                checks.push(quote! {
+                    if let Some(v) = self.#field_ident {
+                        if v > #max {
+                            errors.push(nestforge::ValidationIssue {
+                                field: #field_name_lit,
+                                message: format!("{} must be at most {}", #field_name_lit, #max),
                             });
                         }
                     }
@@ -842,9 +940,29 @@ fn find_id_field(fields: &Fields) -> Option<(Ident, Type)> {
     by_attr.or(by_name)
 }
 
-fn parse_validate_rules(attrs: &[Attribute]) -> (bool, bool) {
-    let mut required = false;
-    let mut email = false;
+#[derive(Default)]
+struct ValidateRules {
+    required: bool,
+    email: bool,
+    min_length: Option<usize>,
+    max_length: Option<usize>,
+    min: Option<syn::Lit>,
+    max: Option<syn::Lit>,
+}
+
+impl ValidateRules {
+    fn has_rules(&self) -> bool {
+        self.required
+            || self.email
+            || self.min_length.is_some()
+            || self.max_length.is_some()
+            || self.min.is_some()
+            || self.max.is_some()
+    }
+}
+
+fn parse_validate_rules(attrs: &[Attribute]) -> ValidateRules {
+    let mut rules = ValidateRules::default();
 
     for attr in attrs {
         let is_validate = attr
@@ -859,15 +977,25 @@ fn parse_validate_rules(attrs: &[Attribute]) -> (bool, bool) {
 
         let _ = attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("required") {
-                required = true;
+                rules.required = true;
             } else if meta.path.is_ident("email") {
-                email = true;
+                rules.email = true;
+            } else if meta.path.is_ident("min_length") {
+                let value = meta.value()?.parse::<syn::LitInt>()?;
+                rules.min_length = Some(value.base10_parse()?);
+            } else if meta.path.is_ident("max_length") {
+                let value = meta.value()?.parse::<syn::LitInt>()?;
+                rules.max_length = Some(value.base10_parse()?);
+            } else if meta.path.is_ident("min") {
+                rules.min = Some(meta.value()?.parse::<syn::Lit>()?);
+            } else if meta.path.is_ident("max") {
+                rules.max = Some(meta.value()?.parse::<syn::Lit>()?);
             }
             Ok(())
         });
     }
 
-    (required, email)
+    rules
 }
 
 fn is_type_named(ty: &Type, name: &str) -> bool {
@@ -903,4 +1031,38 @@ fn is_option_of(ty: &Type, inner_name: &str) -> bool {
         return false;
     };
     is_type_named(inner_ty, inner_name)
+}
+
+fn is_numeric_type(ty: &Type) -> bool {
+    matches!(ty, Type::Path(tp) if tp.path.is_ident("u8")
+        || tp.path.is_ident("u16")
+        || tp.path.is_ident("u32")
+        || tp.path.is_ident("u64")
+        || tp.path.is_ident("usize")
+        || tp.path.is_ident("i8")
+        || tp.path.is_ident("i16")
+        || tp.path.is_ident("i32")
+        || tp.path.is_ident("i64")
+        || tp.path.is_ident("isize")
+        || tp.path.is_ident("f32")
+        || tp.path.is_ident("f64"))
+}
+
+fn is_option_numeric_type(ty: &Type) -> bool {
+    let Type::Path(tp) = ty else {
+        return false;
+    };
+    let Some(seg) = tp.path.segments.last() else {
+        return false;
+    };
+    if seg.ident != "Option" {
+        return false;
+    }
+    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return false;
+    };
+    let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() else {
+        return false;
+    };
+    is_numeric_type(inner_ty)
 }

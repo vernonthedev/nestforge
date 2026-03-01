@@ -793,6 +793,7 @@ name = "nestforge"
 version = "1.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "nestforge-config",
  "nestforge-core",
  "nestforge-data",
@@ -804,7 +805,9 @@ dependencies = [
  "nestforge-orm",
  "nestforge-redis",
  "nestforge-testing",
+ "serde",
  "tokio",
+ "tower",
 ]
 
 [[package]]

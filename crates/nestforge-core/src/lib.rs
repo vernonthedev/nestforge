@@ -32,7 +32,7 @@ pub use module::{
 pub use pipeline::{execute_pipeline, run_guards, Guard, Interceptor, NextFn, NextFuture, RequestContext};
 pub use provider::{register_provider, Provider, RegisterProvider};
 pub use request::ValidatedBody;
-pub use request::{Body, Param, RequestId};
+pub use request::{Body, Param, Query, RequestId};
 pub use resource_service::{ResourceError, ResourceService};
 pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};

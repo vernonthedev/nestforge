@@ -1,7 +1,7 @@
 use std::{ops::Deref, sync::Arc};
 
 use axum::{
-    extract::{FromRequest, FromRequestParts, Path},
+    extract::{FromRequest, FromRequestParts, Path, Query as AxumQuery},
     http::{request::Parts, Extensions},
 };
 use serde::de::DeserializeOwned;
@@ -98,6 +98,47 @@ where
             .await
             .map_err(|_| {
                 HttpException::bad_request("Invalid route parameter")
+                    .with_optional_request_id(request_id)
+            })?;
+
+        Ok(Self(value))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Query<T>(pub T);
+
+impl<T> Deref for Query<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> Query<T> {
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+
+    pub fn value(self) -> T {
+        self.0
+    }
+}
+
+impl<S, T> FromRequestParts<S> for Query<T>
+where
+    S: Send + Sync,
+    T: DeserializeOwned + Send + 'static,
+{
+    type Rejection = HttpException;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let request_id = request_id_from_extensions(&parts.extensions);
+        let AxumQuery(value) = AxumQuery::<T>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| {
+                HttpException::bad_request("Invalid query parameters")
                     .with_optional_request_id(request_id)
             })?;
 

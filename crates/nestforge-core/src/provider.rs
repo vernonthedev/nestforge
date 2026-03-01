@@ -15,6 +15,11 @@ pub struct FactoryProvider<T, F> {
     _marker: PhantomData<fn() -> T>,
 }
 
+pub struct RequestFactoryProvider<T, F> {
+    factory: F,
+    _marker: PhantomData<fn() -> T>,
+}
+
 impl Provider {
     pub fn value<T>(value: T) -> ValueProvider<T>
     where
@@ -29,6 +34,17 @@ impl Provider {
         F: FnOnce(&Container) -> Result<T> + Send + 'static,
     {
         FactoryProvider {
+            factory,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn request_factory<T, F>(factory: F) -> RequestFactoryProvider<T, F>
+    where
+        T: Send + Sync + 'static,
+        F: Fn(&Container) -> Result<T> + Send + Sync + 'static,
+    {
+        RequestFactoryProvider {
             factory,
             _marker: PhantomData,
         }
@@ -71,6 +87,31 @@ where
             )
         })?;
         container.register(value)?;
+        Ok(())
+    }
+}
+
+impl<T, F> RegisterProvider for RequestFactoryProvider<T, F>
+where
+    T: Send + Sync + 'static,
+    F: Fn(&Container) -> Result<T> + Send + Sync + 'static,
+{
+    fn register(self, container: &Container) -> Result<()> {
+        framework_log_event(
+            "provider_register_request_factory",
+            &[("type", std::any::type_name::<T>().to_string())],
+        );
+        container
+            .register_request_factory::<T, _>(move |container| {
+                (self.factory)(container).map_err(|err| {
+                    anyhow!(
+                        "Failed to build request-scoped provider `{}`: {}",
+                        std::any::type_name::<T>(),
+                        err
+                    )
+                })
+            })
+            .map_err(|err| anyhow!("Failed to register request-scoped provider: {err}"))?;
         Ok(())
     }
 }
@@ -153,5 +194,33 @@ mod tests {
         .expect_err("factory should fail");
 
         assert!(err.to_string().contains("AppService"));
+    }
+
+    #[test]
+    fn registers_request_factory_provider() {
+        #[derive(Clone)]
+        struct RequestId(&'static str);
+
+        struct RequestService(&'static str);
+
+        let container = Container::new();
+        register_provider(
+            &container,
+            Provider::request_factory(|c| {
+                let request_id = c.resolve::<RequestId>()?;
+                Ok(RequestService(request_id.0))
+            }),
+        )
+        .expect("request factory should register");
+
+        let scoped = container.scoped();
+        scoped
+            .override_value(RequestId("req-42"))
+            .expect("request id should be set");
+
+        let service = scoped
+            .resolve::<RequestService>()
+            .expect("request service should resolve");
+        assert_eq!(service.0, "req-42");
     }
 }

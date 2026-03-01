@@ -239,6 +239,7 @@ async fn request_context_middleware(
     auth_resolver: Option<Arc<AuthResolver>>,
     exception_filters: Arc<Vec<Arc<dyn ExceptionFilter>>>,
 ) -> Response {
+    let scoped_container = container.scoped();
     let request_id = RequestId::new(generate_request_id());
     let request_id_value = request_id.value().to_string();
     let method = req.method().to_string();
@@ -253,7 +254,9 @@ async fn request_context_middleware(
         .filter(|value| !value.is_empty())
         .map(str::to_string);
 
-    req.extensions_mut().insert(request_id);
+    req.extensions_mut().insert(scoped_container.clone());
+    req.extensions_mut().insert(request_id.clone());
+    let _ = scoped_container.override_value(request_id.clone());
     framework_log_event(
         "request_start",
         &[
@@ -273,11 +276,13 @@ async fn request_context_middleware(
                         ("subject", identity.subject.clone()),
                     ],
                 );
+                let _ = scoped_container.override_value(identity.clone());
                 req.extensions_mut().insert(Arc::new(identity));
             }
             Ok(None) => {}
             Err(err) => {
                 let ctx = RequestContext::from_request(&req);
+                let _ = scoped_container.override_value(ctx.clone());
                 let mut response = apply_exception_filters(
                     err.with_request_id(request_id_value.clone()),
                     &ctx,
@@ -299,6 +304,9 @@ async fn request_context_middleware(
             }
         }
     }
+
+    let ctx = RequestContext::from_request(&req);
+    let _ = scoped_container.override_value(ctx);
 
     let mut response = next.run(req).await;
     attach_request_id_header(&mut response, &request_id_value);
@@ -340,8 +348,9 @@ mod tests {
     use anyhow::Result;
     use axum::Json;
     use nestforge_core::{
-        ApiResult, AuthUser, Container, ControllerBasePath, ControllerDefinition, HttpException,
-        ModuleDefinition, RouteBuilder,
+        register_provider, ApiResult, AuthUser, Container, ControllerBasePath, ControllerDefinition,
+        HttpException, Inject, ModuleDefinition, Provider,
+        RequestContext as FrameworkRequestContext, RouteBuilder,
     };
     use tower::ServiceExt;
 
@@ -350,6 +359,9 @@ mod tests {
     struct HealthController;
     #[derive(Default)]
     struct RewriteBadRequestFilter;
+    struct RequestScopedService {
+        path: String,
+    }
 
     impl ControllerBasePath for HealthController {
         fn base_path() -> &'static str {
@@ -370,6 +382,10 @@ mod tests {
         async fn me(user: AuthUser) -> ApiResult<String> {
             Ok(Json(user.subject.clone()))
         }
+
+        async fn scoped(service: Inject<RequestScopedService>) -> ApiResult<String> {
+            Ok(Json(service.path.clone()))
+        }
     }
 
     impl ControllerDefinition for HealthController {
@@ -378,6 +394,7 @@ mod tests {
                 .get("/", Self::ok)
                 .get("/fail", Self::fail)
                 .get("/me", Self::me)
+                .get("/scoped", Self::scoped)
                 .build()
         }
     }
@@ -396,7 +413,16 @@ mod tests {
     struct TestModule;
 
     impl ModuleDefinition for TestModule {
-        fn register(_container: &Container) -> Result<()> {
+        fn register(container: &Container) -> Result<()> {
+            register_provider(
+                container,
+                Provider::request_factory(|container| {
+                    let ctx = container.resolve::<FrameworkRequestContext>()?;
+                    Ok(RequestScopedService {
+                        path: ctx.uri.path().to_string(),
+                    })
+                }),
+            )?;
             Ok(())
         }
 
@@ -459,6 +485,25 @@ mod tests {
                 axum::http::Request::builder()
                     .uri("/health/me")
                     .header(axum::http::header::AUTHORIZATION, "Bearer demo-token")
+                    .body(axum::body::Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("request should succeed");
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn request_scoped_provider_resolves_from_per_request_container() {
+        let app = NestForgeFactory::<TestModule>::create()
+            .expect("factory should build")
+            .into_router();
+
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/health/scoped")
                     .body(axum::body::Body::empty())
                     .expect("request should build"),
             )

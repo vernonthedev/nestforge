@@ -1,6 +1,10 @@
-use nestforge::{Message, WebSocket, WebSocketContext, WebSocketGateway};
+use nestforge::{
+    handle_websocket_microservice_message, Message, WebSocket, WebSocketContext,
+    WebSocketGateway,
+};
 
 use crate::app_config::AppConfig;
+use crate::ws::WsPatterns;
 
 pub struct EventsGateway;
 
@@ -15,23 +19,35 @@ impl WebSocketGateway for EventsGateway {
                 .resolve::<AppConfig>()
                 .map(|config| config.app_name.clone())
                 .unwrap_or_else(|_| "NestForge WebSockets".to_string());
+            let patterns = ctx.resolve::<WsPatterns>().ok();
 
             let _ = socket
-                .send(Message::Text(format!("connected:{app_name}").into()))
+                .send(Message::Text(
+                    format!(
+                        "connected:{app_name}; send {{\"kind\":\"message\",\"pattern\":\"app.info\",\"payload\":null,\"metadata\":{{}}}}"
+                    )
+                    .into(),
+                ))
                 .await;
 
             while let Some(Ok(message)) = socket.recv().await {
-                match message {
-                    Message::Text(text) => {
-                        let _ = socket
-                            .send(Message::Text(format!("echo:{text}").into()))
-                            .await;
+                if matches!(message, Message::Close(_)) {
+                    break;
+                }
+
+                if let Some(patterns) = patterns.as_ref() {
+                    match handle_websocket_microservice_message(&ctx, patterns.registry(), message).await
+                    {
+                        Ok(Some(response)) => {
+                            let _ = socket.send(response).await;
+                        }
+                        Ok(None) => {}
+                        Err(err) => {
+                            let _ = socket
+                                .send(Message::Text(format!("error:{err}").into()))
+                                .await;
+                        }
                     }
-                    Message::Binary(bytes) => {
-                        let _ = socket.send(Message::Binary(bytes)).await;
-                    }
-                    Message::Close(_) => break,
-                    _ => {}
                 }
             }
         })

@@ -6,6 +6,6 @@ license = { workspace = true }
 publish = false
 
 [dependencies]
-nestforge = { path = "../../crates/nestforge", features = ["config", "websockets"] }
+nestforge = { path = "../../crates/nestforge", features = ["config", "websockets", "microservices"] }
 tokio = { workspace = true }
 anyhow = { workspace = true }

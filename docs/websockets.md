@@ -85,3 +85,5 @@ Expected frame shape:
 ```
 
 Use `handle_websocket_microservice_message(...)` inside a gateway loop. Message-pattern frames return a JSON websocket response frame, while event-pattern frames return `None`.
+
+The `hello-nestforge-websockets` example now uses this adapter with an `app.info` message pattern.

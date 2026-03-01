@@ -47,7 +47,9 @@ pub use request::{
     Body, Cookies, Decorated, Headers, Param, Pipe, PipedBody, PipedParam, PipedQuery, Query,
     RequestDecorator, RequestId,
 };
-pub use response::{ApiEnvelopeResult, ResponseEnvelope};
+pub use response::{
+    ApiEnvelopeResult, ApiSerializedResult, ResponseEnvelope, ResponseSerializer, Serialized,
+};
 pub use resource_service::{ResourceError, ResourceService};
 pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};

@@ -12,8 +12,9 @@ pub use nestforge_core::{
     ModuleDefinition, ModuleGraphEntry, ModuleGraphReport, ModuleRef, NextFn, NextFuture,
     OptionHttpExt, OptionalAuthUser, Param, Provider, Query, RegisterProvider, RequestContext,
     RequestDecorator, RequestId, RequireAuthenticationGuard, ResourceError, ResourceService,
-    ResponseEnvelope, ResultHttpExt, RoleRequirementsGuard, RouteBuilder, RouteDocumentation,
-    RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors, ValidationIssue,
+    ResponseEnvelope, ResponseSerializer, ResultHttpExt, RoleRequirementsGuard, RouteBuilder,
+    RouteDocumentation, RouteResponseDocumentation, Serialized, Validate, ValidatedBody,
+    ValidationErrors, ValidationIssue, ApiSerializedResult,
     framework_log, framework_log_event, Pipe, PipedBody, PipedParam, PipedQuery,
 };
 

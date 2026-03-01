@@ -135,6 +135,27 @@ This yields a payload shaped like:
 - `data`
 - optional `meta`
 
+## Response Serialization
+
+Use `Serialized<T, S>` when a handler should return a domain type but expose a public DTO shape.
+
+```rust
+struct UserSerializer;
+
+impl nestforge::ResponseSerializer<UserEntity> for UserSerializer {
+    type Output = UserDto;
+
+    fn serialize(value: UserEntity) -> Self::Output {
+        UserDto {
+            id: value.id,
+            email: value.email,
+        }
+    }
+}
+```
+
+Then return `ApiSerializedResult<UserEntity, UserSerializer>` from the handler.
+
 ## Guards And Interceptors
 
 - `Guard`: authorization/route checks before handler

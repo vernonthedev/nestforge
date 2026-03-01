@@ -2,7 +2,7 @@ use anyhow::Result;
 use axum::Router;
 use std::collections::HashSet;
 
-use crate::{framework_log, Container};
+use crate::{framework_log_event, Container};
 
 /*
 ControllerBasePath = metadata implemented by #[controller("/...")]
@@ -102,7 +102,10 @@ fn visit_module(
 
     state.visiting.insert(module.name);
     state.stack.push(module.name);
-    framework_log(format!("Registering module {}.", module.name));
+    framework_log_event(
+        "module_register",
+        &[("module", module.name.to_string())],
+    );
 
     for imported in (module.imports)() {
         visit_module(imported, container, state)?;

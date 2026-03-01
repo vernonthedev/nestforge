@@ -1,12 +1,56 @@
-use std::ops::Deref;
+use std::{ops::Deref, sync::Arc};
 
 use axum::{
     extract::{FromRequest, FromRequestParts, Path},
-    http::request::Parts,
+    http::{request::Parts, Extensions},
 };
 use serde::de::DeserializeOwned;
 
 use crate::{HttpException, Validate};
+
+#[derive(Debug, Clone)]
+pub struct RequestId(pub Arc<str>);
+
+impl RequestId {
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(Arc::<str>::from(value.into()))
+    }
+
+    pub fn into_inner(self) -> String {
+        self.0.as_ref().to_string()
+    }
+
+    pub fn value(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl Deref for RequestId {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
+}
+
+pub fn request_id_from_extensions(extensions: &Extensions) -> Option<String> {
+    extensions.get::<RequestId>().map(|request_id| request_id.value().to_string())
+}
+
+impl<S> FromRequestParts<S> for RequestId
+where
+    S: Send + Sync,
+{
+    type Rejection = HttpException;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        parts
+            .extensions
+            .get::<RequestId>()
+            .cloned()
+            .ok_or_else(|| HttpException::internal_server_error("Request id not available"))
+    }
+}
 
 /*
 Param<T> = path param wrapper
@@ -49,9 +93,13 @@ where
     type Rejection = HttpException;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let request_id = request_id_from_extensions(&parts.extensions);
         let Path(value) = Path::<T>::from_request_parts(parts, state)
             .await
-            .map_err(|_| HttpException::bad_request("Invalid route parameter"))?;
+            .map_err(|_| {
+                HttpException::bad_request("Invalid route parameter")
+                    .with_optional_request_id(request_id)
+            })?;
 
         Ok(Self(value))
     }
@@ -97,9 +145,12 @@ where
     type Rejection = HttpException;
 
     async fn from_request(req: axum::extract::Request, state: &S) -> Result<Self, Self::Rejection> {
+        let request_id = request_id_from_extensions(req.extensions());
         let axum::Json(value) = axum::Json::<T>::from_request(req, state)
             .await
-            .map_err(|_| HttpException::bad_request("Invalid JSON body"))?;
+            .map_err(|_| {
+                HttpException::bad_request("Invalid JSON body").with_optional_request_id(request_id)
+            })?;
 
         Ok(Self(value))
     }
@@ -133,13 +184,20 @@ where
     type Rejection = HttpException;
 
     async fn from_request(req: axum::extract::Request, state: &S) -> Result<Self, Self::Rejection> {
+        let request_id = request_id_from_extensions(req.extensions());
         let axum::Json(value) = axum::Json::<T>::from_request(req, state)
             .await
-            .map_err(|_| HttpException::bad_request("Invalid JSON body"))?;
+            .map_err(|_| {
+                HttpException::bad_request("Invalid JSON body")
+                    .with_optional_request_id(request_id.clone())
+            })?;
 
         value
             .validate()
-            .map_err(HttpException::bad_request_validation)?;
+            .map_err(|errors| {
+                HttpException::bad_request_validation(errors)
+                    .with_optional_request_id(request_id)
+            })?;
 
         Ok(Self(value))
     }

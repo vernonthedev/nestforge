@@ -25,14 +25,14 @@ pub use container::{Container, ContainerError};
 pub use error::HttpException;
 pub use http_ext::{OptionHttpExt, ResultHttpExt};
 pub use inject::Inject;
-pub use logging::framework_log;
+pub use logging::{framework_log, framework_log_event};
 pub use module::{
     initialize_module_graph, ControllerBasePath, ControllerDefinition, ModuleDefinition, ModuleRef,
 };
 pub use pipeline::{execute_pipeline, run_guards, Guard, Interceptor, NextFn, NextFuture, RequestContext};
 pub use provider::{register_provider, Provider, RegisterProvider};
 pub use request::ValidatedBody;
-pub use request::{Body, Param};
+pub use request::{Body, Param, RequestId};
 pub use resource_service::{ResourceError, ResourceService};
 pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};

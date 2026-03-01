@@ -19,6 +19,7 @@ use crate::HttpException;
 pub struct RequestContext {
     pub method: Method,
     pub uri: Uri,
+    pub request_id: Option<String>,
 }
 
 impl RequestContext {
@@ -26,6 +27,7 @@ impl RequestContext {
         Self {
             method: req.method().clone(),
             uri: req.uri().clone(),
+            request_id: crate::request::request_id_from_extensions(req.extensions()),
         }
     }
 }

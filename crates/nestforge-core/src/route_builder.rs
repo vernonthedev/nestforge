@@ -6,7 +6,7 @@ use axum::{
 
 use std::sync::Arc;
 
-use crate::{execute_pipeline, framework_log, Container, ControllerBasePath, Guard, Interceptor};
+use crate::{execute_pipeline, framework_log_event, Container, ControllerBasePath, Guard, Interceptor};
 
 /*
 RouteBuilder<T> helps us build routes cleanly in generated code.
@@ -181,7 +181,10 @@ where
         version: Option<&str>,
     ) -> Self {
         let full = Self::full_path(path, version);
-        framework_log(format!("Registering router '{} {}'.", method, full));
+        framework_log_event(
+            "route_register",
+            &[("method", method.to_string()), ("path", full.clone())],
+        );
         let guards = Arc::new(guards);
         let interceptors = Arc::new(interceptors);
 

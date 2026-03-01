@@ -6,7 +6,9 @@ use axum::{
 
 use std::sync::Arc;
 
-use crate::{execute_pipeline, framework_log_event, Container, ControllerBasePath, Guard, Interceptor};
+use crate::{
+    execute_pipeline, framework_log_event, Container, ControllerBasePath, Guard, Interceptor,
+};
 
 /*
 RouteBuilder<T> helps us build routes cleanly in generated code.
@@ -191,7 +193,9 @@ where
         let route = method_router.route_layer(from_fn(move |req, next| {
             let guards = Arc::clone(&guards);
             let interceptors = Arc::clone(&interceptors);
-            async move { execute_pipeline(req, next, guards, interceptors).await }
+            async move {
+                execute_pipeline(req, next, guards, interceptors, Arc::new(Vec::new())).await
+            }
         }));
 
         Self {

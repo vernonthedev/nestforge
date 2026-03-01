@@ -17,8 +17,9 @@ use axum::{
     Router,
 };
 use nestforge_core::{
-    execute_pipeline, framework_log_event, initialize_module_runtime, AuthIdentity, Container,
-    Guard, HttpException, InitializedModule, Interceptor, ModuleDefinition, RequestId,
+    apply_exception_filters, execute_pipeline, framework_log_event, initialize_module_runtime,
+    AuthIdentity, Container, ExceptionFilter, Guard, HttpException, InitializedModule,
+    Interceptor, ModuleDefinition, RequestContext, RequestId,
 };
 
 /*
@@ -43,6 +44,7 @@ pub struct NestForgeFactory<M: ModuleDefinition> {
     auth_resolver: Option<Arc<AuthResolver>>,
     global_guards: Vec<Arc<dyn Guard>>,
     global_interceptors: Vec<Arc<dyn Interceptor>>,
+    global_exception_filters: Vec<Arc<dyn ExceptionFilter>>,
 }
 
 type AuthFuture = Pin<Box<dyn Future<Output = Result<Option<AuthIdentity>, HttpException>> + Send>>;
@@ -67,6 +69,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
             auth_resolver: None,
             global_guards: Vec::new(),
             global_interceptors: Vec::new(),
+            global_exception_filters: Vec::new(),
         })
     }
 
@@ -118,6 +121,18 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    pub fn use_exception_filter<F>(mut self) -> Self
+    where
+        F: ExceptionFilter + Default,
+    {
+        framework_log_event(
+            "global_exception_filter_register",
+            &[("filter", std::any::type_name::<F>().to_string())],
+        );
+        self.global_exception_filters.push(Arc::new(F::default()));
+        self
+    }
+
     pub fn with_auth_resolver<F, Fut>(mut self, resolver: F) -> Self
     where
         F: Fn(Option<String>, Container) -> Fut + Send + Sync + 'static,
@@ -165,13 +180,16 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
 
         let global_guards = Arc::new(self.global_guards);
         let global_interceptors = Arc::new(self.global_interceptors);
+        let global_exception_filters = Arc::new(self.global_exception_filters);
         let auth_resolver = self.auth_resolver.clone();
         let request_container = self.container.clone();
 
+        let route_exception_filters = Arc::clone(&global_exception_filters);
         let app = app.route_layer(from_fn(move |req, next| {
             let guards = Arc::clone(&global_guards);
             let interceptors = Arc::clone(&global_interceptors);
-            async move { execute_pipeline(req, next, guards, interceptors).await }
+            let filters = Arc::clone(&route_exception_filters);
+            async move { execute_pipeline(req, next, guards, interceptors, filters).await }
         }));
 
         Router::new()
@@ -179,8 +197,16 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
             .layer(from_fn(move |req, next| {
                 let auth_resolver = auth_resolver.clone();
                 let request_container = request_container.clone();
+                let exception_filters = Arc::clone(&global_exception_filters);
                 async move {
-                    request_context_middleware(req, next, request_container, auth_resolver).await
+                    request_context_middleware(
+                        req,
+                        next,
+                        request_container,
+                        auth_resolver,
+                        exception_filters,
+                    )
+                    .await
                 }
             }))
             .with_state(self.container)
@@ -211,6 +237,7 @@ async fn request_context_middleware(
     next: axum::middleware::Next,
     container: Container,
     auth_resolver: Option<Arc<AuthResolver>>,
+    exception_filters: Arc<Vec<Arc<dyn ExceptionFilter>>>,
 ) -> Response {
     let request_id = RequestId::new(generate_request_id());
     let request_id_value = request_id.value().to_string();
@@ -250,9 +277,13 @@ async fn request_context_middleware(
             }
             Ok(None) => {}
             Err(err) => {
-                let mut response = err
-                    .with_request_id(request_id_value.clone())
-                    .into_response();
+                let ctx = RequestContext::from_request(&req);
+                let mut response = apply_exception_filters(
+                    err.with_request_id(request_id_value.clone()),
+                    &ctx,
+                    exception_filters.as_slice(),
+                )
+                .into_response();
                 attach_request_id_header(&mut response, &request_id_value);
                 framework_log_event(
                     "request_complete",
@@ -317,6 +348,8 @@ mod tests {
     use super::*;
 
     struct HealthController;
+    #[derive(Default)]
+    struct RewriteBadRequestFilter;
 
     impl ControllerBasePath for HealthController {
         fn base_path() -> &'static str {
@@ -346,6 +379,17 @@ mod tests {
                 .get("/fail", Self::fail)
                 .get("/me", Self::me)
                 .build()
+        }
+    }
+
+    impl ExceptionFilter for RewriteBadRequestFilter {
+        fn catch(&self, exception: HttpException, _ctx: &RequestContext) -> HttpException {
+            if exception.status == axum::http::StatusCode::BAD_REQUEST {
+                HttpException::bad_request("filtered bad request")
+                    .with_optional_request_id(exception.request_id)
+            } else {
+                exception
+            }
         }
     }
 
@@ -384,6 +428,7 @@ mod tests {
     async fn error_responses_keep_request_id_header() {
         let app = NestForgeFactory::<TestModule>::create()
             .expect("factory should build")
+            .use_exception_filter::<RewriteBadRequestFilter>()
             .into_router();
 
         let response = app

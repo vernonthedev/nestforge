@@ -46,6 +46,10 @@ impl RequestContext {
     }
 }
 
+pub trait ExceptionFilter: Send + Sync + 'static {
+    fn catch(&self, exception: HttpException, ctx: &RequestContext) -> HttpException;
+}
+
 pub trait Guard: Send + Sync + 'static {
     fn can_activate(&self, ctx: &RequestContext) -> Result<(), HttpException>;
 }
@@ -124,13 +128,26 @@ pub async fn execute_pipeline(
     next: Next,
     guards: Arc<Vec<Arc<dyn Guard>>>,
     interceptors: Arc<Vec<Arc<dyn Interceptor>>>,
+    filters: Arc<Vec<Arc<dyn ExceptionFilter>>>,
 ) -> Response {
     let ctx = RequestContext::from_request(&req);
 
     if let Err(err) = run_guards(guards.as_slice(), &ctx) {
-        return err.into_response();
+        return apply_exception_filters(err, &ctx, filters.as_slice()).into_response();
     }
 
     let terminal = next_to_fn(next);
     run_interceptor_chain(interceptors, 0, ctx, req, terminal).await
+}
+
+pub fn apply_exception_filters(
+    mut exception: HttpException,
+    ctx: &RequestContext,
+    filters: &[Arc<dyn ExceptionFilter>],
+) -> HttpException {
+    for filter in filters {
+        exception = filter.catch(exception, ctx);
+    }
+
+    exception
 }

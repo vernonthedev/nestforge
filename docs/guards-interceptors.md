@@ -87,3 +87,25 @@ Request flow:
 4. handler
 
 If any guard fails, handler is not called.
+
+## Exception Filters
+
+Global exception filters can rewrite `HttpException` values coming out of the framework pipeline:
+
+```rust
+#[derive(Default)]
+struct RewriteBadRequestFilter;
+
+impl nestforge::ExceptionFilter for RewriteBadRequestFilter {
+    fn catch(
+        &self,
+        exception: nestforge::HttpException,
+        _ctx: &nestforge::RequestContext,
+    ) -> nestforge::HttpException {
+        exception
+    }
+}
+
+NestForgeFactory::<AppModule>::create()?
+    .use_exception_filter::<RewriteBadRequestFilter>();
+```

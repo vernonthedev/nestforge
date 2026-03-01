@@ -6,12 +6,13 @@
 pub use nestforge_core::{
     collect_module_route_docs, initialize_module_graph, register_provider, ApiResult,
     AuthIdentity, AuthUser, BearerToken, Body, Container, ContainerError, ControllerBasePath,
-    ControllerDefinition, Cookies, DocumentedController, Guard, Headers, HttpException,
-    Identifiable, InMemoryStore, Inject, InitializedModule, Interceptor, LifecycleHook, List,
-    ModuleDefinition, ModuleRef, NextFn, NextFuture, OptionHttpExt, OptionalAuthUser, Param,
-    Provider, Query, RegisterProvider, RequestContext, RequestId, ResourceError, ResourceService,
-    ResultHttpExt, RouteBuilder, RouteDocumentation, RouteResponseDocumentation, Validate,
-    ValidatedBody, ValidationErrors, ValidationIssue, framework_log, framework_log_event,
+    ControllerDefinition, Cookies, DocumentedController, ExceptionFilter, Guard, Headers,
+    HttpException, Identifiable, InMemoryStore, Inject, InitializedModule, Interceptor,
+    LifecycleHook, List, ModuleDefinition, ModuleRef, NextFn, NextFuture, OptionHttpExt,
+    OptionalAuthUser, Param, Provider, Query, RegisterProvider, RequestContext, RequestId,
+    ResourceError, ResourceService, ResultHttpExt, RouteBuilder, RouteDocumentation,
+    RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors, ValidationIssue,
+    framework_log, framework_log_event,
 };
 
 #[cfg(feature = "config")]

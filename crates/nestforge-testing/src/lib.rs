@@ -2,11 +2,15 @@ use std::{marker::PhantomData, sync::Arc};
 
 use anyhow::Result;
 use async_graphql::{ObjectType, Schema, SubscriptionType};
-use axum::Router;
+use axum::{http::HeaderMap, Router};
 use nestforge_core::{
-    initialize_module_runtime, Container, ContainerError, InitializedModule, ModuleDefinition,
+    initialize_module_runtime, AuthIdentity, Container, ContainerError, InitializedModule,
+    ModuleDefinition, RequestId,
 };
 use nestforge_graphql::{graphql_router, graphql_router_with_config, GraphQlConfig};
+use nestforge_grpc::GrpcContext;
+use nestforge_microservices::{MicroserviceContext, TransportMetadata};
+use nestforge_websockets::WebSocketContext;
 
 type OverrideFn = Box<dyn Fn(&Container) -> Result<()> + Send + Sync>;
 
@@ -111,6 +115,45 @@ impl TestingModule {
 
         self.http_router()
             .merge(graphql_router_with_config(schema, config).with_state(self.container.clone()))
+    }
+
+    pub fn grpc_context(&self) -> GrpcContext {
+        GrpcContext::new(self.container.clone())
+    }
+
+    pub fn websocket_context(&self) -> WebSocketContext {
+        WebSocketContext::new(self.container.clone(), None, None, HeaderMap::new())
+    }
+
+    pub fn websocket_context_with(
+        &self,
+        request_id: Option<RequestId>,
+        auth_identity: Option<AuthIdentity>,
+        headers: HeaderMap,
+    ) -> WebSocketContext {
+        WebSocketContext::new(self.container.clone(), request_id, auth_identity, headers)
+    }
+
+    pub fn microservice_context(
+        &self,
+        transport: impl Into<String>,
+        pattern: impl Into<String>,
+    ) -> MicroserviceContext {
+        MicroserviceContext::new(
+            self.container.clone(),
+            transport,
+            pattern,
+            TransportMetadata::default(),
+        )
+    }
+
+    pub fn microservice_context_with_metadata(
+        &self,
+        transport: impl Into<String>,
+        pattern: impl Into<String>,
+        metadata: TransportMetadata,
+    ) -> MicroserviceContext {
+        MicroserviceContext::new(self.container.clone(), transport, pattern, metadata)
     }
 
     pub fn shutdown(&self) -> Result<()> {
@@ -339,5 +382,42 @@ mod tests {
         let log = module.resolve::<HookLog>().expect("hook log should resolve");
         let entries = log.0.lock().expect("hook log should be readable").clone();
         assert_eq!(entries, vec!["destroy", "shutdown"]);
+    }
+
+    #[test]
+    fn builds_grpc_context_from_testing_module_runtime() {
+        let module = TestFactory::<AppModule>::create()
+            .override_provider(AppConfig { app_name: "grpc" })
+            .build()
+            .expect("grpc testing module should build");
+
+        let ctx = module.grpc_context();
+        let config = ctx.resolve::<AppConfig>().expect("app config should resolve");
+
+        assert_eq!(config.app_name, "grpc");
+    }
+
+    #[test]
+    fn builds_transport_contexts_with_testing_container() {
+        let module = TestFactory::<AppModule>::create()
+            .override_provider(AppConfig {
+                app_name: "transport",
+            })
+            .build()
+            .expect("transport testing module should build");
+
+        let websocket = module.websocket_context();
+        let config = websocket
+            .resolve::<AppConfig>()
+            .expect("app config should resolve from websocket context");
+        assert_eq!(config.app_name, "transport");
+
+        let microservice = module.microservice_context("test", "users.count");
+        let config = microservice
+            .resolve::<AppConfig>()
+            .expect("app config should resolve from microservice context");
+        assert_eq!(config.app_name, "transport");
+        assert_eq!(microservice.transport(), "test");
+        assert_eq!(microservice.pattern(), "users.count");
     }
 }

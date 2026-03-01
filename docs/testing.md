@@ -52,3 +52,15 @@ let app = module.graphql_router(schema);
 ```
 
 That lets GraphQL resolvers resolve the same providers and overrides as the rest of the test module.
+
+## Build Transport Contexts
+
+`TestingModule` can also create transport contexts directly for lower-level tests:
+
+```rust
+let grpc = module.grpc_context();
+let websocket = module.websocket_context();
+let microservice = module.microservice_context("test", "users.count");
+```
+
+Use these helpers when you want to test gRPC services, websocket gateways, or transport-neutral message handlers without booting the full transport server.

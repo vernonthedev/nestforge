@@ -1,0 +1,17 @@
+[package]
+name = "nestforge-graphql"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "GraphQL support surface for NestForge built on async-graphql"
+keywords = ["rust", "graphql", "async-graphql", "nestforge"]
+categories = ["web-programming"]
+
+[dependencies]
+axum = { workspace = true }
+async-graphql = { workspace = true }
+async-graphql-axum = { workspace = true }
+nestforge-core = { version = "1.1.0", path = "../nestforge-core" }

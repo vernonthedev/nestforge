@@ -161,6 +161,10 @@ macro_rules! interceptor {
 pub use nestforge_mongo::{InMemoryMongoRepo, MongoConfig};
 #[cfg(feature = "openapi")]
 pub use nestforge_openapi::{docs_router, OpenApiDoc, OpenApiRoute};
+#[cfg(feature = "graphql")]
+pub use nestforge_graphql::{
+    async_graphql, graphql_router, graphql_router_with_config, GraphQlConfig, GraphQlSchema,
+};
 #[cfg(feature = "orm")]
 pub use nestforge_orm::{EntityMeta, OrmError, Repo, RepoFuture, SqlRepo, SqlRepoBuilder};
 #[cfg(feature = "redis")]
@@ -206,5 +210,57 @@ impl<M: ModuleDefinition> NestForgeFactoryOpenApiExt<M> for NestForgeFactory<M> 
     ) -> anyhow::Result<Self> {
         let router = openapi_docs_router_for_module::<M>(title, version)?;
         Ok(self.merge_router(router))
+    }
+}
+
+#[cfg(feature = "graphql")]
+pub trait NestForgeFactoryGraphQlExt<M: ModuleDefinition> {
+    fn with_graphql<Query, Mutation, Subscription>(
+        self,
+        schema: GraphQlSchema<Query, Mutation, Subscription>,
+    ) -> Self
+    where
+        Query: async_graphql::ObjectType + Send + Sync + 'static,
+        Mutation: async_graphql::ObjectType + Send + Sync + 'static,
+        Subscription: async_graphql::SubscriptionType + Send + Sync + 'static,
+        Self: Sized;
+
+    fn with_graphql_config<Query, Mutation, Subscription>(
+        self,
+        schema: GraphQlSchema<Query, Mutation, Subscription>,
+        config: GraphQlConfig,
+    ) -> Self
+    where
+        Query: async_graphql::ObjectType + Send + Sync + 'static,
+        Mutation: async_graphql::ObjectType + Send + Sync + 'static,
+        Subscription: async_graphql::SubscriptionType + Send + Sync + 'static,
+        Self: Sized;
+}
+
+#[cfg(feature = "graphql")]
+impl<M: ModuleDefinition> NestForgeFactoryGraphQlExt<M> for NestForgeFactory<M> {
+    fn with_graphql<Query, Mutation, Subscription>(
+        self,
+        schema: GraphQlSchema<Query, Mutation, Subscription>,
+    ) -> Self
+    where
+        Query: async_graphql::ObjectType + Send + Sync + 'static,
+        Mutation: async_graphql::ObjectType + Send + Sync + 'static,
+        Subscription: async_graphql::SubscriptionType + Send + Sync + 'static,
+    {
+        self.merge_router(graphql_router(schema))
+    }
+
+    fn with_graphql_config<Query, Mutation, Subscription>(
+        self,
+        schema: GraphQlSchema<Query, Mutation, Subscription>,
+        config: GraphQlConfig,
+    ) -> Self
+    where
+        Query: async_graphql::ObjectType + Send + Sync + 'static,
+        Mutation: async_graphql::ObjectType + Send + Sync + 'static,
+        Subscription: async_graphql::SubscriptionType + Send + Sync + 'static,
+    {
+        self.merge_router(graphql_router_with_config(schema, config))
     }
 }

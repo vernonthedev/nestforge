@@ -6,6 +6,7 @@
 - [Module System](module-system)
 - [Guards and Interceptors](guards-interceptors)
 - [Auth and OpenAPI](auth-openapi)
+- [GraphQL](graphql)
 - [Config Module](config-module)
 - [Resource Service Patterns](resource-service-patterns)
 - [Macros](macros)

@@ -30,6 +30,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - Route versioning (`#[nestforge::version("1")]`)
 - Global prefix support (`.with_global_prefix("api")`)
 - Generated OpenAPI docs from controller metadata with runtime mounting helpers
+- Optional GraphQL support through a dedicated `nestforge-graphql` crate and factory helpers
 - Config module with env loading and schema validation
 - Data layer crates (`nestforge-db`, `nestforge-orm`, `nestforge-data`)
 - CLI for scaffolding, generators, DB migrations, docs skeleton, formatting
@@ -129,6 +130,33 @@ NestForgeFactory::<AppModule>::create()?
 - Generated `/docs` and `/openapi.json` routes from controller metadata
 - Config loading with `ConfigModule::for_root`
 - Versioned routes (`v1`, `v2`)
+
+## Optional GraphQL Setup
+
+Enable the `graphql` feature and merge a GraphQL schema directly into the app:
+
+```rust
+use nestforge::{
+    async_graphql::{EmptyMutation, EmptySubscription, Object, Schema},
+    NestForgeFactory, NestForgeFactoryGraphQlExt,
+};
+
+struct QueryRoot;
+
+#[Object]
+impl QueryRoot {
+    async fn health(&self) -> &str {
+        "ok"
+    }
+}
+
+let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish();
+
+NestForgeFactory::<AppModule>::create()?
+    .with_graphql(schema)
+    .listen(3000)
+    .await?;
+```
 
 ## Documentation
 

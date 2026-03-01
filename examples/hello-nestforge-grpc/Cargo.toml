@@ -4,7 +4,6 @@ version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 publish = false
-build = "build.rs"
 
 [dependencies]
 nestforge = { path = "../../crates/nestforge", features = ["config", "grpc", "microservices"] }
@@ -16,5 +15,3 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 
-[build-dependencies]
-tonic-build = { workspace = true }

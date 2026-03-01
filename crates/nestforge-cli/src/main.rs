@@ -1631,7 +1631,7 @@ fn template_app_cargo_toml(
     };
 
     let build_dependencies = if matches!(transport, AppTransport::Grpc) {
-        "\n[build-dependencies]\ntonic-build = \"0.12\"\n"
+        "\n[build-dependencies]\ntonic-build = \"0.12\"\nprotoc-bin-vendored = \"3\"\n"
     } else {
         ""
     };

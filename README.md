@@ -32,6 +32,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - Generated OpenAPI docs from controller metadata with runtime mounting helpers
 - Optional GraphQL support through a dedicated `nestforge-graphql` crate and factory helpers
 - Optional gRPC transport support through a dedicated `nestforge-grpc` crate
+- Optional scheduler support through a dedicated `nestforge-schedule` crate
 - Config module with env loading and schema validation
 - Data layer crates (`nestforge-db`, `nestforge-orm`, `nestforge-data`)
 - CLI for scaffolding, generators, DB migrations, docs skeleton, formatting

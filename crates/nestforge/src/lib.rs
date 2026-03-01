@@ -169,6 +169,8 @@ pub use nestforge_graphql::{
 };
 #[cfg(feature = "grpc")]
 pub use nestforge_grpc::{prost, tonic, GrpcContext, GrpcServerConfig, NestForgeGrpcFactory};
+#[cfg(feature = "schedule")]
+pub use nestforge_schedule::{shutdown_schedules, start_schedules, ScheduleRegistry};
 #[cfg(feature = "orm")]
 pub use nestforge_orm::{EntityMeta, OrmError, Repo, RepoFuture, SqlRepo, SqlRepoBuilder};
 #[cfg(feature = "redis")]

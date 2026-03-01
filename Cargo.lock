@@ -1392,6 +1392,7 @@ dependencies = [
  "nestforge-openapi",
  "nestforge-orm",
  "nestforge-redis",
+ "nestforge-schedule",
  "nestforge-testing",
  "serde",
  "serde_json",
@@ -1515,6 +1516,15 @@ name = "nestforge-redis"
 version = "1.1.0"
 dependencies = [
  "nestforge-data",
+]
+
+[[package]]
+name = "nestforge-schedule"
+version = "1.1.0"
+dependencies = [
+ "anyhow",
+ "nestforge-core",
+ "tokio",
 ]
 
 [[package]]

@@ -15,6 +15,7 @@ members = [
   "crates/nestforge-openapi",
   "crates/nestforge-graphql",
   "crates/nestforge-grpc",
+  "crates/nestforge-schedule",
   "crates/nestforge-data",
   "crates/nestforge-mongo",
   "crates/nestforge-redis",

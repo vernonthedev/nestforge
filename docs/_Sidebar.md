@@ -8,6 +8,7 @@
 - [Auth and OpenAPI](auth-openapi)
 - [GraphQL](graphql)
 - [gRPC](grpc)
+- [Schedule](schedule)
 - [Config Module](config-module)
 - [Resource Service Patterns](resource-service-patterns)
 - [Macros](macros)

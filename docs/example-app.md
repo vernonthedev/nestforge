@@ -2,6 +2,11 @@
 
 Path: `examples/hello-nestforge`
 
+Related examples:
+
+- `examples/hello-nestforge-graphql`
+- `examples/hello-nestforge-grpc`
+
 ## What This Example Shows
 
 - Nest-style module imports (`UsersModule`, `SettingsModule`, `VersioningModule`)

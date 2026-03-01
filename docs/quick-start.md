@@ -32,6 +32,26 @@ cd demo-api
 cargo run
 ```
 
+Create a GraphQL-first app:
+
+```bash
+nestforge new demo-graphql --transport graphql
+```
+
+Create a gRPC-first app:
+
+```bash
+nestforge new demo-grpc --transport grpc
+```
+
+The generated GraphQL app mounts `/graphql` and GraphiQL at `/`.
+
+The generated gRPC app listens on:
+
+```text
+127.0.0.1:50051
+```
+
 ## Generate Code
 
 ```bash

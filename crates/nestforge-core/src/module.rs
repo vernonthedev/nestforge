@@ -1,8 +1,10 @@
 use anyhow::Result;
 use axum::Router;
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, future::Future, sync::Arc};
 
-use crate::{framework_log_event, Container, RouteDocumentation};
+use crate::{
+    framework_log_event, Container, DocumentedController, RegisterProvider, RouteDocumentation,
+};
 
 pub type LifecycleHook = fn(&Container) -> Result<()>;
 
@@ -69,6 +71,10 @@ impl ModuleRef {
             exports: Arc::new(Vec::new),
             is_global: Arc::new(|| false),
         }
+    }
+
+    pub fn builder(name: &'static str) -> DynamicModuleBuilder {
+        DynamicModuleBuilder::new(name)
     }
 
     pub fn with_imports(
@@ -138,6 +144,178 @@ impl ModuleRef {
     pub fn as_global(mut self) -> Self {
         self.is_global = Arc::new(|| true);
         self
+    }
+
+    pub fn with_is_global(mut self, is_global: bool) -> Self {
+        self.is_global = Arc::new(move || is_global);
+        self
+    }
+}
+
+type RegistrationStep = Arc<dyn Fn(&Container) -> Result<()> + Send + Sync>;
+
+pub struct DynamicModuleBuilder {
+    name: &'static str,
+    registration_steps: Vec<RegistrationStep>,
+    imports: Vec<ModuleRef>,
+    exports: Vec<&'static str>,
+    controllers: Vec<Router<Container>>,
+    route_docs: Vec<RouteDocumentation>,
+    on_module_init: Vec<LifecycleHook>,
+    on_module_destroy: Vec<LifecycleHook>,
+    on_application_bootstrap: Vec<LifecycleHook>,
+    on_application_shutdown: Vec<LifecycleHook>,
+    is_global: bool,
+}
+
+impl DynamicModuleBuilder {
+    pub fn new(name: &'static str) -> Self {
+        Self {
+            name,
+            registration_steps: Vec::new(),
+            imports: Vec::new(),
+            exports: Vec::new(),
+            controllers: Vec::new(),
+            route_docs: Vec::new(),
+            on_module_init: Vec::new(),
+            on_module_destroy: Vec::new(),
+            on_application_bootstrap: Vec::new(),
+            on_application_shutdown: Vec::new(),
+            is_global: false,
+        }
+    }
+
+    pub fn register(
+        mut self,
+        register: impl Fn(&Container) -> Result<()> + Send + Sync + 'static,
+    ) -> Self {
+        self.registration_steps.push(Arc::new(register));
+        self
+    }
+
+    pub fn register_provider<P>(self, provider: P) -> Self
+    where
+        P: RegisterProvider + Send + 'static,
+    {
+        let provider = Arc::new(std::sync::Mutex::new(Some(provider)));
+        self.register(move |container| {
+            let provider = provider
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Dynamic module provider lock poisoned"))?
+                .take()
+                .ok_or_else(|| anyhow::anyhow!("Dynamic module provider already registered"))?;
+            provider.register(container)
+        })
+    }
+
+    pub fn provider_value<T>(self, value: T) -> Self
+    where
+        T: Clone + Send + Sync + 'static,
+    {
+        self.register(move |container| {
+            container.register(value.clone())?;
+            Ok(())
+        })
+    }
+
+    pub fn provider_factory<T, F>(self, factory: F) -> Self
+    where
+        T: Send + Sync + 'static,
+        F: Fn(&Container) -> Result<T> + Send + Sync + 'static,
+    {
+        self.register(move |container| {
+            container.register(factory(container)?)?;
+            Ok(())
+        })
+    }
+
+    pub fn provider_async<T, F, Fut>(self, factory: F) -> Self
+    where
+        T: Send + Sync + 'static,
+        F: Fn(Container) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<T>> + Send + 'static,
+    {
+        self.register(move |container| {
+            let value = block_on_dynamic_registration(factory(container.clone()))?;
+            container.register(value)?;
+            Ok(())
+        })
+    }
+
+    pub fn import(mut self, module: ModuleRef) -> Self {
+        self.imports.push(module);
+        self
+    }
+
+    pub fn export<T>(mut self) -> Self
+    where
+        T: 'static,
+    {
+        self.exports.push(std::any::type_name::<T>());
+        self
+    }
+
+    pub fn controller<C>(mut self) -> Self
+    where
+        C: ControllerDefinition + DocumentedController,
+    {
+        self.controllers.push(C::router());
+        self.route_docs.extend(C::route_docs());
+        self
+    }
+
+    pub fn on_module_init(mut self, hook: LifecycleHook) -> Self {
+        self.on_module_init.push(hook);
+        self
+    }
+
+    pub fn on_module_destroy(mut self, hook: LifecycleHook) -> Self {
+        self.on_module_destroy.push(hook);
+        self
+    }
+
+    pub fn on_application_bootstrap(mut self, hook: LifecycleHook) -> Self {
+        self.on_application_bootstrap.push(hook);
+        self
+    }
+
+    pub fn on_application_shutdown(mut self, hook: LifecycleHook) -> Self {
+        self.on_application_shutdown.push(hook);
+        self
+    }
+
+    pub fn global(mut self) -> Self {
+        self.is_global = true;
+        self
+    }
+
+    pub fn build(self) -> ModuleRef {
+        let registration_steps = Arc::new(self.registration_steps);
+        let imports = self.imports;
+        let exports = self.exports;
+        let controllers = self.controllers;
+        let route_docs = self.route_docs;
+        let on_module_init = self.on_module_init;
+        let on_module_destroy = self.on_module_destroy;
+        let on_application_bootstrap = self.on_application_bootstrap;
+        let on_application_shutdown = self.on_application_shutdown;
+        let is_global = self.is_global;
+
+        ModuleRef::dynamic(self.name, move |container| {
+            for step in registration_steps.iter() {
+                step(container)?;
+            }
+            Ok(())
+        })
+        .with_imports(move || imports.clone())
+        .with_exports(move || exports.clone())
+        .with_controllers(move || controllers.clone())
+        .with_route_docs(move || route_docs.clone())
+        .with_module_init_hooks(move || on_module_init.clone())
+        .with_module_destroy_hooks(move || on_module_destroy.clone())
+        .with_application_bootstrap_hooks(move || on_application_bootstrap.clone())
+        .with_application_shutdown_hooks(move || on_application_shutdown.clone())
+        .with_is_global(is_global)
     }
 }
 
@@ -347,6 +525,30 @@ fn run_lifecycle_hooks(
     }
 
     Ok(())
+}
+
+fn block_on_dynamic_registration<T, Fut>(future: Fut) -> Result<T>
+where
+    T: Send + 'static,
+    Fut: Future<Output = Result<T>> + Send + 'static,
+{
+    if tokio::runtime::Handle::try_current().is_ok() {
+        return std::thread::spawn(move || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(anyhow::Error::new)?
+                .block_on(future)
+        })
+        .join()
+        .map_err(|_| anyhow::anyhow!("Dynamic module async registration thread panicked"))?;
+    }
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(anyhow::Error::new)?
+        .block_on(future)
 }
 
 fn visit_module_docs(module: ModuleRef, state: &mut DocumentationGraphState) -> Result<()> {
@@ -650,5 +852,64 @@ mod tests {
             .resolve::<DynamicConfig>()
             .expect("dynamic config should resolve");
         assert_eq!(config.label, "captured");
+    }
+
+    struct BuilderRootModule;
+
+    impl ModuleDefinition for BuilderRootModule {
+        fn imports() -> Vec<ModuleRef> {
+            vec![ModuleRef::builder("BuilderConfigModule")
+                .provider_value(DynamicConfig { label: "builder" })
+                .export::<DynamicConfig>()
+                .build()]
+        }
+
+        fn register(_container: &Container) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn dynamic_module_builder_registers_typed_exports() {
+        let container = Container::new();
+        initialize_module_graph::<BuilderRootModule>(&container)
+            .expect("builder-based dynamic module should initialize");
+
+        let config = container
+            .resolve::<DynamicConfig>()
+            .expect("builder config should resolve");
+        assert_eq!(config.label, "builder");
+    }
+
+    #[derive(Clone)]
+    struct AsyncConfig {
+        label: &'static str,
+    }
+
+    struct AsyncRootModule;
+
+    impl ModuleDefinition for AsyncRootModule {
+        fn imports() -> Vec<ModuleRef> {
+            vec![ModuleRef::builder("AsyncConfigModule")
+                .provider_async(|_container| async { Ok(AsyncConfig { label: "async" }) })
+                .export::<AsyncConfig>()
+                .build()]
+        }
+
+        fn register(_container: &Container) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn dynamic_module_builder_supports_async_provider_registration() {
+        let container = Container::new();
+        initialize_module_graph::<AsyncRootModule>(&container)
+            .expect("async dynamic module should initialize");
+
+        let config = container
+            .resolve::<AsyncConfig>()
+            .expect("async config should resolve");
+        assert_eq!(config.label, "async");
     }
 }

@@ -90,17 +90,47 @@ Available hook lists:
 
 ## Dynamic Modules
 
-NestForge can now build runtime-configured imports with `ModuleRef::dynamic(...)`.
+NestForge supports runtime-configured imports through `ModuleRef::builder(...)`.
 
-That gives you a NestJS-style `register(...)` pattern:
+That gives you a cleaner NestJS-style `register(...)` pattern:
 
 ```rust
 fn auth_module(secret: String) -> nestforge::ModuleRef {
-    nestforge::ModuleRef::dynamic("AuthModule", move |container| {
-        container.register(AuthConfig { secret: secret.clone() })?;
-        Ok(())
-    })
-    .with_exports(|| vec![std::any::type_name::<AuthConfig>()])
+    nestforge::ModuleRef::builder("AuthModule")
+        .provider_value(AuthConfig { secret })
+        .export::<AuthConfig>()
+        .build()
+}
+```
+
+You can also use factory-based registration when the module depends on other providers:
+
+```rust
+fn auth_module() -> nestforge::ModuleRef {
+    nestforge::ModuleRef::builder("AuthModule")
+        .provider_factory(|container| {
+            let config = container.resolve::<AppConfig>()?;
+            Ok(AuthConfig {
+                secret: config.jwt_secret.clone(),
+            })
+        })
+        .export::<AuthConfig>()
+        .build()
+}
+```
+
+And async setup is available through `provider_async(...)`:
+
+```rust
+fn remote_config_module() -> nestforge::ModuleRef {
+    nestforge::ModuleRef::builder("RemoteConfigModule")
+        .provider_async(|_container| async {
+            Ok(RemoteConfig {
+                region: "us-east-1".to_string(),
+            })
+        })
+        .export::<RemoteConfig>()
+        .build()
 }
 ```
 

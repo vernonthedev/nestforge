@@ -32,8 +32,8 @@ pub use inject::Inject;
 pub use logging::{framework_log, framework_log_event};
 pub use module::{
     collect_module_route_docs, initialize_module_graph, initialize_module_runtime,
-    ControllerBasePath, ControllerDefinition, InitializedModule, LifecycleHook, ModuleDefinition,
-    ModuleRef,
+    ControllerBasePath, ControllerDefinition, DynamicModuleBuilder, InitializedModule,
+    LifecycleHook, ModuleDefinition, ModuleRef,
 };
 pub use pipeline::{
     apply_exception_filters, execute_pipeline, ExceptionFilter, Guard, Interceptor, NextFn,

@@ -3,7 +3,7 @@ use async_graphql::{
 };
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::{
-    extract::Extension,
+    extract::{Extension, State},
     response::Html,
     routing::{get, post},
     Router,
@@ -89,6 +89,7 @@ where
 }
 
 async fn graphql_handler<Query, Mutation, Subscription>(
+    State(container): State<Container>,
     Extension(schema): Extension<GraphQlSchema<Query, Mutation, Subscription>>,
     request: GraphQLRequest,
 ) -> GraphQLResponse
@@ -97,7 +98,7 @@ where
     Mutation: ObjectType + Send + Sync + 'static,
     Subscription: SubscriptionType + Send + Sync + 'static,
 {
-    schema.execute(request.into_inner()).await.into()
+    schema.execute(request.into_inner().data(container)).await.into()
 }
 
 fn normalize_path(path: String) -> String {

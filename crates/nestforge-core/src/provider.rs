@@ -20,6 +20,11 @@ pub struct RequestFactoryProvider<T, F> {
     _marker: PhantomData<fn() -> T>,
 }
 
+pub struct TransientFactoryProvider<T, F> {
+    factory: F,
+    _marker: PhantomData<fn() -> T>,
+}
+
 impl Provider {
     pub fn value<T>(value: T) -> ValueProvider<T>
     where
@@ -45,6 +50,17 @@ impl Provider {
         F: Fn(&Container) -> Result<T> + Send + Sync + 'static,
     {
         RequestFactoryProvider {
+            factory,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn transient_factory<T, F>(factory: F) -> TransientFactoryProvider<T, F>
+    where
+        T: Send + Sync + 'static,
+        F: Fn(&Container) -> Result<T> + Send + Sync + 'static,
+    {
+        TransientFactoryProvider {
             factory,
             _marker: PhantomData,
         }
@@ -112,6 +128,31 @@ where
                 })
             })
             .map_err(|err| anyhow!("Failed to register request-scoped provider: {err}"))?;
+        Ok(())
+    }
+}
+
+impl<T, F> RegisterProvider for TransientFactoryProvider<T, F>
+where
+    T: Send + Sync + 'static,
+    F: Fn(&Container) -> Result<T> + Send + Sync + 'static,
+{
+    fn register(self, container: &Container) -> Result<()> {
+        framework_log_event(
+            "provider_register_transient_factory",
+            &[("type", std::any::type_name::<T>().to_string())],
+        );
+        container
+            .register_transient_factory::<T, _>(move |container| {
+                (self.factory)(container).map_err(|err| {
+                    anyhow!(
+                        "Failed to build transient provider `{}`: {}",
+                        std::any::type_name::<T>(),
+                        err
+                    )
+                })
+            })
+            .map_err(|err| anyhow!("Failed to register transient provider: {err}"))?;
         Ok(())
     }
 }
@@ -222,5 +263,38 @@ mod tests {
             .resolve::<RequestService>()
             .expect("request service should resolve");
         assert_eq!(service.0, "req-42");
+    }
+
+    #[test]
+    fn registers_transient_factory_provider() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+
+        struct TransientService(usize);
+
+        let container = Container::new();
+        let counter = Arc::new(AtomicUsize::new(0));
+        let counter_for_factory = Arc::clone(&counter);
+
+        register_provider(
+            &container,
+            Provider::transient_factory(move |_| {
+                let value = counter_for_factory.fetch_add(1, Ordering::Relaxed) + 1;
+                Ok(TransientService(value))
+            }),
+        )
+        .expect("transient factory should register");
+
+        let first = container
+            .resolve::<TransientService>()
+            .expect("first transient should resolve");
+        let second = container
+            .resolve::<TransientService>()
+            .expect("second transient should resolve");
+
+        assert_eq!(first.0, 1);
+        assert_eq!(second.0, 2);
     }
 }

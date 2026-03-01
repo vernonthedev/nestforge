@@ -30,11 +30,16 @@ pub struct Container {
     request_factories: Arc<
         RwLock<HashMap<TypeId, Arc<RequestFactoryFn>>>,
     >,
+    transient_factories: Arc<
+        RwLock<HashMap<TypeId, Arc<TransientFactoryFn>>>,
+    >,
     names: Arc<RwLock<HashSet<&'static str>>>,
 }
 
 type RequestFactoryValue = Arc<dyn Any + Send + Sync>;
 type RequestFactoryFn =
+    dyn Fn(&Container) -> anyhow::Result<RequestFactoryValue> + Send + Sync + 'static;
+type TransientFactoryFn =
     dyn Fn(&Container) -> anyhow::Result<RequestFactoryValue> + Send + Sync + 'static;
 
 #[derive(Debug, Error)]
@@ -75,6 +80,7 @@ impl Container {
             inner: Arc::clone(&self.inner),
             overrides: Arc::new(RwLock::new(HashMap::new())),
             request_factories: Arc::clone(&self.request_factories),
+            transient_factories: Arc::clone(&self.transient_factories),
             names: Arc::clone(&self.names),
         }
     }
@@ -184,6 +190,34 @@ impl Container {
         Ok(())
     }
 
+    pub fn register_transient_factory<T, F>(&self, factory: F) -> Result<(), ContainerError>
+    where
+        T: Send + Sync + 'static,
+        F: Fn(&Container) -> anyhow::Result<T> + Send + Sync + 'static,
+    {
+        let type_id = TypeId::of::<T>();
+        let mut factories = self
+            .transient_factories
+            .write()
+            .map_err(|_| ContainerError::WriteLockPoisoned)?;
+
+        if factories.contains_key(&type_id) {
+            return Err(ContainerError::TypeAlreadyRegistered {
+                type_name: std::any::type_name::<T>(),
+            });
+        }
+
+        factories.insert(
+            type_id,
+            Arc::new(move |container| Ok(Arc::new(factory(container)?) as RequestFactoryValue)),
+        );
+        self.names
+            .write()
+            .map_err(|_| ContainerError::WriteLockPoisoned)?
+            .insert(std::any::type_name::<T>());
+        Ok(())
+    }
+
     /**
      * Resolve (get back) a registered value/service by type.
      *
@@ -205,6 +239,10 @@ impl Container {
         }
 
         if let Some(value) = self.resolve_from_request_factory::<T>()? {
+            return Ok(value);
+        }
+
+        if let Some(value) = self.resolve_from_transient_factory::<T>()? {
             return Ok(value);
         }
 
@@ -278,6 +316,33 @@ impl Container {
 
         Ok(Some(typed))
     }
+
+    fn resolve_from_transient_factory<T>(&self) -> Result<Option<Arc<T>>, ContainerError>
+    where
+        T: Send + Sync + 'static,
+    {
+        let factory = {
+            let factories = self
+                .transient_factories
+                .read()
+                .map_err(|_| ContainerError::ReadLockPoisoned)?;
+            factories.get(&TypeId::of::<T>()).cloned()
+        };
+
+        let Some(factory) = factory else {
+            return Ok(None);
+        };
+
+        let value = factory(self).map_err(|err| ContainerError::RequestFactoryFailed {
+            type_name: std::any::type_name::<T>(),
+            message: err.to_string(),
+        })?;
+        let typed = value.downcast::<T>().map_err(|_| ContainerError::DowncastFailed {
+            type_name: std::any::type_name::<T>(),
+        })?;
+
+        Ok(Some(typed))
+    }
 }
 
 #[cfg(test)]
@@ -312,6 +377,7 @@ mod tests {
     struct RequestId(String);
 
     struct RequestGreeting(String);
+    struct TransientCounter(usize);
 
     #[test]
     fn scoped_container_resolves_request_factory_without_leaking_to_parent() {
@@ -334,5 +400,32 @@ mod tests {
 
         assert_eq!(greeting.0, "hello req-1");
         assert!(container.resolve::<RequestGreeting>().is_err());
+    }
+
+    #[test]
+    fn transient_factory_creates_new_instances_per_resolve() {
+        let container = Container::new();
+        let counter = Arc::new(RwLock::new(0usize));
+        let counter_for_factory = Arc::clone(&counter);
+
+        container
+            .register_transient_factory::<TransientCounter, _>(move |_| {
+                let mut count = counter_for_factory
+                    .write()
+                    .expect("counter should be writable");
+                *count += 1;
+                Ok(TransientCounter(*count))
+            })
+            .expect("transient factory should register");
+
+        let first = container
+            .resolve::<TransientCounter>()
+            .expect("first transient should resolve");
+        let second = container
+            .resolve::<TransientCounter>()
+            .expect("second transient should resolve");
+
+        assert_eq!(first.0, 1);
+        assert_eq!(second.0, 2);
     }
 }

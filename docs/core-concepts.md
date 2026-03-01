@@ -32,10 +32,13 @@ You can register providers with:
 - direct values (`Provider::value(...)`)
 - factories (`Provider::factory(|container| ...)`)
 - request-scoped factories (`Provider::request_factory(|container| ...)`)
+- transient factories (`Provider::transient_factory(|container| ...)`)
 
 In handlers, use `Inject<T>` to resolve dependencies.
 
 Request-scoped factories resolve against a per-request child container, so they can depend on request data like `RequestContext`, `RequestId`, or authenticated identity.
+
+Transient factories build a fresh instance on every resolve and are useful for short-lived helper services.
 
 ## Controllers
 

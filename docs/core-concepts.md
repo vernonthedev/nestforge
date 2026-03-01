@@ -94,6 +94,24 @@ Helper extensions make controllers simpler:
 - `result.or_bad_request()?`
 - `option.or_not_found_id("User", id)?`
 
+## Response Envelopes
+
+Use `ResponseEnvelope<T>` when you want a stable JSON shape across endpoints.
+
+Common patterns:
+
+```rust
+async fn list() -> ApiEnvelopeResult<Vec<UserDto>> {
+    Ok(ResponseEnvelope::paginated(users, 1, 20, 42))
+}
+```
+
+This yields a payload shaped like:
+
+- `success`
+- `data`
+- optional `meta`
+
 ## Guards And Interceptors
 
 - `Guard`: authorization/route checks before handler

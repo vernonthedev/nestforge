@@ -10,8 +10,8 @@ pub use nestforge_core::{
     HttpException, Identifiable, InMemoryStore, Inject, InitializedModule, Interceptor,
     DynamicModuleBuilder, LifecycleHook, List, ModuleDefinition, ModuleRef, NextFn, NextFuture,
     OptionHttpExt, OptionalAuthUser, Param, Provider, Query, RegisterProvider, RequestContext,
-    RequestId, RequireAuthenticationGuard, ResourceError, ResourceService, ResultHttpExt,
-    RoleRequirementsGuard, RouteBuilder, RouteDocumentation,
+    RequestId, RequireAuthenticationGuard, ResourceError, ResourceService, ResponseEnvelope,
+    ApiEnvelopeResult, ResultHttpExt, RoleRequirementsGuard, RouteBuilder, RouteDocumentation,
     RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors, ValidationIssue,
     framework_log, framework_log_event, Pipe, PipedBody, PipedParam, PipedQuery,
 };

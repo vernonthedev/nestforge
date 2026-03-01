@@ -30,7 +30,7 @@ pub use nestforge_http::{MiddlewareConsumer, NestMiddleware};
 pub use nestforge_macros::{
     authenticated, controller, delete, description, dto, entity, entity_dto, get, id,
     identifiable, module, post, put, response, response_dto, roles, routes, summary, tag,
-    use_guard, use_interceptor, version, Identifiable, Validate,
+    use_exception_filter, use_guard, use_interceptor, version, Identifiable, Validate,
 };
 
 #[macro_export]

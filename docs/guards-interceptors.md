@@ -129,3 +129,19 @@ impl nestforge::ExceptionFilter for RewriteBadRequestFilter {
 NestForgeFactory::<AppModule>::create()?
     .use_exception_filter::<RewriteBadRequestFilter>();
 ```
+
+Use per route:
+
+```rust
+#[nestforge::use_exception_filter(crate::filters::RewriteBadRequestFilter)]
+```
+
+Use at controller level:
+
+```rust
+#[nestforge::routes]
+#[nestforge::use_exception_filter(crate::filters::RewriteBadRequestFilter)]
+impl UsersController {
+    // every route inherits the exception filter
+}
+```

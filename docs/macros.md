@@ -14,6 +14,7 @@ Builds Axum routes from methods in the `impl` block.
 
 - `#[nestforge::use_guard(MyGuard)]`
 - `#[nestforge::use_interceptor(MyInterceptor)]`
+- `#[nestforge::use_exception_filter(MyFilter)]`
 - `#[nestforge::authenticated]`
 - `#[nestforge::roles("admin", "support")]`
 - `#[nestforge::tag("users")]`
@@ -42,6 +43,10 @@ Adds a route-level guard.
 ### `#[nestforge::use_interceptor(MyInterceptor)]`
 
 Adds a route-level interceptor.
+
+### `#[nestforge::use_exception_filter(MyFilter)]`
+
+Adds a route-level exception filter.
 
 ## Module Macro
 

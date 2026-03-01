@@ -409,11 +409,13 @@ fn attach_request_id_header(response: &mut Response, request_id: &str) {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use anyhow::Result;
     use axum::Json;
     use nestforge_core::{
         register_provider, ApiResult, AuthUser, Container, ControllerBasePath, ControllerDefinition,
-        HttpException, Inject, ModuleDefinition, Provider,
+        ExceptionFilter, HttpException, Inject, ModuleDefinition, Provider,
         RequestContext as FrameworkRequestContext, RouteBuilder,
     };
     use tower::ServiceExt;
@@ -443,6 +445,11 @@ mod tests {
                 .with_request_id(request_id.value().to_string()))
         }
 
+        async fn fail_locally(request_id: RequestId) -> ApiResult<String> {
+            Err(HttpException::bad_request("local broken request")
+                .with_request_id(request_id.value().to_string()))
+        }
+
         async fn me(user: AuthUser) -> ApiResult<String> {
             Ok(Json(user.subject.clone()))
         }
@@ -457,6 +464,14 @@ mod tests {
             RouteBuilder::<Self>::new()
                 .get("/", Self::ok)
                 .get("/fail", Self::fail)
+                .get_with_pipeline(
+                    "/fail-local",
+                    Self::fail_locally,
+                    Vec::new(),
+                    Vec::new(),
+                    vec![Arc::new(RewriteBadRequestFilter) as Arc<dyn ExceptionFilter>],
+                    None,
+                )
                 .get("/me", Self::me)
                 .get("/scoped", Self::scoped)
                 .build()
@@ -525,6 +540,26 @@ mod tests {
             .oneshot(
                 axum::http::Request::builder()
                     .uri("/health/fail")
+                    .body(axum::body::Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("request should succeed");
+
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+        assert!(response.headers().contains_key(REQUEST_ID_HEADER));
+    }
+
+    #[tokio::test]
+    async fn route_specific_exception_filters_rewrite_route_failures() {
+        let app = NestForgeFactory::<TestModule>::create()
+            .expect("factory should build")
+            .into_router();
+
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/health/fail-local")
                     .body(axum::body::Body::empty())
                     .expect("request should build"),
             )

@@ -1,11 +1,14 @@
 use nestforge::{
-    authenticated, controller, roles, routes, AuthIdentity, Container, ModuleDefinition,
-    NestForgeFactory,
+    authenticated, controller, roles, routes, use_exception_filter, AuthIdentity, Container,
+    ExceptionFilter, ModuleDefinition, NestForgeFactory, RequestContext,
 };
 use tower::ServiceExt;
 
 #[controller("/admin")]
 struct AdminController;
+
+#[derive(Default)]
+struct RewriteForbiddenFilter;
 
 #[routes]
 #[authenticated]
@@ -17,6 +20,29 @@ impl AdminController {
     }
 }
 
+impl ExceptionFilter for RewriteForbiddenFilter {
+    fn catch(&self, exception: nestforge::HttpException, _ctx: &RequestContext) -> nestforge::HttpException {
+        if exception.status == axum::http::StatusCode::FORBIDDEN {
+            nestforge::HttpException::forbidden("filtered forbidden")
+                .with_optional_request_id(exception.request_id)
+        } else {
+            exception
+        }
+    }
+}
+
+#[controller("/filtered")]
+struct FilteredController;
+
+#[routes]
+#[use_exception_filter(RewriteForbiddenFilter)]
+impl FilteredController {
+    #[nestforge::get("/deny")]
+    async fn deny() -> nestforge::ApiResult<String> {
+        Err(nestforge::HttpException::forbidden("original forbidden"))
+    }
+}
+
 struct AppModule;
 
 impl ModuleDefinition for AppModule {
@@ -25,7 +51,10 @@ impl ModuleDefinition for AppModule {
     }
 
     fn controllers() -> Vec<axum::Router<Container>> {
-        vec![<AdminController as nestforge::ControllerDefinition>::router()]
+        vec![
+            <AdminController as nestforge::ControllerDefinition>::router(),
+            <FilteredController as nestforge::ControllerDefinition>::router(),
+        ]
     }
 }
 
@@ -92,4 +121,29 @@ async fn controller_level_roles_metadata_allows_matching_roles() {
         .expect("request should succeed");
 
     assert_eq!(response.status(), axum::http::StatusCode::OK);
+}
+
+#[tokio::test]
+async fn controller_level_exception_filters_rewrite_route_failures() {
+    let app = NestForgeFactory::<AppModule>::create()
+        .expect("factory should build")
+        .into_router();
+
+    let response = app
+        .oneshot(
+            axum::http::Request::builder()
+                .uri("/filtered/deny")
+                .body(axum::body::Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("request should succeed");
+
+    assert_eq!(response.status(), axum::http::StatusCode::FORBIDDEN);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("response body should read");
+    let payload: serde_json::Value =
+        serde_json::from_slice(&body).expect("response body should be json");
+    assert_eq!(payload["message"], "filtered forbidden");
 }

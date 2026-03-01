@@ -55,7 +55,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         let ImplItem::Fn(method) = impl_item else {
             continue;
         };
-        let (guards, interceptors) = extract_pipeline_meta(method);
+        let (guards, interceptors, exception_filters) = extract_pipeline_meta(method);
         let version = extract_version_meta(method);
         let mut doc_meta = extract_route_doc_meta(method);
         doc_meta.tags = merge_string_lists(controller_meta.tags.clone(), doc_meta.tags);
@@ -65,6 +65,8 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             controller_meta.requires_auth || doc_meta.requires_auth || !doc_meta.required_roles.is_empty();
         let guards = merge_type_lists(controller_meta.guards.clone(), guards);
         let interceptors = merge_type_lists(controller_meta.interceptors.clone(), interceptors);
+        let exception_filters =
+            merge_type_lists(controller_meta.exception_filters.clone(), exception_filters);
 
         if let Some((http_method, path)) = extract_route_meta(method) {
             let method_name = &method.sig.ident;
@@ -95,6 +97,9 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let interceptor_inits = interceptors.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Interceptor> }
             });
+            let exception_filter_inits = exception_filters.iter().map(|ty| {
+                quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::ExceptionFilter> }
+            });
             let guard_tokens = if doc_meta.requires_auth || !doc_meta.required_roles.is_empty() {
                 quote! { vec![#(#guard_inits,)* #auth_guard_init #role_guard_init] }
             } else {
@@ -114,6 +119,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         Self::#method_name,
                         #guard_tokens,
                         vec![#(#interceptor_inits),*],
+                        vec![#(#exception_filter_inits),*],
                         #version_tokens
                     );
                 },
@@ -123,6 +129,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         Self::#method_name,
                         #guard_tokens,
                         vec![#(#interceptor_inits),*],
+                        vec![#(#exception_filter_inits),*],
                         #version_tokens
                     );
                 },
@@ -132,6 +139,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         Self::#method_name,
                         #guard_tokens,
                         vec![#(#interceptor_inits),*],
+                        vec![#(#exception_filter_inits),*],
                         #version_tokens
                     );
                 },
@@ -141,6 +149,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         Self::#method_name,
                         #guard_tokens,
                         vec![#(#interceptor_inits),*],
+                        vec![#(#exception_filter_inits),*],
                         #version_tokens
                     );
                 },
@@ -385,6 +394,11 @@ pub fn use_guard(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn use_interceptor(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn use_exception_filter(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
@@ -845,9 +859,10 @@ fn extract_route_meta(method: &mut ImplItemFn) -> Option<(String, String)> {
     found
 }
 
-fn extract_pipeline_meta(method: &mut ImplItemFn) -> (Vec<Type>, Vec<Type>) {
+fn extract_pipeline_meta(method: &mut ImplItemFn) -> (Vec<Type>, Vec<Type>, Vec<Type>) {
     let mut guards = Vec::new();
     let mut interceptors = Vec::new();
+    let mut exception_filters = Vec::new();
     let mut kept_attrs: Vec<Attribute> = Vec::new();
 
     for attr in method.attrs.drain(..) {
@@ -872,17 +887,25 @@ fn extract_pipeline_meta(method: &mut ImplItemFn) -> (Vec<Type>, Vec<Type>) {
             continue;
         }
 
+        if ident == "use_exception_filter" {
+            if let Ok(ty) = attr.parse_args::<Type>() {
+                exception_filters.push(ty);
+            }
+            continue;
+        }
+
         kept_attrs.push(attr);
     }
 
     method.attrs = kept_attrs;
-    (guards, interceptors)
+    (guards, interceptors, exception_filters)
 }
 
 #[derive(Default)]
 struct ControllerRouteMeta {
     guards: Vec<Type>,
     interceptors: Vec<Type>,
+    exception_filters: Vec<Type>,
     tags: Vec<String>,
     requires_auth: bool,
     required_roles: Vec<String>,
@@ -909,6 +932,11 @@ fn extract_controller_route_meta(input: &mut ItemImpl) -> ControllerRouteMeta {
             "use_interceptor" => {
                 if let Ok(ty) = attr.parse_args::<Type>() {
                     meta.interceptors.push(ty);
+                }
+            }
+            "use_exception_filter" => {
+                if let Ok(ty) = attr.parse_args::<Type>() {
+                    meta.exception_filters.push(ty);
                 }
             }
             "tag" => {

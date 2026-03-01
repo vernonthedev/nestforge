@@ -141,3 +141,15 @@ fn imports() -> Vec<nestforge::ModuleRef> {
     vec![auth_module("dev-secret".to_string())]
 }
 ```
+
+## Module Graph Introspection
+
+Use `collect_module_graph::<AppModule>()` when you need a diagnostic snapshot of the resolved module tree.
+
+Each reported module includes:
+
+- module name
+- imported modules
+- exported provider types
+- controller count
+- whether the module is global

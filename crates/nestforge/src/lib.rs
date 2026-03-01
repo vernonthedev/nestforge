@@ -4,16 +4,16 @@
 * use nestforge::{NestForgeFactory, ModuleDefinition, Container};
 */
 pub use nestforge_core::{
-    collect_module_route_docs, initialize_module_graph, register_provider, ApiResult,
-    AuthIdentity, AuthUser, BearerToken, Body, Container, ContainerError, ControllerBasePath,
-    ControllerDefinition, Cookies, Decorated, DocumentedController, ExceptionFilter, Guard, Headers,
-    HttpException, Identifiable, InMemoryStore, Inject, InitializedModule, Interceptor,
-    DynamicModuleBuilder, LifecycleHook, List, ModuleDefinition, ModuleRef, NextFn, NextFuture,
+    collect_module_graph, collect_module_route_docs, initialize_module_graph, register_provider,
+    ApiEnvelopeResult, ApiResult, AuthIdentity, AuthUser, BearerToken, Body, Container,
+    ContainerError, ControllerBasePath, ControllerDefinition, Cookies, Decorated,
+    DocumentedController, DynamicModuleBuilder, ExceptionFilter, Guard, Headers, HttpException,
+    Identifiable, InMemoryStore, Inject, InitializedModule, Interceptor, LifecycleHook, List,
+    ModuleDefinition, ModuleGraphEntry, ModuleGraphReport, ModuleRef, NextFn, NextFuture,
     OptionHttpExt, OptionalAuthUser, Param, Provider, Query, RegisterProvider, RequestContext,
     RequestDecorator, RequestId, RequireAuthenticationGuard, ResourceError, ResourceService,
-    ResponseEnvelope, ApiEnvelopeResult, ResultHttpExt, RoleRequirementsGuard, RouteBuilder,
-    RouteDocumentation, RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors,
-    ValidationIssue,
+    ResponseEnvelope, ResultHttpExt, RoleRequirementsGuard, RouteBuilder, RouteDocumentation,
+    RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors, ValidationIssue,
     framework_log, framework_log_event, Pipe, PipedBody, PipedParam, PipedQuery,
 };
 

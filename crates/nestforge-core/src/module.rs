@@ -8,6 +8,26 @@ use crate::{
 
 pub type LifecycleHook = fn(&Container) -> Result<()>;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModuleGraphEntry {
+    pub name: &'static str,
+    pub imports: Vec<&'static str>,
+    pub exports: Vec<&'static str>,
+    pub controller_count: usize,
+    pub is_global: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ModuleGraphReport {
+    pub modules: Vec<ModuleGraphEntry>,
+}
+
+impl ModuleGraphReport {
+    pub fn module(&self, name: &str) -> Option<&ModuleGraphEntry> {
+        self.modules.iter().find(|module| module.name == name)
+    }
+}
+
 /*
 ControllerBasePath = metadata implemented by #[controller("/...")]
 */
@@ -426,6 +446,14 @@ pub fn collect_module_route_docs<M: ModuleDefinition>() -> Result<Vec<RouteDocum
     Ok(state.route_docs)
 }
 
+pub fn collect_module_graph<M: ModuleDefinition>() -> Result<ModuleGraphReport> {
+    let mut state = ModuleIntrospectionState::default();
+    visit_module_graph(ModuleRef::of::<M>(), &mut state)?;
+    Ok(ModuleGraphReport {
+        modules: state.modules,
+    })
+}
+
 #[derive(Default)]
 struct ModuleGraphState {
     visited: HashSet<&'static str>,
@@ -445,6 +473,14 @@ struct DocumentationGraphState {
     visiting: HashSet<&'static str>,
     stack: Vec<&'static str>,
     route_docs: Vec<RouteDocumentation>,
+}
+
+#[derive(Default)]
+struct ModuleIntrospectionState {
+    visited: HashSet<&'static str>,
+    visiting: HashSet<&'static str>,
+    stack: Vec<&'static str>,
+    modules: Vec<ModuleGraphEntry>,
 }
 
 fn visit_module(
@@ -573,6 +609,44 @@ fn visit_module_docs(module: ModuleRef, state: &mut DocumentationGraphState) -> 
     }
 
     state.route_docs.extend((module.route_docs)());
+    state.stack.pop();
+    state.visiting.remove(module.name);
+    state.visited.insert(module.name);
+    Ok(())
+}
+
+fn visit_module_graph(module: ModuleRef, state: &mut ModuleIntrospectionState) -> Result<()> {
+    if state.visited.contains(module.name) {
+        return Ok(());
+    }
+
+    if state.visiting.contains(module.name) {
+        let mut cycle = state.stack.clone();
+        cycle.push(module.name);
+        anyhow::bail!(
+            "Detected module import cycle while collecting module graph: {}",
+            cycle.join(" -> ")
+        );
+    }
+
+    state.visiting.insert(module.name);
+    state.stack.push(module.name);
+
+    let imports = (module.imports)();
+    let import_names = imports.iter().map(|import| import.name).collect::<Vec<_>>();
+
+    for imported in imports {
+        visit_module_graph(imported, state)?;
+    }
+
+    state.modules.push(ModuleGraphEntry {
+        name: module.name,
+        imports: import_names,
+        exports: (module.exports)(),
+        controller_count: (module.controllers)().len(),
+        is_global: (module.is_global)(),
+    });
+
     state.stack.pop();
     state.visiting.remove(module.name);
     state.visited.insert(module.name);
@@ -911,5 +985,16 @@ mod tests {
             .resolve::<AsyncConfig>()
             .expect("async config should resolve");
         assert_eq!(config.label, "async");
+    }
+
+    #[test]
+    fn collects_module_graph_report_entries() {
+        let report = collect_module_graph::<RootModule>().expect("module graph should collect");
+        let root = report
+            .module(std::any::type_name::<RootModule>())
+            .expect("root module should exist");
+
+        assert_eq!(root.imports.len(), 2);
+        assert_eq!(report.modules.len(), 4);
     }
 }

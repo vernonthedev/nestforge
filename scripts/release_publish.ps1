@@ -247,7 +247,10 @@ $rootChanged = Update-FileContent -Path $rootCargo -Transform {
     [regex]::Replace(
         $content,
         '(?ms)(^\[workspace\.package\].*?^version\s*=\s*")(\d+\.\d+\.\d+)(")',
-        ('$1' + $TargetVersion + '$3'),
+        {
+            param($m)
+            $m.Groups[1].Value + $TargetVersion + $m.Groups[3].Value
+        },
         1
     )
 }

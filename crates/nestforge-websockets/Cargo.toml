@@ -1,0 +1,17 @@
+[package]
+name = "nestforge-websockets"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "WebSocket gateway transport helpers for NestForge"
+keywords = ["rust", "framework", "websocket", "axum", "nestforge"]
+categories = ["web-programming", "web-programming::http-server"]
+
+[dependencies]
+axum = { workspace = true, features = ["ws"] }
+anyhow = { workspace = true }
+http = { workspace = true }
+nestforge-core = { version = "1.1.0", path = "../nestforge-core" }

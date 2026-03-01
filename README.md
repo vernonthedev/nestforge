@@ -32,6 +32,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - Generated OpenAPI docs from controller metadata with runtime mounting helpers
 - Optional GraphQL support through a dedicated `nestforge-graphql` crate and factory helpers
 - Optional gRPC transport support through a dedicated `nestforge-grpc` crate
+- Optional WebSocket gateway support through a dedicated `nestforge-websockets` crate
 - Optional scheduler support through a dedicated `nestforge-schedule` crate
 - Config module with env loading and schema validation
 - Data layer crates (`nestforge-db`, `nestforge-orm`, `nestforge-data`)
@@ -208,6 +209,36 @@ NestForgeGrpcFactory::<AppModule>::create()?
 
 See `examples/hello-nestforge-grpc` for a full tonic-based setup with `proto/greeter.proto`,
 `build.rs`, generated bindings, and provider resolution through `GrpcContext`.
+
+## Optional WebSocket Setup
+
+Enable the `websockets` feature and mount a gateway directly into the HTTP app:
+
+```rust
+use nestforge::{
+    Message, NestForgeFactory, NestForgeFactoryWebSocketExt, WebSocket, WebSocketContext,
+    WebSocketGateway,
+};
+
+struct EventsGateway;
+
+impl WebSocketGateway for EventsGateway {
+    fn on_connect(
+        &self,
+        _ctx: WebSocketContext,
+        mut socket: WebSocket,
+    ) -> core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send>> {
+        Box::pin(async move {
+            let _ = socket.send(Message::Text("connected".into())).await;
+        })
+    }
+}
+
+NestForgeFactory::<AppModule>::create()?
+    .with_websocket_gateway(EventsGateway)
+    .listen(3000)
+    .await?;
+```
 
 ## Documentation
 

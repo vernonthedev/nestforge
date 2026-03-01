@@ -171,6 +171,12 @@ pub use nestforge_graphql::{
 pub use nestforge_grpc::{prost, tonic, GrpcContext, GrpcServerConfig, NestForgeGrpcFactory};
 #[cfg(feature = "schedule")]
 pub use nestforge_schedule::{shutdown_schedules, start_schedules, ScheduleRegistry};
+#[cfg(feature = "websockets")]
+pub use nestforge_websockets::{
+    websocket_gateway_router, websocket_gateway_router_with_config, websocket_router,
+    websocket_router_with_config, CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketConfig,
+    WebSocketContext, WebSocketGateway,
+};
 #[cfg(feature = "orm")]
 pub use nestforge_orm::{EntityMeta, OrmError, Repo, RepoFuture, SqlRepo, SqlRepoBuilder};
 #[cfg(feature = "redis")]
@@ -268,5 +274,35 @@ impl<M: ModuleDefinition> NestForgeFactoryGraphQlExt<M> for NestForgeFactory<M> 
         Subscription: async_graphql::SubscriptionType + Send + Sync + 'static,
     {
         self.merge_router(graphql_router_with_config(schema, config))
+    }
+}
+
+#[cfg(feature = "websockets")]
+pub trait NestForgeFactoryWebSocketExt<M: ModuleDefinition> {
+    fn with_websocket_gateway<G>(self, gateway: G) -> Self
+    where
+        G: WebSocketGateway,
+        Self: Sized;
+
+    fn with_websocket_gateway_config<G>(self, gateway: G, config: WebSocketConfig) -> Self
+    where
+        G: WebSocketGateway,
+        Self: Sized;
+}
+
+#[cfg(feature = "websockets")]
+impl<M: ModuleDefinition> NestForgeFactoryWebSocketExt<M> for NestForgeFactory<M> {
+    fn with_websocket_gateway<G>(self, gateway: G) -> Self
+    where
+        G: WebSocketGateway,
+    {
+        self.merge_router(websocket_gateway_router(gateway))
+    }
+
+    fn with_websocket_gateway_config<G>(self, gateway: G, config: WebSocketConfig) -> Self
+    where
+        G: WebSocketGateway,
+    {
+        self.merge_router(websocket_gateway_router_with_config(gateway, config))
     }
 }

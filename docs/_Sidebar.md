@@ -4,6 +4,7 @@
 - [Quick Start](quick-start)
 - [Core Concepts](core-concepts)
 - [Module System](module-system)
+- [Middleware](middleware)
 - [Guards and Interceptors](guards-interceptors)
 - [Auth and OpenAPI](auth-openapi)
 - [GraphQL](graphql)

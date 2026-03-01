@@ -26,6 +26,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - Extended request extractors (`Query<T>`, `Headers`, `Cookies`, `RequestId`)
 - Built-in HTTP error type (`HttpException`)
 - Guard and interceptor pipeline (global + route-level)
+- Route-targeted middleware consumer API on the HTTP factory
 - Auth primitives (`AuthUser`, `OptionalAuthUser`, `BearerToken`, auth resolvers, auth guards)
 - Route versioning (`#[nestforge::version("1")]`)
 - Global prefix support (`.with_global_prefix("api")`)

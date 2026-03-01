@@ -4,13 +4,14 @@ use std::{
     pin::Pin,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::Result;
 use axum::{
+    body::Body,
     http::{header::HeaderName, HeaderValue},
     middleware::from_fn,
     response::{IntoResponse, Response},
@@ -18,9 +19,11 @@ use axum::{
 };
 use nestforge_core::{
     apply_exception_filters, execute_pipeline, framework_log_event, initialize_module_runtime,
-    AuthIdentity, Container, ExceptionFilter, Guard, HttpException, InitializedModule,
+    AuthIdentity, Container, ExceptionFilter, Guard, HttpException, InitializedModule, NextFn,
     Interceptor, ModuleDefinition, RequestContext, RequestId,
 };
+
+use crate::middleware::{run_middleware_chain, MiddlewareBinding, MiddlewareConsumer, NestMiddleware};
 
 /*
 NestForgeFactory = app bootstrapper.
@@ -45,6 +48,7 @@ pub struct NestForgeFactory<M: ModuleDefinition> {
     global_guards: Vec<Arc<dyn Guard>>,
     global_interceptors: Vec<Arc<dyn Interceptor>>,
     global_exception_filters: Vec<Arc<dyn ExceptionFilter>>,
+    middleware_bindings: Vec<MiddlewareBinding>,
 }
 
 type AuthFuture = Pin<Box<dyn Future<Output = Result<Option<AuthIdentity>, HttpException>> + Send>>;
@@ -70,6 +74,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
             global_guards: Vec::new(),
             global_interceptors: Vec::new(),
             global_exception_filters: Vec::new(),
+            middleware_bindings: Vec::new(),
         })
     }
 
@@ -133,6 +138,26 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    pub fn use_middleware<T>(mut self) -> Self
+    where
+        T: NestMiddleware + Default,
+    {
+        let mut consumer = MiddlewareConsumer::new();
+        consumer.apply::<T>().for_all_routes();
+        self.middleware_bindings.extend(consumer.into_bindings());
+        self
+    }
+
+    pub fn configure_middleware<F>(mut self, configure: F) -> Self
+    where
+        F: FnOnce(&mut MiddlewareConsumer),
+    {
+        let mut consumer = MiddlewareConsumer::new();
+        configure(&mut consumer);
+        self.middleware_bindings.extend(consumer.into_bindings());
+        self
+    }
+
     pub fn with_auth_resolver<F, Fut>(mut self, resolver: F) -> Self
     where
         F: Fn(Option<String>, Container) -> Fut + Send + Sync + 'static,
@@ -181,6 +206,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         let global_guards = Arc::new(self.global_guards);
         let global_interceptors = Arc::new(self.global_interceptors);
         let global_exception_filters = Arc::new(self.global_exception_filters);
+        let middleware_bindings = Arc::new(self.middleware_bindings);
         let auth_resolver = self.auth_resolver.clone();
         let request_container = self.container.clone();
 
@@ -190,6 +216,18 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
             let interceptors = Arc::clone(&global_interceptors);
             let filters = Arc::clone(&route_exception_filters);
             async move { execute_pipeline(req, next, guards, interceptors, filters).await }
+        }));
+
+        let app = app.layer(from_fn(move |req, next| {
+            let middlewares = Arc::clone(&middleware_bindings);
+            async move {
+                if middlewares.is_empty() {
+                    return next.run(req).await;
+                }
+
+                let terminal = next_to_fn(next);
+                run_middleware_chain(middlewares, 0, req, terminal).await
+            }
         }));
 
         Router::new()
@@ -231,6 +269,32 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
 
 static NEXT_REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 const REQUEST_ID_HEADER: &str = "x-request-id";
+
+fn next_to_fn(next: axum::middleware::Next) -> NextFn {
+    let next = Arc::new(Mutex::new(Some(next)));
+
+    Arc::new(move |req: axum::extract::Request<Body>| {
+        let next = Arc::clone(&next);
+        Box::pin(async move {
+            let next = {
+                let mut guard = match next.lock() {
+                    Ok(guard) => guard,
+                    Err(_) => {
+                        return HttpException::internal_server_error("Middleware lock poisoned")
+                            .into_response();
+                    }
+                };
+                guard.take()
+            };
+
+            match next {
+                Some(next) => next.run(req).await,
+                None => HttpException::internal_server_error("Middleware next called multiple times")
+                    .into_response(),
+            }
+        })
+    })
+}
 
 async fn request_context_middleware(
     mut req: axum::extract::Request,

@@ -25,6 +25,7 @@ pub use nestforge_data::{CacheStore, DataError, DataFuture, DocumentRepo};
 #[cfg(feature = "db")]
 pub use nestforge_db::{Db, DbConfig, DbError, DbTransaction};
 pub use nestforge_http::NestForgeFactory;
+pub use nestforge_http::{MiddlewareConsumer, NestMiddleware};
 pub use nestforge_macros::{
     authenticated, controller, delete, description, dto, entity, entity_dto, get, id,
     identifiable, module, post, put, response, response_dto, routes, summary, tag, use_guard,
@@ -151,6 +152,38 @@ macro_rules! interceptor {
                 &self,
                 $ctx: $crate::RequestContext,
                 $req: axum::extract::Request,
+                $next: $crate::NextFn,
+            ) -> $crate::NextFuture {
+                Box::pin(async move $body)
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! middleware {
+    ($name:ident) => {
+        #[derive(Default)]
+        pub struct $name;
+
+        impl $crate::NestMiddleware for $name {
+            fn handle(
+                &self,
+                req: axum::extract::Request<axum::body::Body>,
+                next: $crate::NextFn,
+            ) -> $crate::NextFuture {
+                Box::pin(async move { (next)(req).await })
+            }
+        }
+    };
+    ($name:ident, |$req:ident, $next:ident| $body:block) => {
+        #[derive(Default)]
+        pub struct $name;
+
+        impl $crate::NestMiddleware for $name {
+            fn handle(
+                &self,
+                $req: axum::extract::Request<axum::body::Body>,
                 $next: $crate::NextFn,
             ) -> $crate::NextFuture {
                 Box::pin(async move $body)

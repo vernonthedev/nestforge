@@ -46,6 +46,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemImpl);
 
     let self_ty = input.self_ty.clone();
+    let controller_meta = extract_controller_route_meta(&mut input);
 
     let mut route_calls = Vec::new();
     let mut route_docs = Vec::new();
@@ -56,7 +57,14 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         };
         let (guards, interceptors) = extract_pipeline_meta(method);
         let version = extract_version_meta(method);
-        let doc_meta = extract_route_doc_meta(method);
+        let mut doc_meta = extract_route_doc_meta(method);
+        doc_meta.tags = merge_string_lists(controller_meta.tags.clone(), doc_meta.tags);
+        doc_meta.required_roles =
+            merge_string_lists(controller_meta.required_roles.clone(), doc_meta.required_roles);
+        doc_meta.requires_auth =
+            controller_meta.requires_auth || doc_meta.requires_auth || !doc_meta.required_roles.is_empty();
+        let guards = merge_type_lists(controller_meta.guards.clone(), guards);
+        let interceptors = merge_type_lists(controller_meta.interceptors.clone(), interceptors);
 
         if let Some((http_method, path)) = extract_route_meta(method) {
             let method_name = &method.sig.ident;
@@ -871,6 +879,63 @@ fn extract_pipeline_meta(method: &mut ImplItemFn) -> (Vec<Type>, Vec<Type>) {
     (guards, interceptors)
 }
 
+#[derive(Default)]
+struct ControllerRouteMeta {
+    guards: Vec<Type>,
+    interceptors: Vec<Type>,
+    tags: Vec<String>,
+    requires_auth: bool,
+    required_roles: Vec<String>,
+}
+
+fn extract_controller_route_meta(input: &mut ItemImpl) -> ControllerRouteMeta {
+    let mut meta = ControllerRouteMeta::default();
+    let mut kept_attrs: Vec<Attribute> = Vec::new();
+
+    for attr in input.attrs.drain(..) {
+        let ident = attr
+            .path()
+            .segments
+            .last()
+            .map(|seg| seg.ident.to_string())
+            .unwrap_or_default();
+
+        match ident.as_str() {
+            "use_guard" => {
+                if let Ok(ty) = attr.parse_args::<Type>() {
+                    meta.guards.push(ty);
+                }
+            }
+            "use_interceptor" => {
+                if let Ok(ty) = attr.parse_args::<Type>() {
+                    meta.interceptors.push(ty);
+                }
+            }
+            "tag" => {
+                if let Ok(lit) = attr.parse_args::<LitStr>() {
+                    meta.tags.push(lit.value());
+                }
+            }
+            "authenticated" => {
+                meta.requires_auth = true;
+            }
+            "roles" => {
+                if let Ok(values) =
+                    attr.parse_args_with(Punctuated::<LitStr, Token![,]>::parse_terminated)
+                {
+                    meta.required_roles
+                        .extend(values.into_iter().map(|value| value.value()));
+                    meta.requires_auth = true;
+                }
+            }
+            _ => kept_attrs.push(attr),
+        }
+    }
+
+    input.attrs = kept_attrs;
+    meta
+}
+
 fn extract_version_meta(method: &mut ImplItemFn) -> Option<String> {
     let mut version: Option<String> = None;
     let mut kept_attrs: Vec<Attribute> = Vec::new();
@@ -963,6 +1028,29 @@ fn extract_route_doc_meta(method: &mut ImplItemFn) -> RouteDocMeta {
 
     method.attrs = kept_attrs;
     meta
+}
+
+fn merge_string_lists(primary: Vec<String>, secondary: Vec<String>) -> Vec<String> {
+    let mut merged = primary;
+    for value in secondary {
+        if !merged.contains(&value) {
+            merged.push(value);
+        }
+    }
+    merged
+}
+
+fn merge_type_lists(primary: Vec<Type>, secondary: Vec<Type>) -> Vec<Type> {
+    let mut merged = primary;
+    for ty in secondary {
+        if !merged
+            .iter()
+            .any(|existing| quote!(#existing).to_string() == quote!(#ty).to_string())
+        {
+            merged.push(ty);
+        }
+    }
+    merged
 }
 
 fn parse_route_attr(attr: &Attribute) -> Option<(String, String)> {

@@ -2,13 +2,16 @@
 
 use nestforge::{
     authenticated, controller, get, openapi_doc_for_module, response, routes, summary, tag,
-    Container, ModuleDefinition,
+    roles, Container, ModuleDefinition,
 };
 
 #[controller("/users")]
 struct UsersController;
 
 #[routes]
+#[tag("controller-users")]
+#[authenticated]
+#[roles("admin")]
 impl UsersController {
     #[get("/")]
     #[summary("List users")]
@@ -50,6 +53,14 @@ fn openapi_doc_for_module_collects_documented_routes() {
 
     assert_eq!(doc.routes.len(), 2);
     assert!(doc.routes.iter().any(|route| route.requires_auth));
+    assert!(doc
+        .routes
+        .iter()
+        .any(|route| route.required_roles.iter().any(|role| role == "admin")));
+    assert!(doc
+        .routes
+        .iter()
+        .any(|route| route.tags.iter().any(|tag| tag == "controller-users")));
     assert!(doc
         .routes
         .iter()

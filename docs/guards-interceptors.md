@@ -29,6 +29,16 @@ Use per route:
 #[nestforge::use_guard(crate::guards::RequireValidIdGuard)]
 ```
 
+Use at controller level:
+
+```rust
+#[nestforge::routes]
+#[nestforge::use_guard(crate::guards::RequireValidIdGuard)]
+impl UsersController {
+    // every route inherits the guard
+}
+```
+
 Use globally:
 
 ```rust
@@ -68,6 +78,16 @@ Use per route:
 
 ```rust
 #[nestforge::use_interceptor(crate::interceptors::LoggingInterceptor)]
+```
+
+Use at controller level:
+
+```rust
+#[nestforge::routes]
+#[nestforge::use_interceptor(crate::interceptors::LoggingInterceptor)]
+impl UsersController {
+    // every route inherits the interceptor
+}
 ```
 
 Use globally:

@@ -68,3 +68,20 @@ let service = ctx.resolve::<ChatService>()?;
 ```
 
 This makes WebSocket gateways consistent with the DI flow already used by HTTP handlers, GraphQL resolvers, and gRPC services.
+
+## Microservice Registry Adapter
+
+If you enable both `websockets` and `microservices`, websocket gateways can forward JSON frames into `MicroserviceRegistry`.
+
+Expected frame shape:
+
+```json
+{
+  "kind": "message",
+  "pattern": "users.count",
+  "payload": null,
+  "metadata": {}
+}
+```
+
+Use `handle_websocket_microservice_message(...)` inside a gateway loop. Message-pattern frames return a JSON websocket response frame, while event-pattern frames return `None`.

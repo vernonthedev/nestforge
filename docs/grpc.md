@@ -55,6 +55,23 @@ Then resolve shared providers as needed:
 let config = self.ctx.resolve::<AppConfig>()?;
 ```
 
+## Microservice Registry Adapter
+
+If you enable both `grpc` and `microservices`, a tonic service can delegate pattern handling into `MicroserviceRegistry`:
+
+```rust
+let response = nestforge::dispatch_grpc_message(
+    &self.ctx,
+    &registry,
+    "users.count",
+    (),
+    nestforge::TransportMetadata::new(),
+)
+.await?;
+```
+
+`dispatch_grpc_event(...)` is also available for fire-and-forget patterns.
+
 ## Codegen Setup
 
 The gRPC-first example uses a standard tonic build pipeline:

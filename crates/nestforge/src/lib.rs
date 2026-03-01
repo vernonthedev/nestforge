@@ -229,6 +229,8 @@ pub use nestforge_graphql::{
 };
 #[cfg(feature = "grpc")]
 pub use nestforge_grpc::{prost, tonic, GrpcContext, GrpcServerConfig, NestForgeGrpcFactory};
+#[cfg(all(feature = "grpc", feature = "microservices"))]
+pub use nestforge_grpc::{dispatch_grpc_event, dispatch_grpc_message};
 #[cfg(feature = "schedule")]
 pub use nestforge_schedule::{
     shutdown_schedules, start_schedules, ScheduleRegistry, ScheduleRegistryBuilder,
@@ -239,6 +241,11 @@ pub use nestforge_websockets::{
     websocket_gateway_router, websocket_gateway_router_with_config, websocket_router,
     websocket_router_with_config, CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketConfig,
     WebSocketContext, WebSocketGateway,
+};
+#[cfg(all(feature = "websockets", feature = "microservices"))]
+pub use nestforge_websockets::{
+    handle_websocket_microservice_message, WebSocketMicroserviceFrame,
+    WebSocketMicroserviceKind, WebSocketMicroserviceResponse,
 };
 #[cfg(feature = "orm")]
 pub use nestforge_orm::{EntityMeta, OrmError, Repo, RepoFuture, SqlRepo, SqlRepoBuilder};

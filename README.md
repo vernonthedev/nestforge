@@ -129,6 +129,7 @@ Generate code:
 nestforge g module users
 nestforge g resource users --module users
 nestforge g guard auth
+nestforge g filter rewrite_bad_request
 nestforge g middleware audit
 nestforge g interceptor logging
 nestforge g graphql users

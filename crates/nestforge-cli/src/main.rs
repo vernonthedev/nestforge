@@ -69,13 +69,14 @@ fn main() -> Result<()> {
                 "service" => generate_service_only(name, target_module.as_deref())?,
                 "module" => generate_module(name)?,
                 "guard" => generate_guard_only(name)?,
+                "filter" => generate_exception_filter_only(name)?,
                 "middleware" => generate_middleware_only(name)?,
                 "interceptor" => generate_interceptor_only(name)?,
                 "graphql" => generate_graphql_resolver_only(name)?,
                 "grpc" => generate_grpc_service_only(name)?,
                 "gateway" => generate_websocket_gateway_only(name)?,
                 _ => bail!(
-                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | middleware | interceptor | graphql | grpc | gateway",
+                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | filter | middleware | interceptor | graphql | grpc | gateway",
                     kind
                 ),
             }
@@ -103,6 +104,7 @@ fn print_help() {
     println!("  nestforge g resource <name> --module <feature>");
     println!("  nestforge g module <name>");
     println!("  nestforge g guard <name>");
+    println!("  nestforge g filter <name>");
     println!("  nestforge g middleware <name>");
     println!("  nestforge g interceptor <name>");
     println!("  nestforge g graphql <name>");
@@ -124,6 +126,7 @@ fn print_help() {
     println!("  nestforge new greeter-service --transport grpc");
     println!("  nestforge new realtime-events --transport websockets");
     println!("  nestforge g resource users");
+    println!("  nestforge g filter rewrite_bad_request");
     println!("  nestforge g middleware audit");
     println!("  nestforge g graphql users");
     println!("  nestforge g grpc billing");
@@ -223,6 +226,10 @@ fn scaffold_transport_files(app_dir: &Path, transport: AppTransport) -> Result<(
             write_file(
                 &app_dir.join("src/guards/mod.rs"),
                 &template_guards_mod_rs(),
+            )?;
+            write_file(
+                &app_dir.join("src/filters/mod.rs"),
+                &template_filters_mod_rs(),
             )?;
             write_file(
                 &app_dir.join("src/interceptors/mod.rs"),
@@ -656,6 +663,28 @@ fn generate_guard_only(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn generate_exception_filter_only(name: &str) -> Result<()> {
+    let app_root = detect_app_root()?;
+    let filter_name = normalize_resource_name(name);
+    let pascal_filter = format!("{}Filter", to_pascal_case(&filter_name));
+    let filter_file = app_root
+        .join("src/filters")
+        .join(format!("{}_filter.rs", filter_name));
+
+    if filter_file.exists() {
+        println!("Exception filter already exists: {}", filter_file.display());
+        return Ok(());
+    }
+
+    fs::create_dir_all(app_root.join("src/filters"))?;
+    write_file(&filter_file, &template_exception_filter_rs(&pascal_filter))?;
+    patch_filters_mod(&app_root, &filter_name, &pascal_filter)?;
+    patch_main_mod_decl(&app_root, "filters")?;
+
+    println!("Generated exception filter `{}`", filter_name);
+    Ok(())
+}
+
 fn generate_middleware_only(name: &str) -> Result<()> {
     let app_root = detect_app_root()?;
     let middleware_name = normalize_resource_name(name);
@@ -1014,6 +1043,28 @@ fn patch_interceptors_mod(
     }
 
     fs::write(path, content)?;
+    Ok(())
+}
+
+fn patch_filters_mod(app_root: &Path, filter_name: &str, pascal_filter: &str) -> Result<()> {
+    let path = app_root.join("src/filters/mod.rs");
+    let content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        template_filters_mod_rs()
+    };
+    let mod_line = format!("pub mod {}_filter;", filter_name);
+    let use_line = format!("pub use {}_filter::{};", filter_name, pascal_filter);
+    let mut next = content;
+
+    if !next.contains(&mod_line) {
+        next.push_str(&format!("\n{}", mod_line));
+    }
+    if !next.contains(&use_line) {
+        next.push_str(&format!("\n{}", use_line));
+    }
+
+    fs::write(path, next)?;
     Ok(())
 }
 
@@ -1585,6 +1636,10 @@ fn template_middleware_mod_rs() -> String {
     "/* Middleware exports get generated here */\n".to_string()
 }
 
+fn template_filters_mod_rs() -> String {
+    "/* Exception filter exports get generated here */\n".to_string()
+}
+
 fn template_interceptors_mod_rs() -> String {
     "/* Interceptor exports get generated here */\n".to_string()
 }
@@ -2057,6 +2112,24 @@ fn template_middleware_rs(pascal_middleware: &str) -> String {
         (next)(req).await
     }}
 }});
+"#
+    )
+}
+
+fn template_exception_filter_rs(pascal_filter: &str) -> String {
+    format!(
+        r#"#[derive(Default)]
+pub struct {pascal_filter};
+
+impl nestforge::ExceptionFilter for {pascal_filter} {{
+    fn catch(
+        &self,
+        exception: nestforge::HttpException,
+        _ctx: &nestforge::RequestContext,
+    ) -> nestforge::HttpException {{
+        exception
+    }}
+}}
 "#
     )
 }
@@ -2600,5 +2673,13 @@ mod tests {
 
         assert!(template.contains("pub struct EventsGateway;"));
         assert!(template.contains("impl WebSocketGateway for EventsGateway"));
+    }
+
+    #[test]
+    fn template_exception_filter_uses_requested_type_name() {
+        let template = template_exception_filter_rs("RewriteBadRequestFilter");
+
+        assert!(template.contains("pub struct RewriteBadRequestFilter;"));
+        assert!(template.contains("impl nestforge::ExceptionFilter for RewriteBadRequestFilter"));
     }
 }

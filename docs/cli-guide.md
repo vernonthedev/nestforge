@@ -16,6 +16,7 @@ nestforge g resource <name>
 nestforge g controller <name>
 nestforge g service <name>
 nestforge g guard <name>
+nestforge g filter <name>
 nestforge g middleware <name>
 nestforge g interceptor <name>
 nestforge g graphql <name>
@@ -109,9 +110,12 @@ Generates DTOs, service, controller inside the target module and wires exports/p
 
 ```bash
 nestforge g guard auth
+nestforge g filter rewrite_bad_request
 nestforge g middleware audit
 nestforge g interceptor logging
 ```
+
+`nestforge g filter <name>` creates `src/filters/<name>_filter.rs` plus export wiring in `src/filters/mod.rs`.
 
 `nestforge g middleware <name>` creates `src/middleware/<name>_middleware.rs` plus export wiring in `src/middleware/mod.rs`.
 

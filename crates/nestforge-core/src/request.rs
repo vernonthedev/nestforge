@@ -14,6 +14,12 @@ pub trait Pipe<Input>: Send + Sync + 'static {
     fn transform(value: Input, ctx: &RequestContext) -> Result<Self::Output, HttpException>;
 }
 
+pub trait RequestDecorator: Send + Sync + 'static {
+    type Output: Send + 'static;
+
+    fn extract(ctx: &RequestContext, parts: &Parts) -> Result<Self::Output, HttpException>;
+}
+
 #[derive(Debug, Clone)]
 pub struct RequestId(pub Arc<str>);
 
@@ -75,6 +81,52 @@ impl<T> Deref for Param<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+pub struct Decorated<T>
+where
+    T: RequestDecorator,
+{
+    value: T::Output,
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<T> Deref for Decorated<T>
+where
+    T: RequestDecorator,
+{
+    type Target = T::Output;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<T> Decorated<T>
+where
+    T: RequestDecorator,
+{
+    pub fn into_inner(self) -> T::Output {
+        self.value
+    }
+}
+
+impl<S, T> FromRequestParts<S> for Decorated<T>
+where
+    S: Send + Sync,
+    T: RequestDecorator,
+{
+    type Rejection = HttpException;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let ctx = RequestContext::from_parts(parts);
+        let value = T::extract(&ctx, parts)?;
+
+        Ok(Self {
+            value,
+            _marker: std::marker::PhantomData,
+        })
     }
 }
 

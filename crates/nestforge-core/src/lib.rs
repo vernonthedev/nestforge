@@ -42,7 +42,10 @@ pub use pipeline::{
 };
 pub use provider::{register_provider, Provider, RegisterProvider};
 pub use request::ValidatedBody;
-pub use request::{Body, Cookies, Headers, Param, Pipe, PipedBody, PipedParam, PipedQuery, Query, RequestId};
+pub use request::{
+    Body, Cookies, Decorated, Headers, Param, Pipe, PipedBody, PipedParam, PipedQuery, Query,
+    RequestDecorator, RequestId,
+};
 pub use response::{ApiEnvelopeResult, ResponseEnvelope};
 pub use resource_service::{ResourceError, ResourceService};
 pub use route_builder::RouteBuilder;

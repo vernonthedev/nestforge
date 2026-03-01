@@ -57,6 +57,7 @@ Controllers define HTTP routes.
 - `Body<T>`: JSON body
 - `PipedBody<T, P>`: JSON body transformed by a pipe
 - `ValidatedBody<T>`: JSON body + validation
+- `Decorated<T>`: custom request decorator extraction
 
 Pipes let you transform or reject extracted values before handler logic runs:
 
@@ -71,6 +72,28 @@ impl nestforge::Pipe<String> for SlugPipe {
         _ctx: &nestforge::RequestContext,
     ) -> Result<Self::Output, nestforge::HttpException> {
         Ok(value.trim().to_lowercase())
+    }
+}
+```
+
+Custom request decorators let you extract framework-specific values without hand-writing the same parsing code in every handler:
+
+```rust
+struct CorrelationId;
+
+impl nestforge::RequestDecorator for CorrelationId {
+    type Output = String;
+
+    fn extract(
+        _ctx: &nestforge::RequestContext,
+        parts: &axum::http::request::Parts,
+    ) -> Result<Self::Output, nestforge::HttpException> {
+        parts
+            .headers
+            .get("x-correlation-id")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string)
+            .ok_or_else(|| nestforge::HttpException::bad_request("Missing x-correlation-id"))
     }
 }
 ```

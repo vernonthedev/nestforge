@@ -6,13 +6,14 @@
 pub use nestforge_core::{
     collect_module_route_docs, initialize_module_graph, register_provider, ApiResult,
     AuthIdentity, AuthUser, BearerToken, Body, Container, ContainerError, ControllerBasePath,
-    ControllerDefinition, Cookies, DocumentedController, ExceptionFilter, Guard, Headers,
+    ControllerDefinition, Cookies, Decorated, DocumentedController, ExceptionFilter, Guard, Headers,
     HttpException, Identifiable, InMemoryStore, Inject, InitializedModule, Interceptor,
     DynamicModuleBuilder, LifecycleHook, List, ModuleDefinition, ModuleRef, NextFn, NextFuture,
     OptionHttpExt, OptionalAuthUser, Param, Provider, Query, RegisterProvider, RequestContext,
-    RequestId, RequireAuthenticationGuard, ResourceError, ResourceService, ResponseEnvelope,
-    ApiEnvelopeResult, ResultHttpExt, RoleRequirementsGuard, RouteBuilder, RouteDocumentation,
-    RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors, ValidationIssue,
+    RequestDecorator, RequestId, RequireAuthenticationGuard, ResourceError, ResourceService,
+    ResponseEnvelope, ApiEnvelopeResult, ResultHttpExt, RoleRequirementsGuard, RouteBuilder,
+    RouteDocumentation, RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors,
+    ValidationIssue,
     framework_log, framework_log_event, Pipe, PipedBody, PipedParam, PipedQuery,
 };
 
@@ -188,6 +189,24 @@ macro_rules! middleware {
                 $next: $crate::NextFn,
             ) -> $crate::NextFuture {
                 Box::pin(async move $body)
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! request_decorator {
+    ($name:ident => $output:ty, |$ctx:ident, $parts:ident| $body:block) => {
+        pub struct $name;
+
+        impl $crate::RequestDecorator for $name {
+            type Output = $output;
+
+            fn extract(
+                $ctx: &$crate::RequestContext,
+                $parts: &axum::http::request::Parts,
+            ) -> Result<Self::Output, $crate::HttpException> {
+                $body
             }
         }
     };

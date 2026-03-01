@@ -53,6 +53,8 @@ nestforge::auth_guard!(RequireAuthGuard);
 nestforge::role_guard!(RequireAdminGuard, "admin");
 ```
 
+Custom request decorators are available through `Decorated<T>` and `RequestDecorator`, which is useful for `@User()` or tenant-style extraction without coupling that logic to every controller method.
+
 ## Interceptor
 
 An interceptor wraps handler execution.

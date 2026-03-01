@@ -9,7 +9,9 @@ use nestforge_core::{
 };
 use nestforge_graphql::{graphql_router, graphql_router_with_config, GraphQlConfig};
 use nestforge_grpc::GrpcContext;
-use nestforge_microservices::{MicroserviceContext, TransportMetadata};
+use nestforge_microservices::{
+    InProcessMicroserviceClient, MicroserviceContext, MicroserviceRegistry, TransportMetadata,
+};
 use nestforge_websockets::WebSocketContext;
 
 type OverrideFn = Box<dyn Fn(&Container) -> Result<()> + Send + Sync>;
@@ -156,6 +158,24 @@ impl TestingModule {
         MicroserviceContext::new(self.container.clone(), transport, pattern, metadata)
     }
 
+    pub fn microservice_client(
+        &self,
+        registry: MicroserviceRegistry,
+    ) -> InProcessMicroserviceClient {
+        InProcessMicroserviceClient::new(self.container.clone(), registry)
+    }
+
+    pub fn microservice_client_with_metadata(
+        &self,
+        registry: MicroserviceRegistry,
+        transport: impl Into<String>,
+        metadata: TransportMetadata,
+    ) -> InProcessMicroserviceClient {
+        InProcessMicroserviceClient::new(self.container.clone(), registry)
+            .with_transport(transport)
+            .with_metadata(metadata)
+    }
+
     pub fn shutdown(&self) -> Result<()> {
         self.runtime.run_module_destroy(&self.container)?;
         self.runtime.run_application_shutdown(&self.container)?;
@@ -169,6 +189,7 @@ mod tests {
     use std::sync::{Arc as StdArc, Mutex};
 
     use async_graphql::{EmptyMutation, EmptySubscription};
+    use nestforge_microservices::MicroserviceClient;
     use nestforge_core::{register_provider, ControllerDefinition, LifecycleHook, Provider};
     use tower::ServiceExt;
 
@@ -419,5 +440,31 @@ mod tests {
         assert_eq!(config.app_name, "transport");
         assert_eq!(microservice.transport(), "test");
         assert_eq!(microservice.pattern(), "users.count");
+    }
+
+    #[tokio::test]
+    async fn builds_in_process_microservice_clients_from_testing_module() {
+        let module = TestFactory::<AppModule>::create()
+            .override_provider(AppConfig { app_name: "client" })
+            .build()
+            .expect("client testing module should build");
+        let registry = MicroserviceRegistry::builder()
+            .message("app.name", |_payload: (), ctx| async move {
+                let config = ctx.resolve::<AppConfig>()?;
+                Ok(config.app_name.to_string())
+            })
+            .build();
+        let client = module.microservice_client_with_metadata(
+            registry,
+            "test-client",
+            TransportMetadata::new().insert("suite", "testing"),
+        );
+
+        let response: String = client
+            .send("app.name", ())
+            .await
+            .expect("response should resolve");
+
+        assert_eq!(response, "client");
     }
 }

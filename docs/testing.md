@@ -64,3 +64,12 @@ let microservice = module.microservice_context("test", "users.count");
 ```
 
 Use these helpers when you want to test gRPC services, websocket gateways, or transport-neutral message handlers without booting the full transport server.
+
+It can also build an in-process microservice client for request/emit style tests:
+
+```rust
+use nestforge::MicroserviceClient;
+
+let client = module.microservice_client(registry);
+let count: usize = client.send("users.count", ()).await?;
+```

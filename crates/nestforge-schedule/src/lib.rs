@@ -14,13 +14,28 @@ type TaskFn = dyn Fn() -> TaskFuture + Send + Sync + 'static;
 #[derive(Clone)]
 enum ScheduledTask {
     Interval {
+        name: String,
         every: Duration,
         task: Arc<TaskFn>,
     },
     Timeout {
+        name: String,
         after: Duration,
         task: Arc<TaskFn>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScheduledJobKind {
+    Interval,
+    Timeout,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScheduledJob {
+    pub name: String,
+    pub kind: ScheduledJobKind,
+    pub delay: Duration,
 }
 
 #[derive(Clone, Default)]
@@ -34,7 +49,19 @@ impl ScheduleRegistry {
         Self::default()
     }
 
+    pub fn builder() -> ScheduleRegistryBuilder {
+        ScheduleRegistryBuilder::new()
+    }
+
     pub fn every<F, Fut>(&self, every: Duration, task: F)
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.every_named(format!("interval:{every:?}"), every, task);
+    }
+
+    pub fn every_named<F, Fut>(&self, name: impl Into<String>, every: Duration, task: F)
     where
         F: Fn() -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
@@ -43,6 +70,7 @@ impl ScheduleRegistry {
             .lock()
             .expect("schedule registry should be writable")
             .push(ScheduledTask::Interval {
+                name: name.into(),
                 every,
                 task: Arc::new(move || Box::pin(task())),
             });
@@ -53,13 +81,42 @@ impl ScheduleRegistry {
         F: Fn() -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
+        self.after_named(format!("timeout:{after:?}"), after, task);
+    }
+
+    pub fn after_named<F, Fut>(&self, name: impl Into<String>, after: Duration, task: F)
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
         self.tasks
             .lock()
             .expect("schedule registry should be writable")
             .push(ScheduledTask::Timeout {
+                name: name.into(),
                 after,
                 task: Arc::new(move || Box::pin(task())),
             });
+    }
+
+    pub fn jobs(&self) -> Vec<ScheduledJob> {
+        self.tasks
+            .lock()
+            .expect("schedule registry should be readable")
+            .iter()
+            .map(|task| match task {
+                ScheduledTask::Interval { name, every, .. } => ScheduledJob {
+                    name: name.clone(),
+                    kind: ScheduledJobKind::Interval,
+                    delay: *every,
+                },
+                ScheduledTask::Timeout { name, after, .. } => ScheduledJob {
+                    name: name.clone(),
+                    kind: ScheduledJobKind::Timeout,
+                    delay: *after,
+                },
+            })
+            .collect()
     }
 
     pub fn start(&self) {
@@ -79,14 +136,22 @@ impl ScheduleRegistry {
 
         for task in tasks {
             let handle = match task {
-                ScheduledTask::Interval { every, task } => tokio::spawn(async move {
+                ScheduledTask::Interval {
+                    name: _,
+                    every,
+                    task,
+                } => tokio::spawn(async move {
                     let mut interval = tokio::time::interval(every);
                     loop {
                         interval.tick().await;
                         (task)().await;
                     }
                 }),
-                ScheduledTask::Timeout { after, task } => tokio::spawn(async move {
+                ScheduledTask::Timeout {
+                    name: _,
+                    after,
+                    task,
+                } => tokio::spawn(async move {
                     tokio::time::sleep(after).await;
                     (task)().await;
                 }),
@@ -118,6 +183,55 @@ pub fn shutdown_schedules(container: &Container) -> Result<()> {
     Ok(())
 }
 
+#[derive(Default)]
+pub struct ScheduleRegistryBuilder {
+    registry: ScheduleRegistry,
+}
+
+impl ScheduleRegistryBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn every<F, Fut>(self, every: Duration, task: F) -> Self
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.every_named(format!("interval:{every:?}"), every, task)
+    }
+
+    pub fn every_named<F, Fut>(self, name: impl Into<String>, every: Duration, task: F) -> Self
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.registry.every_named(name, every, task);
+        self
+    }
+
+    pub fn after<F, Fut>(self, after: Duration, task: F) -> Self
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.after_named(format!("timeout:{after:?}"), after, task)
+    }
+
+    pub fn after_named<F, Fut>(self, name: impl Into<String>, after: Duration, task: F) -> Self
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.registry.after_named(name, after, task);
+        self
+    }
+
+    pub fn build(self) -> ScheduleRegistry {
+        self.registry
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{
@@ -145,5 +259,29 @@ mod tests {
         registry.shutdown();
 
         assert!(counter.load(Ordering::Relaxed) >= 1);
+    }
+
+    #[test]
+    fn registry_tracks_named_jobs() {
+        let registry = ScheduleRegistry::builder()
+            .every_named("metrics", Duration::from_secs(30), || async {})
+            .after_named("warmup", Duration::from_secs(5), || async {})
+            .build();
+
+        assert_eq!(
+            registry.jobs(),
+            vec![
+                ScheduledJob {
+                    name: "metrics".to_string(),
+                    kind: ScheduledJobKind::Interval,
+                    delay: Duration::from_secs(30),
+                },
+                ScheduledJob {
+                    name: "warmup".to_string(),
+                    kind: ScheduledJobKind::Timeout,
+                    delay: Duration::from_secs(5),
+                },
+            ]
+        );
     }
 }

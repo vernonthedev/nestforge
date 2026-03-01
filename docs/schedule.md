@@ -11,6 +11,7 @@ nestforge = { version = "1", features = ["schedule"] }
 ## Core Pieces
 
 - `ScheduleRegistry`
+- `ScheduleRegistryBuilder`
 - `start_schedules(container)`
 - `shutdown_schedules(container)`
 
@@ -20,11 +21,16 @@ Add `ScheduleRegistry` as a provider, register jobs, and start them with module 
 
 ```rust
 fn build_schedule_registry() -> anyhow::Result<nestforge::ScheduleRegistry> {
-    let registry = nestforge::ScheduleRegistry::new();
-    registry.every(std::time::Duration::from_secs(30), || async {
-        println!("running periodic job");
-    });
-    Ok(registry)
+    Ok(
+        nestforge::ScheduleRegistry::builder()
+            .every_named("metrics", std::time::Duration::from_secs(30), || async {
+                println!("running periodic job");
+            })
+            .after_named("warmup", std::time::Duration::from_secs(5), || async {
+                println!("warming cache");
+            })
+            .build(),
+    )
 }
 
 #[module(
@@ -39,3 +45,19 @@ pub struct AppModule;
 
 - `registry.every(duration, task)` for repeated work
 - `registry.after(duration, task)` for one-shot delayed work
+- `registry.every_named(name, duration, task)` for named repeated work
+- `registry.after_named(name, duration, task)` for named delayed work
+
+## Introspection
+
+You can inspect configured jobs before startup:
+
+```rust
+let jobs = registry.jobs();
+```
+
+Each `ScheduledJob` includes:
+
+- `name`
+- `kind`
+- `delay`

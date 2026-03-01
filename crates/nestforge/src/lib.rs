@@ -204,7 +204,10 @@ pub use nestforge_graphql::{
 #[cfg(feature = "grpc")]
 pub use nestforge_grpc::{prost, tonic, GrpcContext, GrpcServerConfig, NestForgeGrpcFactory};
 #[cfg(feature = "schedule")]
-pub use nestforge_schedule::{shutdown_schedules, start_schedules, ScheduleRegistry};
+pub use nestforge_schedule::{
+    shutdown_schedules, start_schedules, ScheduleRegistry, ScheduleRegistryBuilder,
+    ScheduledJob, ScheduledJobKind,
+};
 #[cfg(feature = "websockets")]
 pub use nestforge_websockets::{
     websocket_gateway_router, websocket_gateway_router_with_config, websocket_router,

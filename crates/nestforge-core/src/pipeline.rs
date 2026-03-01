@@ -14,12 +14,14 @@ use axum::{
 };
 
 use crate::HttpException;
+use crate::AuthIdentity;
 
 #[derive(Clone, Debug)]
 pub struct RequestContext {
     pub method: Method,
     pub uri: Uri,
     pub request_id: Option<String>,
+    pub auth_identity: Option<Arc<AuthIdentity>>,
 }
 
 impl RequestContext {
@@ -28,7 +30,19 @@ impl RequestContext {
             method: req.method().clone(),
             uri: req.uri().clone(),
             request_id: crate::request::request_id_from_extensions(req.extensions()),
+            auth_identity: req.extensions().get::<Arc<AuthIdentity>>().cloned(),
         }
+    }
+
+    pub fn is_authenticated(&self) -> bool {
+        self.auth_identity.is_some()
+    }
+
+    pub fn has_role(&self, role: &str) -> bool {
+        self.auth_identity
+            .as_ref()
+            .map(|identity| identity.has_role(role))
+            .unwrap_or(false)
     }
 }
 

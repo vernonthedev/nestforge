@@ -2,7 +2,7 @@ use std::{ops::Deref, sync::Arc};
 
 use axum::{
     extract::{FromRequest, FromRequestParts, Path, Query as AxumQuery},
-    http::{request::Parts, Extensions},
+    http::{request::Parts, Extensions, HeaderMap},
 };
 use serde::de::DeserializeOwned;
 
@@ -143,6 +143,82 @@ where
             })?;
 
         Ok(Self(value))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Headers(pub HeaderMap);
+
+impl Headers {
+    pub fn get(&self, name: &str) -> Option<&axum::http::HeaderValue> {
+        self.0.get(name)
+    }
+}
+
+impl Deref for Headers {
+    type Target = HeaderMap;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<S> FromRequestParts<S> for Headers
+where
+    S: Send + Sync,
+{
+    type Rejection = HttpException;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(Self(parts.headers.clone()))
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Cookies {
+    values: std::collections::BTreeMap<String, String>,
+}
+
+impl Cookies {
+    pub fn new<I, K, V>(pairs: I) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<String>,
+        V: Into<String>,
+    {
+        Self {
+            values: pairs
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+        }
+    }
+
+    pub fn get(&self, name: &str) -> Option<&str> {
+        self.values.get(name).map(String::as_str)
+    }
+}
+
+impl<S> FromRequestParts<S> for Cookies
+where
+    S: Send + Sync,
+{
+    type Rejection = HttpException;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let mut cookies = std::collections::BTreeMap::new();
+        if let Some(header) = parts.headers.get(axum::http::header::COOKIE) {
+            if let Ok(raw) = header.to_str() {
+                for pair in raw.split(';') {
+                    let trimmed = pair.trim();
+                    if let Some((name, value)) = trimmed.split_once('=') {
+                        cookies.insert(name.trim().to_string(), value.trim().to_string());
+                    }
+                }
+            }
+        }
+
+        Ok(Self { values: cookies })
     }
 }
 

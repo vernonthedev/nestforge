@@ -130,7 +130,10 @@ impl OpenApiDoc {
     }
 }
 
-pub fn docs_router(doc: OpenApiDoc) -> Router {
+pub fn docs_router<S>(doc: OpenApiDoc) -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
     let openapi = doc.to_openapi_json();
     let routes_html = doc
         .routes
@@ -156,7 +159,7 @@ pub fn docs_router(doc: OpenApiDoc) -> Router {
 </html>"#
     );
 
-    Router::new()
+    Router::<S>::new()
         .route(
             "/openapi.json",
             get({

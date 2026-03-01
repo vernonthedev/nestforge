@@ -36,6 +36,7 @@ pub struct NestForgeFactory<M: ModuleDefinition> {
     _marker: std::marker::PhantomData<M>,
     container: Container,
     controllers: Vec<Router<Container>>,
+    extra_routers: Vec<Router<Container>>,
     global_prefix: Option<String>,
     version: Option<String>,
     auth_resolver: Option<Arc<AuthResolver>>,
@@ -55,6 +56,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
             _marker: std::marker::PhantomData,
             container,
             controllers,
+            extra_routers: Vec::new(),
             global_prefix: None,
             version: None,
             auth_resolver: None,
@@ -122,6 +124,11 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    pub fn merge_router(mut self, router: Router<Container>) -> Self {
+        self.extra_routers.push(router);
+        self
+    }
+
     pub fn into_router(self) -> Router {
         /*
         Build a router that EXPECTS Container state.
@@ -134,6 +141,9 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         */
         for controller_router in self.controllers {
             app = app.merge(controller_router);
+        }
+        for extra_router in self.extra_routers {
+            app = app.merge(extra_router);
         }
 
         if let Some(version) = &self.version {

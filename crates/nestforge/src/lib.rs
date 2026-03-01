@@ -6,10 +6,10 @@
 pub use nestforge_core::{
     collect_module_route_docs, initialize_module_graph, register_provider, ApiResult,
     AuthIdentity, AuthUser, BearerToken, Body, Container, ContainerError, ControllerBasePath,
-    ControllerDefinition, DocumentedController, Guard, HttpException, Identifiable, InMemoryStore,
-    Inject, Interceptor, List, ModuleDefinition, ModuleRef, NextFn, NextFuture, OptionHttpExt,
-    Param, Provider, Query, RegisterProvider, RequestContext, RequestId, ResourceError,
-    ResourceService, ResultHttpExt, RouteBuilder, RouteDocumentation,
+    ControllerDefinition, Cookies, DocumentedController, Guard, Headers, HttpException,
+    Identifiable, InMemoryStore, Inject, Interceptor, List, ModuleDefinition, ModuleRef, NextFn,
+    NextFuture, OptionHttpExt, Param, Provider, Query, RegisterProvider, RequestContext,
+    RequestId, ResourceError, ResourceService, ResultHttpExt, RouteBuilder, RouteDocumentation,
     RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors, ValidationIssue,
     framework_log, framework_log_event,
 };
@@ -76,6 +76,55 @@ macro_rules! guard {
 }
 
 #[macro_export]
+macro_rules! auth_guard {
+    ($name:ident) => {
+        #[derive(Default)]
+        pub struct $name;
+
+        impl $crate::Guard for $name {
+            fn can_activate(
+                &self,
+                ctx: &$crate::RequestContext,
+            ) -> Result<(), $crate::HttpException> {
+                if ctx.is_authenticated() {
+                    Ok(())
+                } else {
+                    Err($crate::HttpException::unauthorized("Authentication required"))
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! role_guard {
+    ($name:ident, $role:expr) => {
+        #[derive(Default)]
+        pub struct $name;
+
+        impl $crate::Guard for $name {
+            fn can_activate(
+                &self,
+                ctx: &$crate::RequestContext,
+            ) -> Result<(), $crate::HttpException> {
+                if !ctx.is_authenticated() {
+                    return Err($crate::HttpException::unauthorized("Authentication required"));
+                }
+
+                if ctx.has_role($role) {
+                    Ok(())
+                } else {
+                    Err($crate::HttpException::forbidden(format!(
+                        "Missing required role `{}`",
+                        $role
+                    )))
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! interceptor {
     ($name:ident) => {
         #[derive(Default)]
@@ -132,7 +181,7 @@ pub fn openapi_doc_for_module<M: ModuleDefinition>(
 pub fn openapi_docs_router_for_module<M: ModuleDefinition>(
     title: impl Into<String>,
     version: impl Into<String>,
-) -> anyhow::Result<axum::Router> {
+) -> anyhow::Result<axum::Router<Container>> {
     let doc = openapi_doc_for_module::<M>(title, version)?;
     Ok(docs_router(doc))
 }

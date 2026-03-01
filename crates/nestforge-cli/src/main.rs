@@ -69,11 +69,13 @@ fn main() -> Result<()> {
                 "service" => generate_service_only(name, target_module.as_deref())?,
                 "module" => generate_module(name)?,
                 "guard" => generate_guard_only(name)?,
+                "middleware" => generate_middleware_only(name)?,
                 "interceptor" => generate_interceptor_only(name)?,
                 "graphql" => generate_graphql_resolver_only(name)?,
                 "grpc" => generate_grpc_service_only(name)?,
+                "gateway" => generate_websocket_gateway_only(name)?,
                 _ => bail!(
-                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | interceptor | graphql | grpc",
+                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | middleware | interceptor | graphql | grpc | gateway",
                     kind
                 ),
             }
@@ -101,9 +103,11 @@ fn print_help() {
     println!("  nestforge g resource <name> --module <feature>");
     println!("  nestforge g module <name>");
     println!("  nestforge g guard <name>");
+    println!("  nestforge g middleware <name>");
     println!("  nestforge g interceptor <name>");
     println!("  nestforge g graphql <name>");
     println!("  nestforge g grpc <name>");
+    println!("  nestforge g gateway <name>");
     println!("  nestforge db init");
     println!("  nestforge db generate <name>");
     println!("  nestforge db migrate");
@@ -120,8 +124,10 @@ fn print_help() {
     println!("  nestforge new greeter-service --transport grpc");
     println!("  nestforge new realtime-events --transport websockets");
     println!("  nestforge g resource users");
+    println!("  nestforge g middleware audit");
     println!("  nestforge g graphql users");
     println!("  nestforge g grpc billing");
+    println!("  nestforge g gateway events");
     println!("  nestforge db init");
     println!("  nestforge db generate create_users_table");
 }
@@ -650,6 +656,31 @@ fn generate_guard_only(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn generate_middleware_only(name: &str) -> Result<()> {
+    let app_root = detect_app_root()?;
+    let middleware_name = normalize_resource_name(name);
+    let pascal_middleware = format!("{}Middleware", to_pascal_case(&middleware_name));
+    let middleware_file = app_root
+        .join("src/middleware")
+        .join(format!("{}_middleware.rs", middleware_name));
+
+    if middleware_file.exists() {
+        println!("Middleware already exists: {}", middleware_file.display());
+        return Ok(());
+    }
+
+    fs::create_dir_all(app_root.join("src/middleware"))?;
+    write_file(
+        &middleware_file,
+        &template_middleware_rs(&pascal_middleware),
+    )?;
+    patch_middleware_mod(&app_root, &middleware_name, &pascal_middleware)?;
+    patch_main_mod_decl(&app_root, "middleware")?;
+
+    println!("Generated middleware `{}`", middleware_name);
+    Ok(())
+}
+
 fn generate_interceptor_only(name: &str) -> Result<()> {
     let app_root = detect_app_root()?;
     let interceptor_name = normalize_resource_name(name);
@@ -672,6 +703,33 @@ fn generate_interceptor_only(name: &str) -> Result<()> {
     patch_main_mod_decl(&app_root, "interceptors")?;
 
     println!("Generated interceptor `{}`", interceptor_name);
+    Ok(())
+}
+
+fn generate_websocket_gateway_only(name: &str) -> Result<()> {
+    let app_root = detect_app_root()?;
+    let gateway_name = normalize_resource_name(name);
+    let pascal_gateway = format!("{}Gateway", to_pascal_case(&gateway_name));
+    let gateway_file = app_root
+        .join("src/ws")
+        .join(format!("{}_gateway.rs", gateway_name));
+
+    fs::create_dir_all(app_root.join("src/ws"))?;
+    ensure_ws_mod(&app_root)?;
+
+    if !gateway_file.exists() {
+        write_file(
+            &gateway_file,
+            &template_named_ws_gateway_rs(&pascal_gateway),
+        )?;
+    } else {
+        println!("WebSocket gateway already exists: {}", gateway_file.display());
+    }
+
+    patch_ws_mod(&app_root, &gateway_name, &pascal_gateway)?;
+    patch_main_mod_decl(&app_root, "ws")?;
+
+    println!("Generated WebSocket gateway `{}`", gateway_name);
     Ok(())
 }
 
@@ -959,10 +1017,47 @@ fn patch_interceptors_mod(
     Ok(())
 }
 
+fn patch_middleware_mod(
+    app_root: &Path,
+    middleware_name: &str,
+    pascal_middleware: &str,
+) -> Result<()> {
+    let path = app_root.join("src/middleware/mod.rs");
+    let content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        template_middleware_mod_rs()
+    };
+    let mod_line = format!("pub mod {}_middleware;", middleware_name);
+    let use_line = format!(
+        "pub use {}_middleware::{};",
+        middleware_name, pascal_middleware
+    );
+    let mut next = content;
+
+    if !next.contains(&mod_line) {
+        next.push_str(&format!("\n{}", mod_line));
+    }
+    if !next.contains(&use_line) {
+        next.push_str(&format!("\n{}", use_line));
+    }
+
+    fs::write(path, next)?;
+    Ok(())
+}
+
 fn ensure_graphql_mod(app_root: &Path) -> Result<()> {
     let path = app_root.join("src/graphql/mod.rs");
     if !path.exists() {
         write_file(&path, "pub mod schema;\n")?;
+    }
+    Ok(())
+}
+
+fn ensure_ws_mod(app_root: &Path) -> Result<()> {
+    let path = app_root.join("src/ws/mod.rs");
+    if !path.exists() {
+        write_file(&path, &template_ws_mod_rs())?;
     }
     Ok(())
 }
@@ -977,6 +1072,28 @@ fn patch_graphql_mod(app_root: &Path, resolver_name: &str, pascal_name: &str) ->
 
     let mod_line = format!("pub mod {}_resolver;", resolver_name);
     let use_line = format!("pub use {}_resolver::{}Resolver;", resolver_name, pascal_name);
+
+    if !content.contains(&mod_line) {
+        content.push_str(&format!("\n{}", mod_line));
+    }
+    if !content.contains(&use_line) {
+        content.push_str(&format!("\n{}", use_line));
+    }
+
+    fs::write(path, content)?;
+    Ok(())
+}
+
+fn patch_ws_mod(app_root: &Path, gateway_name: &str, pascal_name: &str) -> Result<()> {
+    let path = app_root.join("src/ws/mod.rs");
+    let mut content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        template_ws_mod_rs()
+    };
+
+    let mod_line = format!("mod {}_gateway;", gateway_name);
+    let use_line = format!("pub use {}_gateway::{};", gateway_name, pascal_name);
 
     if !content.contains(&mod_line) {
         content.push_str(&format!("\n{}", mod_line));
@@ -1464,6 +1581,10 @@ fn template_guards_mod_rs() -> String {
     "/* Guard exports get generated here */\n".to_string()
 }
 
+fn template_middleware_mod_rs() -> String {
+    "/* Middleware exports get generated here */\n".to_string()
+}
+
 fn template_interceptors_mod_rs() -> String {
     "/* Interceptor exports get generated here */\n".to_string()
 }
@@ -1928,9 +2049,44 @@ fn template_guard_rs(pascal_guard: &str) -> String {
     )
 }
 
+fn template_middleware_rs(pascal_middleware: &str) -> String {
+    format!(
+        r#"nestforge::middleware!({pascal_middleware}, |req, next| {{
+    {{
+        println!("{{}} {{}}", req.method(), req.uri().path());
+        (next)(req).await
+    }}
+}});
+"#
+    )
+}
+
 fn template_interceptor_rs(pascal_interceptor: &str) -> String {
     format!(
         r#"nestforge::interceptor!({pascal_interceptor});
+"#
+    )
+}
+
+fn template_named_ws_gateway_rs(pascal_gateway: &str) -> String {
+    format!(
+        r#"use nestforge::{{Message, WebSocket, WebSocketContext, WebSocketGateway}};
+
+pub struct {pascal_gateway};
+
+impl WebSocketGateway for {pascal_gateway} {{
+    fn on_connect(
+        &self,
+        _ctx: WebSocketContext,
+        mut socket: WebSocket,
+    ) -> core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send>> {{
+        Box::pin(async move {{
+            let _ = socket
+                .send(Message::Text("connected".to_string().into()))
+                .await;
+        }})
+    }}
+}}
 "#
     )
 }
@@ -2436,5 +2592,13 @@ mod tests {
             parse_new_transport_arg(&args).expect("transport should parse"),
             AppTransport::Websockets
         ));
+    }
+
+    #[test]
+    fn template_named_ws_gateway_uses_requested_type_name() {
+        let template = template_named_ws_gateway_rs("EventsGateway");
+
+        assert!(template.contains("pub struct EventsGateway;"));
+        assert!(template.contains("impl WebSocketGateway for EventsGateway"));
     }
 }

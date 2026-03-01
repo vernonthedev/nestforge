@@ -16,9 +16,11 @@ nestforge g resource <name>
 nestforge g controller <name>
 nestforge g service <name>
 nestforge g guard <name>
+nestforge g middleware <name>
 nestforge g interceptor <name>
 nestforge g graphql <name>
 nestforge g grpc <name>
+nestforge g gateway <name>
 nestforge db init
 nestforge db generate <name>
 nestforge db migrate
@@ -107,8 +109,11 @@ Generates DTOs, service, controller inside the target module and wires exports/p
 
 ```bash
 nestforge g guard auth
+nestforge g middleware audit
 nestforge g interceptor logging
 ```
+
+`nestforge g middleware <name>` creates `src/middleware/<name>_middleware.rs` plus export wiring in `src/middleware/mod.rs`.
 
 ## GraphQL And gRPC Generators
 
@@ -135,6 +140,17 @@ Creates:
 - `src/grpc/billing_service.rs`
 - `src/grpc/mod.rs` updates for the generated proto package and service export
 - `build.rs` updates so tonic compiles the new proto file
+
+Generate a WebSocket gateway stub:
+
+```bash
+nestforge g gateway events
+```
+
+Creates:
+
+- `src/ws/events_gateway.rs`
+- `src/ws/mod.rs` export wiring
 
 ## DB Commands
 

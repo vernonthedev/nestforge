@@ -75,8 +75,9 @@ fn main() -> Result<()> {
                 "graphql" => generate_graphql_resolver_only(name)?,
                 "grpc" => generate_grpc_service_only(name)?,
                 "gateway" => generate_websocket_gateway_only(name)?,
+                "microservice" => generate_microservice_patterns_only(name)?,
                 _ => bail!(
-                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | filter | middleware | interceptor | graphql | grpc | gateway",
+                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | filter | middleware | interceptor | graphql | grpc | gateway | microservice",
                     kind
                 ),
             }
@@ -110,6 +111,7 @@ fn print_help() {
     println!("  nestforge g graphql <name>");
     println!("  nestforge g grpc <name>");
     println!("  nestforge g gateway <name>");
+    println!("  nestforge g microservice <name>");
     println!("  nestforge db init");
     println!("  nestforge db generate <name>");
     println!("  nestforge db migrate");
@@ -131,6 +133,7 @@ fn print_help() {
     println!("  nestforge g graphql users");
     println!("  nestforge g grpc billing");
     println!("  nestforge g gateway events");
+    println!("  nestforge g microservice users");
     println!("  nestforge db init");
     println!("  nestforge db generate create_users_table");
 }
@@ -825,6 +828,39 @@ fn generate_grpc_service_only(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn generate_microservice_patterns_only(name: &str) -> Result<()> {
+    let app_root = detect_app_root()?;
+    let pattern_name = normalize_resource_name(name);
+    let pascal_name = to_pascal_case(&pattern_name);
+    let patterns_dir = app_root.join("src/microservices");
+    let patterns_file = patterns_dir.join(format!("{}_patterns.rs", pattern_name));
+
+    fs::create_dir_all(&patterns_dir)?;
+    ensure_microservices_mod(&app_root)?;
+
+    if !patterns_file.exists() {
+        write_file(
+            &patterns_file,
+            &template_microservice_patterns_rs(&pattern_name, &pascal_name),
+        )?;
+    } else {
+        println!(
+            "Microservice patterns already exist: {}",
+            patterns_file.display()
+        );
+    }
+
+    patch_microservices_mod(&app_root, &pattern_name, &pascal_name)?;
+    patch_main_mod_decl(&app_root, "microservices")?;
+
+    println!("Generated microservice patterns `{}`", pattern_name);
+    println!(
+        "Next: register `{pascal_name}Patterns::registry()` with your transport adapter or module provider"
+    );
+    println!("Note: enable the `microservices` feature on `nestforge` in Cargo.toml if needed");
+    Ok(())
+}
+
 /* ------------------------------
    FILE GENERATION
 ------------------------------ */
@@ -1113,6 +1149,14 @@ fn ensure_ws_mod(app_root: &Path) -> Result<()> {
     Ok(())
 }
 
+fn ensure_microservices_mod(app_root: &Path) -> Result<()> {
+    let path = app_root.join("src/microservices/mod.rs");
+    if !path.exists() {
+        write_file(&path, &template_microservices_mod_rs())?;
+    }
+    Ok(())
+}
+
 fn patch_graphql_mod(app_root: &Path, resolver_name: &str, pascal_name: &str) -> Result<()> {
     let path = app_root.join("src/graphql/mod.rs");
     let mut content = if path.exists() {
@@ -1145,6 +1189,31 @@ fn patch_ws_mod(app_root: &Path, gateway_name: &str, pascal_name: &str) -> Resul
 
     let mod_line = format!("mod {}_gateway;", gateway_name);
     let use_line = format!("pub use {}_gateway::{};", gateway_name, pascal_name);
+
+    if !content.contains(&mod_line) {
+        content.push_str(&format!("\n{}", mod_line));
+    }
+    if !content.contains(&use_line) {
+        content.push_str(&format!("\n{}", use_line));
+    }
+
+    fs::write(path, content)?;
+    Ok(())
+}
+
+fn patch_microservices_mod(app_root: &Path, pattern_name: &str, pascal_name: &str) -> Result<()> {
+    let path = app_root.join("src/microservices/mod.rs");
+    let mut content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        template_microservices_mod_rs()
+    };
+
+    let mod_line = format!("pub mod {}_patterns;", pattern_name);
+    let use_line = format!(
+        "pub use {}_patterns::{}Patterns;",
+        pattern_name, pascal_name
+    );
 
     if !content.contains(&mod_line) {
         content.push_str(&format!("\n{}", mod_line));
@@ -1843,6 +1912,10 @@ pub use events_gateway::EventsGateway;
     .to_string()
 }
 
+fn template_microservices_mod_rs() -> String {
+    "/* Microservice pattern exports get generated here */\n".to_string()
+}
+
 fn template_ws_gateway_rs() -> String {
     r#"use crate::services::AppConfig;
 use nestforge::{Message, WebSocket, WebSocketContext, WebSocketGateway};
@@ -2158,6 +2231,35 @@ impl WebSocketGateway for {pascal_gateway} {{
                 .send(Message::Text("connected".to_string().into()))
                 .await;
         }})
+    }}
+}}
+"#
+    )
+}
+
+fn template_microservice_patterns_rs(pattern_name: &str, pascal_name: &str) -> String {
+    format!(
+        r#"use nestforge::{{MicroserviceRegistry, TransportMetadata}};
+
+pub struct {pascal_name}Patterns;
+
+impl {pascal_name}Patterns {{
+    pub fn registry() -> MicroserviceRegistry {{
+        MicroserviceRegistry::builder()
+            .message("{pattern_name}.ping", |_payload: (), ctx| async move {{
+                Ok(serde_json::json!({{
+                    "pattern": ctx.pattern(),
+                    "transport": ctx.transport(),
+                }}))
+            }})
+            .event("{pattern_name}.created", |_payload: serde_json::Value, _ctx| async move {{
+                Ok(())
+            }})
+            .build()
+    }}
+
+    pub fn metadata() -> TransportMetadata {{
+        TransportMetadata::new().insert("module", "{pattern_name}")
     }}
 }}
 "#
@@ -2611,7 +2713,8 @@ fn contains_sql_content(sql: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        compute_content_hash, contains_sql_content, parse_new_transport_arg, AppTransport,
+        compute_content_hash, contains_sql_content, parse_new_transport_arg,
+        template_microservice_patterns_rs, AppTransport,
     };
 
     #[test]
@@ -2665,6 +2768,15 @@ mod tests {
             parse_new_transport_arg(&args).expect("transport should parse"),
             AppTransport::Websockets
         ));
+    }
+
+    #[test]
+    fn template_microservice_patterns_uses_requested_type_name() {
+        let template = template_microservice_patterns_rs("users", "Users");
+
+        assert!(template.contains("pub struct UsersPatterns;"));
+        assert!(template.contains(".message(\"users.ping\""));
+        assert!(template.contains(".event(\"users.created\""));
     }
 
     #[test]

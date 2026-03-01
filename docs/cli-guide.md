@@ -22,6 +22,7 @@ nestforge g interceptor <name>
 nestforge g graphql <name>
 nestforge g grpc <name>
 nestforge g gateway <name>
+nestforge g microservice <name>
 nestforge db init
 nestforge db generate <name>
 nestforge db migrate
@@ -119,7 +120,7 @@ nestforge g interceptor logging
 
 `nestforge g middleware <name>` creates `src/middleware/<name>_middleware.rs` plus export wiring in `src/middleware/mod.rs`.
 
-## GraphQL And gRPC Generators
+## GraphQL, gRPC, And Messaging Generators
 
 Generate a GraphQL resolver stub:
 
@@ -155,6 +156,19 @@ Creates:
 
 - `src/ws/events_gateway.rs`
 - `src/ws/mod.rs` export wiring
+
+Generate a microservice pattern registry stub:
+
+```bash
+nestforge g microservice users
+```
+
+Creates:
+
+- `src/microservices/users_patterns.rs`
+- `src/microservices/mod.rs` export wiring
+
+The generated stub expects the `microservices` feature to be enabled on `nestforge`.
 
 ## DB Commands
 
@@ -204,3 +218,4 @@ Shows `applied`, `pending`, and `drift` migration status.
 - Use `--module <feature>` to generate inside a feature module.
 - GraphQL and gRPC app templates still include `APP_NAME` and an optional `DATABASE_URL` placeholder in `.env`.
 - The gRPC template expects `protoc` to be available when you build the generated app.
+- The microservice generator expects the `microservices` feature to be enabled in the target app.

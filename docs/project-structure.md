@@ -23,6 +23,7 @@
 - `crates/nestforge-openapi`: OpenAPI support surface
 - `crates/nestforge-graphql`: GraphQL support surface
 - `crates/nestforge-grpc`: gRPC transport support surface
+- `crates/nestforge-websockets`: WebSocket gateway support surface
 - `crates/nestforge-testing`: testing module factory and provider overrides
 
 ## Example App
@@ -47,3 +48,10 @@
 - tonic code generation from `proto/`
 - a transport-focused `build.rs`
 - provider resolution inside a tonic service via `GrpcContext`
+
+`examples/hello-nestforge-websockets` shows a WebSocket-first structure:
+
+- minimal module bootstrap with config
+- gateway mounting through `NestForgeFactoryWebSocketExt`
+- WebSocket route at `/ws`
+- provider resolution inside a gateway via `WebSocketContext`

@@ -1,0 +1,11 @@
+[package]
+name = "hello-nestforge-websockets"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+
+[dependencies]
+nestforge = { path = "../../crates/nestforge", features = ["config", "websockets"] }
+tokio = { workspace = true }
+anyhow = { workspace = true }

@@ -10,7 +10,7 @@ cargo install --path crates/nestforge-cli
 
 ```text
 nestforge new <app-name>
-nestforge new <app-name> --transport <http|graphql|grpc>
+nestforge new <app-name> --transport <http|graphql|grpc|websockets>
 nestforge g module <name>
 nestforge g resource <name>
 nestforge g controller <name>
@@ -67,6 +67,18 @@ Creates:
 - `build.rs` for tonic code generation
 - `src/grpc/service.rs`
 - gRPC bootstrap in `main.rs`
+
+Generate a WebSocket-first app:
+
+```bash
+nestforge new demo-events --transport websockets
+```
+
+Creates:
+
+- `src/ws/events_gateway.rs`
+- `src/ws/mod.rs`
+- WebSocket bootstrap in `main.rs`
 
 ### Module
 

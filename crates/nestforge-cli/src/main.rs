@@ -14,6 +14,7 @@ enum AppTransport {
     Http,
     Graphql,
     Grpc,
+    Websockets,
 }
 
 impl AppTransport {
@@ -22,7 +23,8 @@ impl AppTransport {
             "http" => Ok(Self::Http),
             "graphql" => Ok(Self::Graphql),
             "grpc" => Ok(Self::Grpc),
-            _ => bail!("Unknown transport `{value}`. Use: http | graphql | grpc"),
+            "websockets" | "ws" => Ok(Self::Websockets),
+            _ => bail!("Unknown transport `{value}`. Use: http | graphql | grpc | websockets"),
         }
     }
 
@@ -31,6 +33,7 @@ impl AppTransport {
             Self::Http => "HTTP",
             Self::Graphql => "GraphQL",
             Self::Grpc => "gRPC",
+            Self::Websockets => "WebSocket",
         }
     }
 }
@@ -91,7 +94,7 @@ fn print_help() {
     println!();
     println!("Usage:");
     println!("  nestforge new <app-name>");
-    println!("  nestforge new <app-name> --transport <http|graphql|grpc>");
+    println!("  nestforge new <app-name> --transport <http|graphql|grpc|websockets>");
     println!("  nestforge g resource <name>");
     println!("  nestforge g controller <name>");
     println!("  nestforge g service <name>");
@@ -115,6 +118,7 @@ fn print_help() {
     println!("  nestforge new care-api");
     println!("  nestforge new catalog-api --transport graphql");
     println!("  nestforge new greeter-service --transport grpc");
+    println!("  nestforge new realtime-events --transport websockets");
     println!("  nestforge g resource users");
     println!("  nestforge g graphql users");
     println!("  nestforge g grpc billing");
@@ -240,6 +244,14 @@ fn scaffold_transport_files(app_dir: &Path, transport: AppTransport) -> Result<(
             write_file(
                 &app_dir.join("src/grpc/service.rs"),
                 &template_grpc_service_rs(),
+            )?;
+        }
+        AppTransport::Websockets => {
+            fs::create_dir_all(app_dir.join("src/ws"))?;
+            write_file(&app_dir.join("src/ws/mod.rs"), &template_ws_mod_rs())?;
+            write_file(
+                &app_dir.join("src/ws/events_gateway.rs"),
+                &template_ws_gateway_rs(),
             )?;
         }
     }
@@ -1189,7 +1201,7 @@ fn parse_new_transport_arg(args: &[String]) -> Result<AppTransport> {
         return AppTransport::parse(&args[1]);
     }
 
-    bail!("Invalid new app options. Use: nestforge new <app-name> --transport <http|graphql|grpc>")
+    bail!("Invalid new app options. Use: nestforge new <app-name> --transport <http|graphql|grpc|websockets>")
 }
 
 fn resolve_nestforge_dependency_line(transport: AppTransport) -> String {
@@ -1198,6 +1210,7 @@ fn resolve_nestforge_dependency_line(transport: AppTransport) -> String {
         AppTransport::Http => "\"config\"",
         AppTransport::Graphql => "\"config\", \"graphql\"",
         AppTransport::Grpc => "\"config\", \"grpc\"",
+        AppTransport::Websockets => "\"config\", \"websockets\"",
     };
     let local_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -1239,6 +1252,9 @@ fn template_app_cargo_toml(
         }
         AppTransport::Grpc => {
             "tokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\ntonic = { version = \"0.12\", features = [\"transport\"] }\nprost = \"0.13\"\n"
+        }
+        AppTransport::Websockets => {
+            "tokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
         }
     };
 
@@ -1348,9 +1364,32 @@ async fn main() -> anyhow::Result<()> {
     bootstrap().await
 }
 "#
-        .to_string(),
-    }
+          .to_string(),
+        AppTransport::Websockets => r#"mod app_module;
+mod services;
+mod ws;
+
+use app_module::AppModule;
+use nestforge::{NestForgeFactory, NestForgeFactoryWebSocketExt};
+use ws::EventsGateway;
+
+const PORT: u16 = 3000;
+
+async fn bootstrap() -> anyhow::Result<()> {
+    NestForgeFactory::<AppModule>::create()?
+        .with_websocket_gateway(EventsGateway)
+        .listen(PORT)
+        .await
 }
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    bootstrap().await
+}
+"#
+        .to_string(),
+      }
+  }
 
 fn template_app_module_rs(transport: AppTransport) -> String {
     match transport {
@@ -1383,7 +1422,7 @@ fn load_app_config() -> anyhow::Result<AppConfig> {
 pub struct AppModule;
 "#
         .to_string(),
-        AppTransport::Graphql | AppTransport::Grpc => r#"use nestforge::{module, ConfigModule, ConfigOptions};
+        AppTransport::Graphql | AppTransport::Grpc | AppTransport::Websockets => r#"use nestforge::{module, ConfigModule, ConfigOptions};
 
 use crate::services::AppConfig;
 
@@ -1474,6 +1513,7 @@ fn template_app_config_rs(transport: AppTransport) -> String {
         AppTransport::Http => "NestForge HTTP",
         AppTransport::Graphql => "NestForge GraphQL",
         AppTransport::Grpc => "NestForge gRPC",
+        AppTransport::Websockets => "NestForge WebSockets",
     };
 
     format!(
@@ -1619,6 +1659,57 @@ pub struct GreeterGrpcService {
     ctx: GrpcContext,
 }
 
+fn template_ws_mod_rs() -> String {
+    r#"mod events_gateway;
+
+pub use events_gateway::EventsGateway;
+"#
+    .to_string()
+}
+
+fn template_ws_gateway_rs() -> String {
+    r#"use crate::services::AppConfig;
+use nestforge::{Message, WebSocket, WebSocketContext, WebSocketGateway};
+
+pub struct EventsGateway;
+
+impl WebSocketGateway for EventsGateway {
+    fn on_connect(
+        &self,
+        ctx: WebSocketContext,
+        mut socket: WebSocket,
+    ) -> core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send>> {
+        Box::pin(async move {
+            let app_name = ctx
+                .resolve::<AppConfig>()
+                .map(|config| config.app_name.clone())
+                .unwrap_or_else(|_| "NestForge WebSockets".to_string());
+
+            let _ = socket
+                .send(Message::Text(format!("connected:{app_name}").into()))
+                .await;
+
+            while let Some(Ok(message)) = socket.recv().await {
+                match message {
+                    Message::Text(text) => {
+                        let _ = socket
+                            .send(Message::Text(format!("echo:{text}").into()))
+                            .await;
+                    }
+                    Message::Binary(bytes) => {
+                        let _ = socket.send(Message::Binary(bytes)).await;
+                    }
+                    Message::Close(_) => break,
+                    _ => {}
+                }
+            }
+        })
+    }
+}
+"#
+    .to_string()
+}
+
 impl GreeterGrpcService {
     pub fn new(ctx: GrpcContext) -> Self {
         Self { ctx }
@@ -1698,6 +1789,7 @@ fn template_env_file(app_name: &str, transport: AppTransport) -> String {
         AppTransport::Http => "# Generated for a NestForge HTTP app.\n",
         AppTransport::Graphql => "# Generated for a NestForge GraphQL app.\n",
         AppTransport::Grpc => "# Generated for a NestForge gRPC app.\n",
+        AppTransport::Websockets => "# Generated for a NestForge WebSocket app.\n",
     };
 
     format!(
@@ -2333,6 +2425,16 @@ mod tests {
         assert!(matches!(
             parse_new_transport_arg(&args).expect("transport should parse"),
             AppTransport::Graphql
+        ));
+    }
+
+    #[test]
+    fn parse_new_transport_accepts_websockets() {
+        let args = vec!["--transport".to_string(), "websockets".to_string()];
+
+        assert!(matches!(
+            parse_new_transport_arg(&args).expect("transport should parse"),
+            AppTransport::Websockets
         ));
     }
 }

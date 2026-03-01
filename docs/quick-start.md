@@ -44,12 +44,24 @@ Create a gRPC-first app:
 nestforge new demo-grpc --transport grpc
 ```
 
+Create a WebSocket-first app:
+
+```bash
+nestforge new demo-events --transport websockets
+```
+
 The generated GraphQL app mounts `/graphql` and GraphiQL at `/`.
 
 The generated gRPC app listens on:
 
 ```text
 127.0.0.1:50051
+```
+
+The generated WebSocket app mounts:
+
+```text
+/ws
 ```
 
 ## Generate Code

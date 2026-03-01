@@ -165,6 +165,8 @@ pub use nestforge_openapi::{docs_router, OpenApiDoc, OpenApiRoute};
 pub use nestforge_graphql::{
     async_graphql, graphql_router, graphql_router_with_config, GraphQlConfig, GraphQlSchema,
 };
+#[cfg(feature = "grpc")]
+pub use nestforge_grpc::{prost, tonic, GrpcContext, GrpcServerConfig, NestForgeGrpcFactory};
 #[cfg(feature = "orm")]
 pub use nestforge_orm::{EntityMeta, OrmError, Repo, RepoFuture, SqlRepo, SqlRepoBuilder};
 #[cfg(feature = "redis")]

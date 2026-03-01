@@ -10,14 +10,15 @@ This folder explains how NestForge works with simple language and practical exam
 4. [Guards And Interceptors](guards-interceptors.md)
 5. [Auth And OpenAPI](auth-openapi.md)
 6. [GraphQL](graphql.md)
-7. [Config Module](config-module.md)
-8. [Resource Service Patterns](resource-service-patterns.md)
-9. [Macros](macros.md)
-10. [CLI Guide](cli-guide.md)
-11. [Project Structure](project-structure.md)
-12. [Example App Walkthrough](example-app.md)
-13. [Example API Endpoints](example-api.md)
-14. [File Map](file-map.md)
+7. [gRPC](grpc.md)
+8. [Config Module](config-module.md)
+9. [Resource Service Patterns](resource-service-patterns.md)
+10. [Macros](macros.md)
+11. [CLI Guide](cli-guide.md)
+12. [Project Structure](project-structure.md)
+13. [Example App Walkthrough](example-app.md)
+14. [Example API Endpoints](example-api.md)
+15. [File Map](file-map.md)
 
 ## Who This Is For
 

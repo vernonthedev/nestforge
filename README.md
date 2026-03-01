@@ -31,6 +31,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - Global prefix support (`.with_global_prefix("api")`)
 - Generated OpenAPI docs from controller metadata with runtime mounting helpers
 - Optional GraphQL support through a dedicated `nestforge-graphql` crate and factory helpers
+- Optional gRPC transport support through a dedicated `nestforge-grpc` crate
 - Config module with env loading and schema validation
 - Data layer crates (`nestforge-db`, `nestforge-orm`, `nestforge-data`)
 - CLI for scaffolding, generators, DB migrations, docs skeleton, formatting
@@ -162,6 +163,24 @@ let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish()
 NestForgeFactory::<AppModule>::create()?
     .with_graphql(schema)
     .listen(3000)
+    .await?;
+```
+
+## Optional gRPC Setup
+
+Enable the `grpc` feature and bootstrap a gRPC transport with the dedicated factory:
+
+```rust
+use nestforge::NestForgeGrpcFactory;
+
+NestForgeGrpcFactory::<AppModule>::create()?
+    .with_addr("127.0.0.1:50051")
+    .listen_with(|ctx, addr| async move {
+        tonic::transport::Server::builder()
+            // .add_service(MyGeneratedServer::new(MyGrpcService::new(ctx)))
+            .serve(addr)
+            .await
+    })
     .await?;
 ```
 

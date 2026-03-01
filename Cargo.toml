@@ -13,6 +13,7 @@ members = [
   "crates/nestforge-config",
   "crates/nestforge-openapi",
   "crates/nestforge-graphql",
+  "crates/nestforge-grpc",
   "crates/nestforge-data",
   "crates/nestforge-mongo",
   "crates/nestforge-redis",
@@ -42,5 +43,7 @@ tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors"] }
 async-graphql = "7"
 async-graphql-axum = "7"
+tonic = { version = "0.12", features = ["transport"] }
+prost = "0.13"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "any", "postgres", "mysql", "sqlite"] }
 

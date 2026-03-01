@@ -7,6 +7,7 @@
 - [Guards and Interceptors](guards-interceptors)
 - [Auth and OpenAPI](auth-openapi)
 - [GraphQL](graphql)
+- [gRPC](grpc)
 - [Config Module](config-module)
 - [Resource Service Patterns](resource-service-patterns)
 - [Macros](macros)

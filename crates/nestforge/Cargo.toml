@@ -20,6 +20,7 @@ nestforge-orm = { version = "1.1.0", path = "../nestforge-orm", optional = true 
 nestforge-config = { version = "1.1.0", path = "../nestforge-config", optional = true }
 nestforge-openapi = { version = "1.1.0", path = "../nestforge-openapi", optional = true }
 nestforge-graphql = { version = "1.1.0", path = "../nestforge-graphql", optional = true }
+nestforge-grpc = { version = "1.1.0", path = "../nestforge-grpc", optional = true }
 nestforge-data = { version = "1.1.0", path = "../nestforge-data", optional = true }
 nestforge-mongo = { version = "1.1.0", path = "../nestforge-mongo", optional = true }
 nestforge-redis = { version = "1.1.0", path = "../nestforge-redis", optional = true }
@@ -34,6 +35,7 @@ orm = ["dep:nestforge-orm", "db"]
 config = ["dep:nestforge-config"]
 openapi = ["dep:nestforge-openapi"]
 graphql = ["dep:nestforge-graphql"]
+grpc = ["dep:nestforge-grpc"]
 data = ["dep:nestforge-data"]
 mongo = ["dep:nestforge-mongo", "data"]
 redis = ["dep:nestforge-redis", "data"]

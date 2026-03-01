@@ -36,6 +36,24 @@ let app = NestForgeFactory::<AppModule>::create()?
 
 `for_routes(["/users"])` matches `/users` and nested paths like `/users/1`.
 
+You can also target specific HTTP methods:
+
+```rust
+use axum::http::Method;
+use nestforge::MiddlewareRoute;
+
+let app = NestForgeFactory::<AppModule>::create()?
+    .configure_middleware(|consumer: &mut MiddlewareConsumer| {
+        consumer
+            .apply::<AdminAuditMiddleware>()
+            .for_routes([MiddlewareRoute::get("/admin")]);
+
+        consumer
+            .apply::<WriteAuditMiddleware>()
+            .for_routes([MiddlewareRoute::methods("/users", [Method::POST, Method::PUT])]);
+    });
+```
+
 ## Why This Exists
 
 This fills the Nest-style gap between global app middleware and route-level guards/interceptors:

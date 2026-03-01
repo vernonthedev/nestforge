@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{body::Body, extract::Request, response::Response};
+use axum::{body::Body, extract::Request, http::Method, response::Response};
 use nestforge_core::{framework_log_event, NextFn, NextFuture};
 
 pub trait NestMiddleware: Send + Sync + 'static {
@@ -14,20 +14,24 @@ pub struct MiddlewareBinding {
 }
 
 impl MiddlewareBinding {
-    fn matches(&self, path: &str) -> bool {
-        self.matcher.matches(path)
+    fn matches(&self, method: &Method, path: &str) -> bool {
+        self.matcher.matches(method, path)
     }
 }
 
 #[derive(Clone, Default)]
 struct RouteMatcher {
-    include: Vec<String>,
-    exclude: Vec<String>,
+    include: Vec<MiddlewareRoute>,
+    exclude: Vec<MiddlewareRoute>,
 }
 
 impl RouteMatcher {
-    fn matches(&self, path: &str) -> bool {
-        if self.exclude.iter().any(|prefix| path_matches_prefix(path, prefix)) {
+    fn matches(&self, method: &Method, path: &str) -> bool {
+        if self
+            .exclude
+            .iter()
+            .any(|route| route.matches(method, path))
+        {
             return false;
         }
 
@@ -37,7 +41,71 @@ impl RouteMatcher {
 
         self.include
             .iter()
-            .any(|prefix| path_matches_prefix(path, prefix))
+            .any(|route| route.matches(method, path))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MiddlewareRoute {
+    path: String,
+    methods: Option<Vec<Method>>,
+}
+
+impl MiddlewareRoute {
+    pub fn path(path: impl Into<String>) -> Self {
+        Self {
+            path: normalize_path(path.into()),
+            methods: None,
+        }
+    }
+
+    pub fn methods<I>(path: impl Into<String>, methods: I) -> Self
+    where
+        I: IntoIterator<Item = Method>,
+    {
+        Self {
+            path: normalize_path(path.into()),
+            methods: Some(methods.into_iter().collect()),
+        }
+    }
+
+    pub fn get(path: impl Into<String>) -> Self {
+        Self::methods(path, [Method::GET])
+    }
+
+    pub fn post(path: impl Into<String>) -> Self {
+        Self::methods(path, [Method::POST])
+    }
+
+    pub fn put(path: impl Into<String>) -> Self {
+        Self::methods(path, [Method::PUT])
+    }
+
+    pub fn delete(path: impl Into<String>) -> Self {
+        Self::methods(path, [Method::DELETE])
+    }
+
+    fn matches(&self, method: &Method, path: &str) -> bool {
+        if !path_matches_prefix(path, &self.path) {
+            return false;
+        }
+
+        match &self.methods {
+            Some(methods) => methods.iter().any(|candidate| candidate == method),
+            None => true,
+        }
+    }
+}
+
+impl From<&str> for MiddlewareRoute {
+    fn from(value: &str) -> Self {
+        Self::path(value)
+    }
+}
+
+impl From<String> for MiddlewareRoute {
+    fn from(value: String) -> Self {
+        Self::path(value)
     }
 }
 
@@ -73,7 +141,7 @@ impl MiddlewareConsumer {
 pub struct MiddlewareBindingBuilder<'a> {
     consumer: &'a mut MiddlewareConsumer,
     middleware: Arc<dyn NestMiddleware>,
-    exclude: Vec<String>,
+    exclude: Vec<MiddlewareRoute>,
 }
 
 impl<'a> MiddlewareBindingBuilder<'a> {
@@ -88,9 +156,9 @@ impl<'a> MiddlewareBindingBuilder<'a> {
     pub fn exclude<I, S>(mut self, routes: I) -> Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: Into<MiddlewareRoute>,
     {
-        self.exclude = routes.into_iter().map(|route| normalize_path(route.into())).collect();
+        self.exclude = routes.into_iter().map(Into::into).collect();
         self
     }
 
@@ -101,13 +169,13 @@ impl<'a> MiddlewareBindingBuilder<'a> {
     pub fn for_routes<I, S>(self, routes: I) -> &'a mut MiddlewareConsumer
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: Into<MiddlewareRoute>,
     {
-        let include = routes.into_iter().map(|route| normalize_path(route.into())).collect();
+        let include = routes.into_iter().map(Into::into).collect();
         self.register(include)
     }
 
-    fn register(self, include: Vec<String>) -> &'a mut MiddlewareConsumer {
+    fn register(self, include: Vec<MiddlewareRoute>) -> &'a mut MiddlewareConsumer {
         framework_log_event(
             "middleware_register",
             &[("include", format!("{include:?}")), ("exclude", format!("{:?}", self.exclude))],
@@ -134,7 +202,7 @@ pub fn run_middleware_chain(
     }
 
     let binding = middlewares[index].clone();
-    if !binding.matches(req.uri().path()) {
+    if !binding.matches(req.method(), req.uri().path()) {
         return run_middleware_chain(middlewares, index + 1, req, terminal);
     }
 
@@ -175,18 +243,20 @@ fn path_matches_prefix(path: &str, prefix: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_path, path_matches_prefix, RouteMatcher};
+    use axum::http::Method;
+
+    use super::{normalize_path, path_matches_prefix, MiddlewareRoute, RouteMatcher};
 
     #[test]
     fn matcher_supports_prefix_matching_and_excludes() {
         let matcher = RouteMatcher {
-            include: vec!["/api".to_string()],
-            exclude: vec!["/api/health".to_string()],
+            include: vec![MiddlewareRoute::path("/api")],
+            exclude: vec![MiddlewareRoute::path("/api/health")],
         };
 
-        assert!(matcher.matches("/api/users"));
-        assert!(!matcher.matches("/api/health"));
-        assert!(!matcher.matches("/admin"));
+        assert!(matcher.matches(&Method::GET, "/api/users"));
+        assert!(!matcher.matches(&Method::GET, "/api/health"));
+        assert!(!matcher.matches(&Method::GET, "/admin"));
     }
 
     #[test]
@@ -201,5 +271,16 @@ mod tests {
         assert!(path_matches_prefix("/users/1", "/users"));
         assert!(path_matches_prefix("/users", "/users"));
         assert!(!path_matches_prefix("/users-list", "/users"));
+    }
+
+    #[test]
+    fn matcher_can_target_specific_http_methods() {
+        let matcher = RouteMatcher {
+            include: vec![MiddlewareRoute::get("/admin")],
+            exclude: Vec::new(),
+        };
+
+        assert!(matcher.matches(&Method::GET, "/admin/users"));
+        assert!(!matcher.matches(&Method::POST, "/admin/users"));
     }
 }

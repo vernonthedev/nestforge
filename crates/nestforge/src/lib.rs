@@ -29,7 +29,7 @@ pub use nestforge_cache::{cached_response_interceptor, CacheInterceptor, CachePo
 #[cfg(feature = "db")]
 pub use nestforge_db::{Db, DbConfig, DbError, DbTransaction};
 pub use nestforge_http::NestForgeFactory;
-pub use nestforge_http::{MiddlewareConsumer, NestMiddleware};
+pub use nestforge_http::{MiddlewareConsumer, MiddlewareRoute, NestMiddleware};
 pub use nestforge_macros::{
     authenticated, controller, delete, description, dto, entity, entity_dto, get, id,
     identifiable, module, post, put, response, response_dto, roles, routes, summary, tag,

@@ -54,6 +54,8 @@ let count: usize = client.send("users.count", ()).await?;
 client.emit("users.created", CreateUserEvent { user_id: 7 }).await?;
 ```
 
+The `hello-nestforge-microservices` example shows this flow end to end with a DI-backed registry and client.
+
 ## Context
 
 `MicroserviceContext` exposes:

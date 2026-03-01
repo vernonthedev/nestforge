@@ -6,6 +6,7 @@ members = [
   "examples/hello-nestforge",
   "examples/hello-nestforge-graphql",
   "examples/hello-nestforge-grpc",
+  "examples/hello-nestforge-microservices",
   "examples/hello-nestforge-websockets",
   "crates/nestforge-macros", 
   "crates/nestforge-cli",

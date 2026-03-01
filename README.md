@@ -100,8 +100,8 @@ http://127.0.0.1:3000
 
 NestForge now uses a Rust-native release flow based on `release-plz`.
 
-- Pushes to `main` update or open a release PR with the next crate versions.
-- Merging that release PR publishes the changed crates to crates.io in dependency order.
+- Pushes to `main` run the release job directly against the workspace manifest.
+- Changed crates are versioned, tagged, released on GitHub, and published to crates.io in dependency order.
 - The primary published changelog is updated at `crates/nestforge/CHANGELOG.md`, so conventional commits remain the source for changelog entries.
 
 Repository setup required for publishing:

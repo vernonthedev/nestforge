@@ -2,8 +2,6 @@
 allow_dirty = false
 changelog_update = true
 dependencies_update = true
-pr_name = "chore: release"
-pr_labels = ["release"]
 release_commits = "^(feat|fix|perf|refactor|docs|chore)(\\(.+\\))?:"
 semver_check = false
 git_release_enable = false

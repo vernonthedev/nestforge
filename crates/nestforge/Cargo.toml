@@ -28,6 +28,7 @@ nestforge-cache = { version = "1.1.0", path = "../nestforge-cache", optional = t
 nestforge-microservices = { version = "1.1.0", path = "../nestforge-microservices", optional = true }
 nestforge-mongo = { version = "1.1.0", path = "../nestforge-mongo", optional = true }
 nestforge-redis = { version = "1.1.0", path = "../nestforge-redis", optional = true }
+axum = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 
@@ -49,7 +50,6 @@ mongo = ["dep:nestforge-mongo", "data"]
 redis = ["dep:nestforge-redis", "data"]
 
 [dev-dependencies]
-axum = { workspace = true }
 serde = { workspace = true }
 tower = { workspace = true }
 serde_json = { workspace = true }

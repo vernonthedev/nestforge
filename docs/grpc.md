@@ -72,6 +72,8 @@ let response = nestforge::dispatch_grpc_message(
 
 `dispatch_grpc_event(...)` is also available for fire-and-forget patterns.
 
+The `hello-nestforge-grpc` example now routes `say_hello` through this adapter with the `hello.say` pattern.
+
 ## Codegen Setup
 
 The gRPC-first example uses a standard tonic build pipeline:

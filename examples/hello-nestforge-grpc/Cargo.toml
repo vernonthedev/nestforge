@@ -7,7 +7,7 @@ publish = false
 build = "build.rs"
 
 [dependencies]
-nestforge = { path = "../../crates/nestforge", features = ["config", "grpc"] }
+nestforge = { path = "../../crates/nestforge", features = ["config", "grpc", "microservices"] }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 

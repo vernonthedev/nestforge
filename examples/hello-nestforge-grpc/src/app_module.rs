@@ -1,6 +1,7 @@
 use nestforge::{module, ConfigModule, ConfigOptions};
 
 use crate::app_config::AppConfig;
+use crate::grpc::GrpcPatterns;
 
 fn load_app_config() -> anyhow::Result<AppConfig> {
     let schema = nestforge::EnvSchema::new().min_len("APP_NAME", 2);
@@ -10,10 +11,14 @@ fn load_app_config() -> anyhow::Result<AppConfig> {
     )?)
 }
 
+fn load_grpc_patterns() -> anyhow::Result<GrpcPatterns> {
+    Ok(GrpcPatterns::new())
+}
+
 #[module(
     imports = [],
     controllers = [],
-    providers = [load_app_config()?],
-    exports = [AppConfig]
+    providers = [load_app_config()?, load_grpc_patterns()?],
+    exports = [AppConfig, GrpcPatterns]
 )]
 pub struct AppModule;

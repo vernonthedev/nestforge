@@ -1,13 +1,14 @@
 use nestforge::{
+    dispatch_grpc_message,
     tonic::{Request, Response, Status},
-    GrpcContext,
+    GrpcContext, TransportMetadata,
 };
 
 use crate::{
-    app_config::AppConfig,
     grpc::proto::hello::{
         greeter_server::Greeter, HelloReply, HelloRequest,
     },
+    grpc::GrpcPatterns,
 };
 
 #[derive(Clone)]
@@ -32,9 +33,21 @@ impl Greeter for GreeterGrpcService {
             return Err(Status::invalid_argument("name is required"));
         }
 
-        let config = self.ctx.resolve::<AppConfig>()?;
+        let patterns = self.ctx.resolve::<GrpcPatterns>()?;
+        let payload = dispatch_grpc_message(
+            &self.ctx,
+            patterns.registry(),
+            "hello.say",
+            name,
+            TransportMetadata::new().insert("service", "greeter"),
+        )
+        .await?;
+        let message = payload
+            .get("message")
+            .and_then(|value| value.as_str())
+            .ok_or_else(|| Status::internal("missing `message` in microservice payload"))?;
         let reply = HelloReply {
-            message: format!("Hello, {name}! Welcome to {}.", config.app_name),
+            message: message.to_string(),
         };
 
         Ok(Response::new(reply))

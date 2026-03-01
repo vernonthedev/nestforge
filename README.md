@@ -113,6 +113,8 @@ nestforge g module users
 nestforge g resource users --module users
 nestforge g guard auth
 nestforge g interceptor logging
+nestforge g graphql users
+nestforge g grpc billing
 ```
 
 DB commands:

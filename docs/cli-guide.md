@@ -17,6 +17,8 @@ nestforge g controller <name>
 nestforge g service <name>
 nestforge g guard <name>
 nestforge g interceptor <name>
+nestforge g graphql <name>
+nestforge g grpc <name>
 nestforge db init
 nestforge db generate <name>
 nestforge db migrate
@@ -95,6 +97,32 @@ Generates DTOs, service, controller inside the target module and wires exports/p
 nestforge g guard auth
 nestforge g interceptor logging
 ```
+
+## GraphQL And gRPC Generators
+
+Generate a GraphQL resolver stub:
+
+```bash
+nestforge g graphql users
+```
+
+Creates:
+
+- `src/graphql/users_resolver.rs`
+- export wiring in `src/graphql/mod.rs`
+
+Generate a gRPC service stub:
+
+```bash
+nestforge g grpc billing
+```
+
+Creates:
+
+- `proto/billing.proto`
+- `src/grpc/billing_service.rs`
+- `src/grpc/mod.rs` updates for the generated proto package and service export
+- `build.rs` updates so tonic compiles the new proto file
 
 ## DB Commands
 

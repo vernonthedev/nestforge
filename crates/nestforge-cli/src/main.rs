@@ -67,8 +67,10 @@ fn main() -> Result<()> {
                 "module" => generate_module(name)?,
                 "guard" => generate_guard_only(name)?,
                 "interceptor" => generate_interceptor_only(name)?,
+                "graphql" => generate_graphql_resolver_only(name)?,
+                "grpc" => generate_grpc_service_only(name)?,
                 _ => bail!(
-                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | interceptor",
+                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | interceptor | graphql | grpc",
                     kind
                 ),
             }
@@ -97,6 +99,8 @@ fn print_help() {
     println!("  nestforge g module <name>");
     println!("  nestforge g guard <name>");
     println!("  nestforge g interceptor <name>");
+    println!("  nestforge g graphql <name>");
+    println!("  nestforge g grpc <name>");
     println!("  nestforge db init");
     println!("  nestforge db generate <name>");
     println!("  nestforge db migrate");
@@ -112,6 +116,8 @@ fn print_help() {
     println!("  nestforge new catalog-api --transport graphql");
     println!("  nestforge new greeter-service --transport grpc");
     println!("  nestforge g resource users");
+    println!("  nestforge g graphql users");
+    println!("  nestforge g grpc billing");
     println!("  nestforge db init");
     println!("  nestforge db generate create_users_table");
 }
@@ -657,6 +663,69 @@ fn generate_interceptor_only(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn generate_graphql_resolver_only(name: &str) -> Result<()> {
+    let app_root = detect_app_root()?;
+    let resolver_name = normalize_resource_name(name);
+    let pascal_name = to_pascal_case(&resolver_name);
+    let graphql_dir = app_root.join("src/graphql");
+    let resolver_file = graphql_dir.join(format!("{}_resolver.rs", resolver_name));
+
+    fs::create_dir_all(&graphql_dir)?;
+    ensure_graphql_mod(&app_root)?;
+
+    if !resolver_file.exists() {
+        write_file(
+            &resolver_file,
+            &template_graphql_resolver_rs(&resolver_name, &pascal_name),
+        )?;
+    } else {
+        println!("GraphQL resolver already exists: {}", resolver_file.display());
+    }
+
+    patch_graphql_mod(&app_root, &resolver_name, &pascal_name)?;
+
+    println!("Generated GraphQL resolver `{}`", resolver_name);
+    println!("Next: wire `{pascal_name}Resolver` into src/graphql/schema.rs");
+    Ok(())
+}
+
+fn generate_grpc_service_only(name: &str) -> Result<()> {
+    let app_root = detect_app_root()?;
+    let service_name = normalize_resource_name(name);
+    let pascal_name = to_pascal_case(&service_name);
+    let proto_path = app_root.join("proto").join(format!("{service_name}.proto"));
+    let service_path = app_root
+        .join("src/grpc")
+        .join(format!("{}_service.rs", service_name));
+
+    fs::create_dir_all(app_root.join("proto"))?;
+    fs::create_dir_all(app_root.join("src/grpc"))?;
+    ensure_grpc_build_rs(&app_root)?;
+    ensure_grpc_mod(&app_root)?;
+
+    if !proto_path.exists() {
+        write_file(&proto_path, &template_named_grpc_proto(&service_name, &pascal_name))?;
+    }
+
+    if !service_path.exists() {
+        write_file(
+            &service_path,
+            &template_named_grpc_service_rs(&service_name, &pascal_name),
+        )?;
+    } else {
+        println!("gRPC service already exists: {}", service_path.display());
+    }
+
+    patch_grpc_build_rs(&app_root, &service_name)?;
+    patch_grpc_mod_rs(&app_root, &service_name, &pascal_name)?;
+
+    println!("Generated gRPC service `{}`", service_name);
+    println!(
+        "Next: mount `{pascal_name}ServiceServer::new({pascal_name}GrpcService::new(ctx))` in src/main.rs"
+    );
+    Ok(())
+}
+
 /* ------------------------------
    FILE GENERATION
 ------------------------------ */
@@ -872,6 +941,123 @@ fn patch_interceptors_mod(
     }
     if !content.contains(&use_line) {
         content.push_str(&format!("\n{}", use_line));
+    }
+
+    fs::write(path, content)?;
+    Ok(())
+}
+
+fn ensure_graphql_mod(app_root: &Path) -> Result<()> {
+    let path = app_root.join("src/graphql/mod.rs");
+    if !path.exists() {
+        write_file(&path, "pub mod schema;\n")?;
+    }
+    Ok(())
+}
+
+fn patch_graphql_mod(app_root: &Path, resolver_name: &str, pascal_name: &str) -> Result<()> {
+    let path = app_root.join("src/graphql/mod.rs");
+    let mut content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        "pub mod schema;\n".to_string()
+    };
+
+    let mod_line = format!("pub mod {}_resolver;", resolver_name);
+    let use_line = format!("pub use {}_resolver::{}Resolver;", resolver_name, pascal_name);
+
+    if !content.contains(&mod_line) {
+        content.push_str(&format!("\n{}", mod_line));
+    }
+    if !content.contains(&use_line) {
+        content.push_str(&format!("\n{}", use_line));
+    }
+
+    fs::write(path, content)?;
+    Ok(())
+}
+
+fn ensure_grpc_build_rs(app_root: &Path) -> Result<()> {
+    let path = app_root.join("build.rs");
+    if !path.exists() {
+        write_file(&path, &template_grpc_build_rs())?;
+    }
+    Ok(())
+}
+
+fn ensure_grpc_mod(app_root: &Path) -> Result<()> {
+    let path = app_root.join("src/grpc/mod.rs");
+    if !path.exists() {
+        write_file(&path, &template_grpc_mod_rs())?;
+    }
+    Ok(())
+}
+
+fn patch_grpc_build_rs(app_root: &Path, service_name: &str) -> Result<()> {
+    let path = app_root.join("build.rs");
+    let mut content = fs::read_to_string(&path)?;
+    let proto_entry = format!("\"proto/{service_name}.proto\"");
+    let rerun_line = format!("    println!(\"cargo:rerun-if-changed=proto/{service_name}.proto\");\n");
+
+    if !content.contains(&proto_entry) {
+        let target = ".compile_protos(&[\"proto/greeter.proto\"], &[\"proto\"])?;";
+        if content.contains(target) {
+            content = content.replace(
+                target,
+                &format!(
+                    ".compile_protos(&[\"proto/greeter.proto\", {proto_entry}], &[\"proto\"])?;"
+                ),
+            );
+        } else if let Some(start) = content.find(".compile_protos(&[") {
+            if let Some(end_rel) = content[start..].find("], &[\"proto\"])?;") {
+                let insert_at = start + end_rel;
+                content.insert_str(insert_at, &format!(", {proto_entry}"));
+            }
+        }
+    }
+
+    if !content.contains(&format!("cargo:rerun-if-changed=proto/{service_name}.proto")) {
+        if let Some(insert_at) = content.rfind("    Ok(())") {
+            content.insert_str(insert_at, &rerun_line);
+        }
+    }
+
+    fs::write(path, content)?;
+    Ok(())
+}
+
+fn patch_grpc_mod_rs(app_root: &Path, service_name: &str, pascal_name: &str) -> Result<()> {
+    let path = app_root.join("src/grpc/mod.rs");
+    let mut content = fs::read_to_string(&path)?;
+    let proto_module = format!(
+        "    pub mod {service_name} {{\n        nestforge::tonic::include_proto!(\"{service_name}\");\n    }}\n"
+    );
+    let service_mod_line = format!("pub mod {}_service;", service_name);
+    let service_use_line = format!(
+        "pub use {}_service::{}GrpcService;",
+        service_name, pascal_name
+    );
+
+    if content.contains("nestforge::tonic::include_proto!(\"hello\");") {
+        content = content.replace(
+            "pub mod proto {\n    nestforge::tonic::include_proto!(\"hello\");\n}\n\npub mod service;\n",
+            "pub mod proto {\n    pub mod hello {\n        nestforge::tonic::include_proto!(\"hello\");\n    }\n}\n\npub mod service;\n",
+        );
+    }
+
+    if !content.contains(&format!("pub mod {service_name} {{")) {
+        if let Some(insert_at) = content.find("}\n\npub mod service;") {
+            content.insert_str(insert_at, &proto_module);
+        } else if let Some(insert_at) = content.find("}\n") {
+            content.insert_str(insert_at, &proto_module);
+        }
+    }
+
+    if !content.contains(&service_mod_line) {
+        content.push_str(&format!("\n{}", service_mod_line));
+    }
+    if !content.contains(&service_use_line) {
+        content.push_str(&format!("\n{}", service_use_line));
     }
 
     fs::write(path, content)?;
@@ -1140,7 +1326,7 @@ mod grpc;
 mod services;
 
 use app_module::AppModule;
-use grpc::{proto::greeter_server::GreeterServer, service::GreeterGrpcService};
+use grpc::{proto::hello::greeter_server::GreeterServer, service::GreeterGrpcService};
 use nestforge::NestForgeGrpcFactory;
 
 const ADDR: &str = "127.0.0.1:50051";
@@ -1333,6 +1519,23 @@ impl QueryRoot {
     .to_string()
 }
 
+fn template_graphql_resolver_rs(resolver_name: &str, pascal_name: &str) -> String {
+    let field_name = format!("{}_status", resolver_name);
+    format!(
+        r#"use nestforge::async_graphql::Object;
+
+pub struct {pascal_name}Resolver;
+
+#[Object]
+impl {pascal_name}Resolver {{
+    async fn {field_name}(&self) -> &str {{
+        "ok"
+    }}
+}}
+"#
+    )
+}
+
 fn template_grpc_build_rs() -> String {
     r#"fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
@@ -1367,9 +1570,32 @@ message HelloReply {
     .to_string()
 }
 
+fn template_named_grpc_proto(service_name: &str, pascal_name: &str) -> String {
+    format!(
+        r#"syntax = "proto3";
+
+package {service_name};
+
+service {pascal_name}Service {{
+  rpc Get{pascal_name}Status ({pascal_name}StatusRequest) returns ({pascal_name}StatusReply);
+}}
+
+message {pascal_name}StatusRequest {{
+  string name = 1;
+}}
+
+message {pascal_name}StatusReply {{
+  string message = 1;
+}}
+"#
+    )
+}
+
 fn template_grpc_mod_rs() -> String {
     r#"pub mod proto {
-    nestforge::tonic::include_proto!("hello");
+    pub mod hello {
+        nestforge::tonic::include_proto!("hello");
+    }
 }
 
 pub mod service;
@@ -1384,7 +1610,7 @@ fn template_grpc_service_rs() -> String {
 };
 
 use crate::{
-    grpc::proto::{greeter_server::Greeter, HelloReply, HelloRequest},
+    grpc::proto::hello::{greeter_server::Greeter, HelloReply, HelloRequest},
     services::AppConfig,
 };
 
@@ -1418,6 +1644,53 @@ impl Greeter for GreeterGrpcService {
 }
 "#
     .to_string()
+}
+
+fn template_named_grpc_service_rs(service_name: &str, pascal_name: &str) -> String {
+    let rpc_name = format!("get_{}_status", service_name);
+    format!(
+        r#"use nestforge::{{
+    tonic::{{Request, Response, Status}},
+    GrpcContext,
+}};
+
+use crate::grpc::proto::{service_name}::{{
+    {pascal_name}StatusReply,
+    {pascal_name}StatusRequest,
+    {service_name}_service_server::{pascal_name}Service,
+}};
+
+#[derive(Clone)]
+pub struct {pascal_name}GrpcService {{
+    ctx: GrpcContext,
+}}
+
+impl {pascal_name}GrpcService {{
+    pub fn new(ctx: GrpcContext) -> Self {{
+        Self {{ ctx }}
+    }}
+}}
+
+#[nestforge::tonic::async_trait]
+impl {pascal_name}Service for {pascal_name}GrpcService {{
+    async fn {rpc_name}(
+        &self,
+        request: Request<{pascal_name}StatusRequest>,
+    ) -> Result<Response<{pascal_name}StatusReply>, Status> {{
+        let name = request.into_inner().name.trim().to_string();
+        let message = if name.is_empty() {{
+            format!("{pascal_name} service is ready")
+        }} else {{
+            format!("{pascal_name} service is ready for {{name}}")
+        }};
+
+        let _ = self.ctx.container();
+
+        Ok(Response::new({pascal_name}StatusReply {{ message }}))
+    }}
+}}
+"#
+    )
 }
 
 fn template_env_file(app_name: &str, transport: AppTransport) -> String {

@@ -5,7 +5,7 @@ use nestforge::{
 
 use crate::{
     app_config::AppConfig,
-    grpc::proto::{
+    grpc::proto::hello::{
         greeter_server::Greeter, HelloReply, HelloRequest,
     },
 };

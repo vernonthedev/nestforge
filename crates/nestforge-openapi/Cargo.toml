@@ -14,3 +14,4 @@ categories = ["web-programming"]
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+nestforge-core = { version = "1.1.0", path = "../nestforge-core" }

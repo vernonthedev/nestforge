@@ -9,6 +9,7 @@
 */
 pub mod auth;
 pub mod container;
+pub mod documentation;
 pub mod error;
 pub mod http_ext;
 pub mod inject;
@@ -24,12 +25,14 @@ pub mod validation;
 
 pub use auth::{AuthIdentity, AuthUser, BearerToken};
 pub use container::{Container, ContainerError};
+pub use documentation::{DocumentedController, RouteDocumentation, RouteResponseDocumentation};
 pub use error::HttpException;
 pub use http_ext::{OptionHttpExt, ResultHttpExt};
 pub use inject::Inject;
 pub use logging::{framework_log, framework_log_event};
 pub use module::{
-    initialize_module_graph, ControllerBasePath, ControllerDefinition, ModuleDefinition, ModuleRef,
+    collect_module_route_docs, initialize_module_graph, ControllerBasePath, ControllerDefinition,
+    ModuleDefinition, ModuleRef,
 };
 pub use pipeline::{execute_pipeline, run_guards, Guard, Interceptor, NextFn, NextFuture, RequestContext};
 pub use provider::{register_provider, Provider, RegisterProvider};

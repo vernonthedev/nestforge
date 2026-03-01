@@ -887,6 +887,7 @@ name = "nestforge-openapi"
 version = "1.1.0"
 dependencies = [
  "axum",
+ "nestforge-core",
  "serde",
  "serde_json",
 ]

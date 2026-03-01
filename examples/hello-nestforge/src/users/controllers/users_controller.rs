@@ -1,7 +1,6 @@
 use axum::Json;
 use nestforge::{
-    ApiResult, Inject, List, OptionHttpExt, Param, ResultHttpExt, ValidatedBody, controller,
-    routes,
+    controller, routes, ApiResult, Inject, List, OptionHttpExt, Param, ResultHttpExt, ValidatedBody,
 };
 
 use crate::users::{
@@ -19,6 +18,9 @@ pub struct UsersController;
 impl UsersController {
     #[nestforge::get("/")]
     #[nestforge::version("1")]
+    #[nestforge::summary("List all users")]
+    #[nestforge::tag("users")]
+    #[nestforge::response(status = 200, description = "Users returned successfully")]
     async fn list(users: Inject<UsersService>) -> ApiResult<List<UserDto>> {
         Ok(Json(list_users(users.as_ref())))
     }
@@ -44,6 +46,9 @@ impl UsersController {
     #[nestforge::version("1")]
     #[nestforge::use_guard(crate::guards::AllowAllGuard)]
     #[nestforge::use_interceptor(crate::interceptors::LoggingInterceptor)]
+    #[nestforge::summary("Create a new user")]
+    #[nestforge::tag("users")]
+    #[nestforge::response(status = 200, description = "User created successfully")]
     async fn create(
         users: Inject<UsersService>,
         body: ValidatedBody<CreateUserDto>,
@@ -98,6 +103,9 @@ impl UsersController {
     #[nestforge::delete("/{id}")]
     #[nestforge::version("1")]
     #[nestforge::use_guard(crate::guards::RequireValidIdGuard)]
+    #[nestforge::summary("Delete a user by id")]
+    #[nestforge::tag("users")]
+    #[nestforge::response(status = 200, description = "User deleted successfully")]
     async fn delete(id: Param<u64>, users: Inject<UsersService>) -> ApiResult<UserDto> {
         let id = id.value();
         let deleted = delete_user(users.as_ref(), id).or_not_found_id("User", id)?;

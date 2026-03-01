@@ -2,7 +2,7 @@ use anyhow::Result;
 use axum::Router;
 use std::collections::HashSet;
 
-use crate::{framework_log_event, Container};
+use crate::{framework_log_event, Container, RouteDocumentation};
 
 /*
 ControllerBasePath = metadata implemented by #[controller("/...")]
@@ -23,6 +23,7 @@ pub struct ModuleRef {
     pub name: &'static str,
     pub register: fn(&Container) -> Result<()>,
     pub controllers: fn() -> Vec<Router<Container>>,
+    pub route_docs: fn() -> Vec<RouteDocumentation>,
     pub imports: fn() -> Vec<ModuleRef>,
     pub exports: fn() -> Vec<&'static str>,
     pub is_global: fn() -> bool,
@@ -34,6 +35,7 @@ impl ModuleRef {
             name: M::module_name(),
             register: M::register,
             controllers: M::controllers,
+            route_docs: M::route_docs,
             imports: M::imports,
             exports: M::exports,
             is_global: M::is_global,
@@ -66,6 +68,10 @@ pub trait ModuleDefinition: Send + Sync + 'static {
     fn controllers() -> Vec<Router<Container>> {
         Vec::new()
     }
+
+    fn route_docs() -> Vec<RouteDocumentation> {
+        Vec::new()
+    }
 }
 
 pub fn initialize_module_graph<M: ModuleDefinition>(
@@ -76,6 +82,12 @@ pub fn initialize_module_graph<M: ModuleDefinition>(
     Ok(state.controllers)
 }
 
+pub fn collect_module_route_docs<M: ModuleDefinition>() -> Result<Vec<RouteDocumentation>> {
+    let mut state = DocumentationGraphState::default();
+    visit_module_docs(ModuleRef::of::<M>(), &mut state)?;
+    Ok(state.route_docs)
+}
+
 #[derive(Default)]
 struct ModuleGraphState {
     visited: HashSet<&'static str>,
@@ -83,6 +95,14 @@ struct ModuleGraphState {
     stack: Vec<&'static str>,
     controllers: Vec<Router<Container>>,
     global_modules: HashSet<&'static str>,
+}
+
+#[derive(Default)]
+struct DocumentationGraphState {
+    visited: HashSet<&'static str>,
+    visiting: HashSet<&'static str>,
+    stack: Vec<&'static str>,
+    route_docs: Vec<RouteDocumentation>,
 }
 
 fn visit_module(
@@ -141,6 +161,34 @@ fn visit_module(
     state.visiting.remove(module.name);
     state.visited.insert(module.name);
 
+    Ok(())
+}
+
+fn visit_module_docs(module: ModuleRef, state: &mut DocumentationGraphState) -> Result<()> {
+    if state.visited.contains(module.name) {
+        return Ok(());
+    }
+
+    if state.visiting.contains(module.name) {
+        let mut cycle = state.stack.clone();
+        cycle.push(module.name);
+        anyhow::bail!(
+            "Detected module import cycle while collecting route docs: {}",
+            cycle.join(" -> ")
+        );
+    }
+
+    state.visiting.insert(module.name);
+    state.stack.push(module.name);
+
+    for imported in (module.imports)() {
+        visit_module_docs(imported, state)?;
+    }
+
+    state.route_docs.extend((module.route_docs)());
+    state.stack.pop();
+    state.visiting.remove(module.name);
+    state.visited.insert(module.name);
     Ok(())
 }
 

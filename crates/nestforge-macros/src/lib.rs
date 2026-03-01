@@ -48,6 +48,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let self_ty = input.self_ty.clone();
 
     let mut route_calls = Vec::new();
+    let mut route_docs = Vec::new();
 
     for impl_item in &mut input.items {
         let ImplItem::Fn(method) = impl_item else {
@@ -55,6 +56,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         };
         let (guards, interceptors) = extract_pipeline_meta(method);
         let version = extract_version_meta(method);
+        let doc_meta = extract_route_doc_meta(method);
 
         if let Some((http_method, path)) = extract_route_meta(method) {
             let method_name = &method.sig.ident;
@@ -113,6 +115,66 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             };
 
             route_calls.push(call);
+
+            let method_lit = LitStr::new(&http_method.to_uppercase(), method.sig.ident.span());
+            let response_docs = if doc_meta.responses.is_empty() {
+                quote! {
+                    vec![nestforge::RouteResponseDocumentation {
+                        status: 200,
+                        description: "OK".to_string(),
+                    }]
+                }
+            } else {
+                let responses = doc_meta.responses.iter().map(|response| {
+                    let description = LitStr::new(&response.description, method.sig.ident.span());
+                    let status = response.status;
+                    quote! {
+                        nestforge::RouteResponseDocumentation {
+                            status: #status,
+                            description: #description.to_string(),
+                        }
+                    }
+                });
+                quote! { vec![#(#responses),*] }
+            };
+            let summary_tokens = if let Some(summary) = &doc_meta.summary {
+                let summary_lit = LitStr::new(summary, method.sig.ident.span());
+                quote! { doc = doc.with_summary(#summary_lit); }
+            } else {
+                quote! {}
+            };
+            let description_tokens = if let Some(description) = &doc_meta.description {
+                let description_lit = LitStr::new(description, method.sig.ident.span());
+                quote! { doc = doc.with_description(#description_lit); }
+            } else {
+                quote! {}
+            };
+            let tag_tokens = if doc_meta.tags.is_empty() {
+                quote! {}
+            } else {
+                let tags = doc_meta.tags.iter().map(|tag| LitStr::new(tag, method.sig.ident.span()));
+                quote! { doc = doc.with_tags([#(#tags),*]); }
+            };
+            let auth_tokens = if doc_meta.requires_auth {
+                quote! { doc = doc.requires_auth(); }
+            } else {
+                quote! {}
+            };
+
+            route_docs.push(quote! {
+                {
+                    let mut doc = nestforge::RouteDocumentation::new(
+                        #method_lit,
+                        nestforge::RouteBuilder::<#self_ty>::full_path(#path_lit, #version_tokens),
+                    )
+                    .with_responses(#response_docs);
+                    #summary_tokens
+                    #description_tokens
+                    #tag_tokens
+                    #auth_tokens
+                    doc
+                }
+            });
         }
     }
 
@@ -128,6 +190,12 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 let mut builder = nestforge::RouteBuilder::<#self_ty>::new();
                 #(#route_calls)*
                 builder.build()
+            }
+        }
+
+        impl nestforge::DocumentedController for #self_ty {
+            fn route_docs() -> Vec<nestforge::RouteDocumentation> {
+                vec![#(#route_docs),*]
             }
         }
     };
@@ -153,6 +221,9 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let controller_calls = args.controllers.iter().map(|ty| {
         quote! { <#ty as nestforge::ControllerDefinition>::router() }
+    });
+    let controller_doc_calls = args.controllers.iter().map(|ty| {
+        quote! { docs.extend(<#ty as nestforge::DocumentedController>::route_docs()); }
     });
 
     let provider_regs = args.providers.iter().map(build_provider_registration);
@@ -196,6 +267,12 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
                     #(#controller_calls),*
                 ]
             }
+
+            fn route_docs() -> Vec<nestforge::RouteDocumentation> {
+                let mut docs = Vec::new();
+                #(#controller_doc_calls)*
+                docs
+            }
         }
     };
 
@@ -237,6 +314,31 @@ pub fn use_guard(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn use_interceptor(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn summary(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn description(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn tag(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn response(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn authenticated(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
@@ -727,6 +829,67 @@ fn extract_version_meta(method: &mut ImplItemFn) -> Option<String> {
     version
 }
 
+#[derive(Default)]
+struct RouteDocMeta {
+    summary: Option<String>,
+    description: Option<String>,
+    tags: Vec<String>,
+    responses: Vec<RouteResponseMeta>,
+    requires_auth: bool,
+}
+
+struct RouteResponseMeta {
+    status: u16,
+    description: String,
+}
+
+fn extract_route_doc_meta(method: &mut ImplItemFn) -> RouteDocMeta {
+    let mut meta = RouteDocMeta::default();
+    let mut kept_attrs: Vec<Attribute> = Vec::new();
+
+    for attr in method.attrs.drain(..) {
+        let ident = attr
+            .path()
+            .segments
+            .last()
+            .map(|seg| seg.ident.to_string())
+            .unwrap_or_default();
+
+        match ident.as_str() {
+            "summary" => {
+                if let Ok(lit) = attr.parse_args::<LitStr>() {
+                    meta.summary = Some(lit.value());
+                }
+            }
+            "description" => {
+                if let Ok(lit) = attr.parse_args::<LitStr>() {
+                    meta.description = Some(lit.value());
+                }
+            }
+            "tag" => {
+                if let Ok(lit) = attr.parse_args::<LitStr>() {
+                    meta.tags.push(lit.value());
+                }
+            }
+            "response" => {
+                if let Ok(response) = attr.parse_args::<RouteResponseArgs>() {
+                    meta.responses.push(RouteResponseMeta {
+                        status: response.status,
+                        description: response.description.value(),
+                    });
+                }
+            }
+            "authenticated" => {
+                meta.requires_auth = true;
+            }
+            _ => kept_attrs.push(attr),
+        }
+    }
+
+    method.attrs = kept_attrs;
+    meta
+}
+
 fn parse_route_attr(attr: &Attribute) -> Option<(String, String)> {
     /*
     Support both:
@@ -757,6 +920,11 @@ struct ModuleArgs {
     global: bool,
 }
 
+struct RouteResponseArgs {
+    status: u16,
+    description: LitStr,
+}
+
 struct EntityArgs {
     table: LitStr,
 }
@@ -773,6 +941,46 @@ impl Parse for EntityArgs {
         input.parse::<Token![=]>()?;
         let table = input.parse::<LitStr>()?;
         Ok(Self { table })
+    }
+}
+
+impl Parse for RouteResponseArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut status = None;
+        let mut description = None;
+
+        while !input.is_empty() {
+            let key: Ident = input.parse()?;
+            input.parse::<Token![=]>()?;
+
+            if key == "status" {
+                let value = input.parse::<syn::LitInt>()?;
+                status = Some(value.base10_parse()?);
+            } else if key == "description" {
+                description = Some(input.parse::<LitStr>()?);
+            } else {
+                return Err(syn::Error::new(
+                    key.span(),
+                    "Unsupported response key. Use `status = ...` and `description = \"...\"`.",
+                ));
+            }
+
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            }
+        }
+
+        Ok(Self {
+            status: status.ok_or_else(|| {
+                syn::Error::new(input.span(), "response metadata requires `status = ...`")
+            })?,
+            description: description.ok_or_else(|| {
+                syn::Error::new(
+                    input.span(),
+                    "response metadata requires `description = \"...\"`",
+                )
+            })?,
+        })
     }
 }
 

@@ -37,7 +37,7 @@ where
         }
     }
 
-    fn full_path(path: &str, version: Option<&str>) -> String {
+    pub fn full_path(path: &str, version: Option<&str>) -> String {
         let base = T::base_path().trim_end_matches('/');
         let path = path.trim();
 

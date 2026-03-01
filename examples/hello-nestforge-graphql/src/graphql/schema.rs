@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use nestforge::async_graphql::{Context, EmptySubscription, InputObject, Object, Schema, SimpleObject};
+use async_graphql::{Context, EmptySubscription, InputObject, Object, Schema, SimpleObject};
 
 #[derive(Clone, Debug, SimpleObject)]
 pub struct User {

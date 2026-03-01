@@ -129,6 +129,10 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    pub fn container(&self) -> &Container {
+        &self.container
+    }
+
     pub fn into_router(self) -> Router {
         /*
         Build a router that EXPECTS Container state.

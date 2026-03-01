@@ -4,6 +4,7 @@ members = [
   "crates/nestforge-http",
   "crates/nestforge",
   "examples/hello-nestforge",
+  "examples/hello-nestforge-graphql",
   "crates/nestforge-macros", 
   "crates/nestforge-cli",
   "crates/nestforge-testing",

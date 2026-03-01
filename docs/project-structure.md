@@ -21,6 +21,7 @@
 - `crates/nestforge-orm`: ORM abstractions for relational data
 - `crates/nestforge-data`: common patterns for non-relational adapters
 - `crates/nestforge-openapi`: OpenAPI support surface
+- `crates/nestforge-graphql`: GraphQL support surface
 - `crates/nestforge-testing`: testing module factory and provider overrides
 
 ## Example App
@@ -31,3 +32,10 @@
 - feature modules (`users/`, `settings/`, `versioning/`)
 - global guards/interceptors
 - versioned routes and global `/api` prefix
+
+`examples/hello-nestforge-graphql` shows a GraphQL-first structure:
+
+- minimal module bootstrap with config
+- async-graphql schema wiring through `NestForgeFactory`
+- GraphQL endpoint at `/graphql`
+- GraphiQL mounted at `/`

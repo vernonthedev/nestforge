@@ -47,6 +47,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - `crates/nestforge-orm`: relational ORM abstraction layer
 - `crates/nestforge-data`: non-relational data abstractions
 - `examples/hello-nestforge`: full example app
+- `examples/hello-nestforge-graphql`: GraphQL-first example app
 
 ## Quick Start (Repo)
 
@@ -55,6 +56,12 @@ git clone https://github.com/vernonthedev/nestforge.git
 cd nestforge
 cargo check --workspace
 cargo run -p hello-nestforge
+```
+
+GraphQL-first example:
+
+```bash
+cargo run -p hello-nestforge-graphql
 ```
 
 Server runs on:

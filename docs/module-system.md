@@ -59,3 +59,97 @@ For each module, NestForge does:
 3. mount current module controllers
 
 This makes provider order deterministic.
+
+## Lifecycle Hooks
+
+Modules can also define Nest-style lifecycle hooks in `#[module(...)]`:
+
+```rust
+#[module(
+    providers = [load_config()?],
+    on_module_init = [warm_cache],
+    on_application_bootstrap = [log_startup],
+    on_module_destroy = [flush_metrics],
+    on_application_shutdown = [close_resources]
+)]
+pub struct AppModule;
+```
+
+Each hook is a function:
+
+```rust
+fn hook(container: &nestforge::Container) -> anyhow::Result<()>
+```
+
+Available hook lists:
+
+- `on_module_init`
+- `on_application_bootstrap`
+- `on_module_destroy`
+- `on_application_shutdown`
+
+## Dynamic Modules
+
+NestForge supports runtime-configured imports through `ModuleRef::builder(...)`.
+
+That gives you a cleaner NestJS-style `register(...)` pattern:
+
+```rust
+fn auth_module(secret: String) -> nestforge::ModuleRef {
+    nestforge::ModuleRef::builder("AuthModule")
+        .provider_value(AuthConfig { secret })
+        .export::<AuthConfig>()
+        .build()
+}
+```
+
+You can also use factory-based registration when the module depends on other providers:
+
+```rust
+fn auth_module() -> nestforge::ModuleRef {
+    nestforge::ModuleRef::builder("AuthModule")
+        .provider_factory(|container| {
+            let config = container.resolve::<AppConfig>()?;
+            Ok(AuthConfig {
+                secret: config.jwt_secret.clone(),
+            })
+        })
+        .export::<AuthConfig>()
+        .build()
+}
+```
+
+And async setup is available through `provider_async(...)`:
+
+```rust
+fn remote_config_module() -> nestforge::ModuleRef {
+    nestforge::ModuleRef::builder("RemoteConfigModule")
+        .provider_async(|_container| async {
+            Ok(RemoteConfig {
+                region: "us-east-1".to_string(),
+            })
+        })
+        .export::<RemoteConfig>()
+        .build()
+}
+```
+
+Then import it from a module:
+
+```rust
+fn imports() -> Vec<nestforge::ModuleRef> {
+    vec![auth_module("dev-secret".to_string())]
+}
+```
+
+## Module Graph Introspection
+
+Use `collect_module_graph::<AppModule>()` when you need a diagnostic snapshot of the resolved module tree.
+
+Each reported module includes:
+
+- module name
+- imported modules
+- exported provider types
+- controller count
+- whether the module is global

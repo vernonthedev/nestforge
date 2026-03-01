@@ -68,9 +68,12 @@ Invoke-Step "Generator flow: new + module + resource" {
     try {
         Cargo-Cmd -CommandArgs @("run", "--manifest-path", $CliManifest, "--", "new", "demo_api")
         $DemoCargoToml = Join-Path $DemoAppDir "Cargo.toml"
-        $DemoCargo = Get-Content -Raw -Path $DemoCargoToml
+        $DemoCargoBefore = Get-Content -Raw -Path $DemoCargoToml
         $LocalNestforgePath = (Join-Path $RepoRoot "crates/nestforge").Replace("\", "/")
-        $DemoCargo = $DemoCargo -replace 'nestforge = ".*"', "nestforge = { path = `"$LocalNestforgePath`" }"
+        $DemoCargo = $DemoCargoBefore -replace 'nestforge\s*=\s*(".*?"|\{[^\}]*\})', "nestforge = { path = `"$LocalNestforgePath`" }"
+        if ($DemoCargo -eq $DemoCargoBefore) {
+            throw "Failed to rewrite nestforge dependency in $DemoCargoToml"
+        }
         Set-Content -Path $DemoCargoToml -Value $DemoCargo
         Push-Location $DemoAppDir
         try {

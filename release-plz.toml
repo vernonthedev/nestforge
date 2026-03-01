@@ -1,0 +1,34 @@
+[workspace]
+allow_dirty = false
+changelog_update = true
+dependencies_update = true
+pr_name = "chore: release"
+pr_labels = ["release"]
+release_commits = "^(feat|fix|perf|refactor|docs|chore)(\\(.+\\))?:"
+semver_check = false
+git_release_enable = false
+
+[[package]]
+name = "nestforge"
+changelog_path = "CHANGELOG.md"
+git_release_enable = true
+
+[[package]]
+name = "hello-nestforge"
+release = false
+
+[[package]]
+name = "hello-nestforge-graphql"
+release = false
+
+[[package]]
+name = "hello-nestforge-grpc"
+release = false
+
+[[package]]
+name = "hello-nestforge-microservices"
+release = false
+
+[[package]]
+name = "hello-nestforge-websockets"
+release = false

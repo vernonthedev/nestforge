@@ -6,7 +6,10 @@ use axum::{
 
 use std::sync::Arc;
 
-use crate::{execute_pipeline, framework_log, Container, ControllerBasePath, Guard, Interceptor};
+use crate::{
+    execute_pipeline, framework_log_event, Container, ControllerBasePath, ExceptionFilter, Guard,
+    Interceptor,
+};
 
 /*
 RouteBuilder<T> helps us build routes cleanly in generated code.
@@ -37,7 +40,7 @@ where
         }
     }
 
-    fn full_path(path: &str, version: Option<&str>) -> String {
+    pub fn full_path(path: &str, version: Option<&str>) -> String {
         let base = T::base_path().trim_end_matches('/');
         let path = path.trim();
 
@@ -84,7 +87,7 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.get_with_pipeline(path, handler, Vec::new(), Vec::new(), None)
+        self.get_with_pipeline(path, handler, Vec::new(), Vec::new(), Vec::new(), None)
     }
 
     pub fn post<H, TState>(self, path: &str, handler: H) -> Self
@@ -92,7 +95,7 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.post_with_pipeline(path, handler, Vec::new(), Vec::new(), None)
+        self.post_with_pipeline(path, handler, Vec::new(), Vec::new(), Vec::new(), None)
     }
 
     pub fn put<H, TState>(self, path: &str, handler: H) -> Self
@@ -100,7 +103,7 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.put_with_pipeline(path, handler, Vec::new(), Vec::new(), None)
+        self.put_with_pipeline(path, handler, Vec::new(), Vec::new(), Vec::new(), None)
     }
 
     pub fn delete<H, TState>(self, path: &str, handler: H) -> Self
@@ -108,7 +111,7 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.delete_with_pipeline(path, handler, Vec::new(), Vec::new(), None)
+        self.delete_with_pipeline(path, handler, Vec::new(), Vec::new(), Vec::new(), None)
     }
 
     pub fn get_with_pipeline<H, TState>(
@@ -117,13 +120,14 @@ where
         handler: H,
         guards: Vec<Arc<dyn Guard>>,
         interceptors: Vec<Arc<dyn Interceptor>>,
+        filters: Vec<Arc<dyn ExceptionFilter>>,
         version: Option<&str>,
     ) -> Self
     where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.route_with_pipeline("GET", path, get(handler), guards, interceptors, version)
+        self.route_with_pipeline("GET", path, get(handler), guards, interceptors, filters, version)
     }
 
     pub fn post_with_pipeline<H, TState>(
@@ -132,13 +136,14 @@ where
         handler: H,
         guards: Vec<Arc<dyn Guard>>,
         interceptors: Vec<Arc<dyn Interceptor>>,
+        filters: Vec<Arc<dyn ExceptionFilter>>,
         version: Option<&str>,
     ) -> Self
     where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.route_with_pipeline("POST", path, post(handler), guards, interceptors, version)
+        self.route_with_pipeline("POST", path, post(handler), guards, interceptors, filters, version)
     }
 
     pub fn put_with_pipeline<H, TState>(
@@ -147,13 +152,14 @@ where
         handler: H,
         guards: Vec<Arc<dyn Guard>>,
         interceptors: Vec<Arc<dyn Interceptor>>,
+        filters: Vec<Arc<dyn ExceptionFilter>>,
         version: Option<&str>,
     ) -> Self
     where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.route_with_pipeline("PUT", path, put(handler), guards, interceptors, version)
+        self.route_with_pipeline("PUT", path, put(handler), guards, interceptors, filters, version)
     }
 
     pub fn delete_with_pipeline<H, TState>(
@@ -162,13 +168,14 @@ where
         handler: H,
         guards: Vec<Arc<dyn Guard>>,
         interceptors: Vec<Arc<dyn Interceptor>>,
+        filters: Vec<Arc<dyn ExceptionFilter>>,
         version: Option<&str>,
     ) -> Self
     where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.route_with_pipeline("DELETE", path, delete(handler), guards, interceptors, version)
+        self.route_with_pipeline("DELETE", path, delete(handler), guards, interceptors, filters, version)
     }
 
     fn route_with_pipeline(
@@ -178,17 +185,25 @@ where
         method_router: axum::routing::MethodRouter<Container>,
         guards: Vec<Arc<dyn Guard>>,
         interceptors: Vec<Arc<dyn Interceptor>>,
+        filters: Vec<Arc<dyn ExceptionFilter>>,
         version: Option<&str>,
     ) -> Self {
         let full = Self::full_path(path, version);
-        framework_log(format!("Registering router '{} {}'.", method, full));
+        framework_log_event(
+            "route_register",
+            &[("method", method.to_string()), ("path", full.clone())],
+        );
         let guards = Arc::new(guards);
         let interceptors = Arc::new(interceptors);
+        let filters = Arc::new(filters);
 
         let route = method_router.route_layer(from_fn(move |req, next| {
             let guards = Arc::clone(&guards);
             let interceptors = Arc::clone(&interceptors);
-            async move { execute_pipeline(req, next, guards, interceptors).await }
+            let filters = Arc::clone(&filters);
+            async move {
+                execute_pipeline(req, next, guards, interceptors, filters).await
+            }
         }));
 
         Self {

@@ -1,0 +1,71 @@
+# GraphQL
+
+NestForge can expose GraphQL endpoints through the optional `nestforge-graphql` crate.
+
+## Enable The Feature
+
+```toml
+nestforge = { version = "1", features = ["graphql"] }
+```
+
+## Minimal Setup
+
+```rust
+use nestforge::{
+    async_graphql::{EmptyMutation, EmptySubscription, Object, Schema},
+    NestForgeFactory, NestForgeFactoryGraphQlExt,
+};
+
+struct QueryRoot;
+
+#[Object]
+impl QueryRoot {
+    async fn health(&self) -> &str {
+        "ok"
+    }
+}
+
+let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish();
+
+NestForgeFactory::<AppModule>::create()?
+    .with_graphql(schema)
+    .listen(3000)
+    .await?;
+```
+
+Default routes:
+
+- `/graphql`
+- `/graphiql`
+
+## Custom Routes
+
+```rust
+use nestforge::{graphql_router_with_config, GraphQlConfig};
+
+let router = graphql_router_with_config(
+    schema,
+    GraphQlConfig::new("/api/graphql").with_graphiql("/api/graphiql"),
+);
+```
+
+That router can also be mounted manually with `NestForgeFactory::merge_router(...)`.
+
+## Resolver Access To NestForge Providers
+
+NestForge injects the framework `Container` into each GraphQL request, and `resolve_graphql::<T>(...)` can resolve providers directly from `async_graphql::Context`:
+
+```rust
+use nestforge::{async_graphql::Context, resolve_graphql};
+
+async fn app_name(&self, ctx: &Context<'_>) -> String {
+    let config = resolve_graphql::<AppConfig>(ctx)
+        .expect("app config should be registered");
+    config.app_name.clone()
+}
+```
+
+When GraphQL is mounted through `NestForgeFactory`, resolvers also receive the per-request scoped container plus request metadata helpers:
+
+- `graphql_request_id(ctx)`
+- `graphql_auth_identity(ctx)`

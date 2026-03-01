@@ -19,7 +19,13 @@ nestforge-db = { version = "1.1.0", path = "../nestforge-db", optional = true }
 nestforge-orm = { version = "1.1.0", path = "../nestforge-orm", optional = true }
 nestforge-config = { version = "1.1.0", path = "../nestforge-config", optional = true }
 nestforge-openapi = { version = "1.1.0", path = "../nestforge-openapi", optional = true }
+nestforge-graphql = { version = "1.1.0", path = "../nestforge-graphql", optional = true }
+nestforge-grpc = { version = "1.1.0", path = "../nestforge-grpc", optional = true }
+nestforge-schedule = { version = "1.1.0", path = "../nestforge-schedule", optional = true }
+nestforge-websockets = { version = "1.1.0", path = "../nestforge-websockets", optional = true }
 nestforge-data = { version = "1.1.0", path = "../nestforge-data", optional = true }
+nestforge-cache = { version = "1.1.0", path = "../nestforge-cache", optional = true }
+nestforge-microservices = { version = "1.1.0", path = "../nestforge-microservices", optional = true }
 nestforge-mongo = { version = "1.1.0", path = "../nestforge-mongo", optional = true }
 nestforge-redis = { version = "1.1.0", path = "../nestforge-redis", optional = true }
 tokio = { workspace = true }
@@ -32,7 +38,19 @@ db = ["dep:nestforge-db"]
 orm = ["dep:nestforge-orm", "db"]
 config = ["dep:nestforge-config"]
 openapi = ["dep:nestforge-openapi"]
+graphql = ["dep:nestforge-graphql"]
+grpc = ["dep:nestforge-grpc"]
+schedule = ["dep:nestforge-schedule"]
+websockets = ["dep:nestforge-websockets"]
 data = ["dep:nestforge-data"]
+cache = ["dep:nestforge-cache", "data"]
+microservices = ["dep:nestforge-microservices"]
 mongo = ["dep:nestforge-mongo", "data"]
 redis = ["dep:nestforge-redis", "data"]
+
+[dev-dependencies]
+axum = { workspace = true }
+serde = { workspace = true }
+tower = { workspace = true }
+serde_json = { workspace = true }
 

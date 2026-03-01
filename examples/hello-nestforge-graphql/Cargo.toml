@@ -1,0 +1,12 @@
+[package]
+name = "hello-nestforge-graphql"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+
+[dependencies]
+nestforge = { path = "../../crates/nestforge", features = ["config", "graphql"] }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }

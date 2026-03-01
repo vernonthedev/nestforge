@@ -10,6 +10,17 @@ Sets a base path for the controller.
 
 Builds Axum routes from methods in the `impl` block.
 
+`#[routes]` can also carry controller-level defaults:
+
+- `#[nestforge::use_guard(MyGuard)]`
+- `#[nestforge::use_interceptor(MyInterceptor)]`
+- `#[nestforge::use_exception_filter(MyFilter)]`
+- `#[nestforge::authenticated]`
+- `#[nestforge::roles("admin", "support")]`
+- `#[nestforge::tag("users")]`
+
+Those defaults are inherited by methods inside the same `impl` block.
+
 ### HTTP Method Attributes
 
 Supported route attributes:
@@ -32,6 +43,10 @@ Adds a route-level guard.
 ### `#[nestforge::use_interceptor(MyInterceptor)]`
 
 Adds a route-level interceptor.
+
+### `#[nestforge::use_exception_filter(MyFilter)]`
+
+Adds a route-level exception filter.
 
 ## Module Macro
 

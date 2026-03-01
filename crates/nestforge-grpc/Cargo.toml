@@ -1,0 +1,23 @@
+[package]
+name = "nestforge-grpc"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "gRPC transport support for NestForge built on tonic"
+keywords = ["rust", "grpc", "tonic", "nestforge"]
+categories = ["network-programming", "web-programming"]
+
+[dependencies]
+anyhow = { workspace = true }
+prost = { workspace = true }
+tonic = { workspace = true }
+nestforge-core = { version = "1.1.0", path = "../nestforge-core" }
+nestforge-microservices = { version = "1.1.0", path = "../nestforge-microservices" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

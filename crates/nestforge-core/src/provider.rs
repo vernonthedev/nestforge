@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use anyhow::{anyhow, Result};
 
-use crate::{framework_log, Container};
+use crate::{framework_log_event, Container};
 
 pub struct Provider;
 
@@ -11,6 +11,16 @@ pub struct ValueProvider<T> {
 }
 
 pub struct FactoryProvider<T, F> {
+    factory: F,
+    _marker: PhantomData<fn() -> T>,
+}
+
+pub struct RequestFactoryProvider<T, F> {
+    factory: F,
+    _marker: PhantomData<fn() -> T>,
+}
+
+pub struct TransientFactoryProvider<T, F> {
     factory: F,
     _marker: PhantomData<fn() -> T>,
 }
@@ -33,6 +43,28 @@ impl Provider {
             _marker: PhantomData,
         }
     }
+
+    pub fn request_factory<T, F>(factory: F) -> RequestFactoryProvider<T, F>
+    where
+        T: Send + Sync + 'static,
+        F: Fn(&Container) -> Result<T> + Send + Sync + 'static,
+    {
+        RequestFactoryProvider {
+            factory,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn transient_factory<T, F>(factory: F) -> TransientFactoryProvider<T, F>
+    where
+        T: Send + Sync + 'static,
+        F: Fn(&Container) -> Result<T> + Send + Sync + 'static,
+    {
+        TransientFactoryProvider {
+            factory,
+            _marker: PhantomData,
+        }
+    }
 }
 
 pub trait RegisterProvider {
@@ -44,10 +76,10 @@ where
     T: Send + Sync + 'static,
 {
     fn register(self, container: &Container) -> Result<()> {
-        framework_log(format!(
-            "Registering service {}.",
-            std::any::type_name::<T>()
-        ));
+        framework_log_event(
+            "provider_register",
+            &[("type", std::any::type_name::<T>().to_string())],
+        );
         container.register(self.value)?;
         Ok(())
     }
@@ -59,10 +91,10 @@ where
     F: FnOnce(&Container) -> Result<T> + Send + 'static,
 {
     fn register(self, container: &Container) -> Result<()> {
-        framework_log(format!(
-            "Registering service {} (factory).",
-            std::any::type_name::<T>()
-        ));
+        framework_log_event(
+            "provider_register_factory",
+            &[("type", std::any::type_name::<T>().to_string())],
+        );
         let value = (self.factory)(container).map_err(|err| {
             anyhow!(
                 "Failed to build provider `{}`: {}",
@@ -71,6 +103,56 @@ where
             )
         })?;
         container.register(value)?;
+        Ok(())
+    }
+}
+
+impl<T, F> RegisterProvider for RequestFactoryProvider<T, F>
+where
+    T: Send + Sync + 'static,
+    F: Fn(&Container) -> Result<T> + Send + Sync + 'static,
+{
+    fn register(self, container: &Container) -> Result<()> {
+        framework_log_event(
+            "provider_register_request_factory",
+            &[("type", std::any::type_name::<T>().to_string())],
+        );
+        container
+            .register_request_factory::<T, _>(move |container| {
+                (self.factory)(container).map_err(|err| {
+                    anyhow!(
+                        "Failed to build request-scoped provider `{}`: {}",
+                        std::any::type_name::<T>(),
+                        err
+                    )
+                })
+            })
+            .map_err(|err| anyhow!("Failed to register request-scoped provider: {err}"))?;
+        Ok(())
+    }
+}
+
+impl<T, F> RegisterProvider for TransientFactoryProvider<T, F>
+where
+    T: Send + Sync + 'static,
+    F: Fn(&Container) -> Result<T> + Send + Sync + 'static,
+{
+    fn register(self, container: &Container) -> Result<()> {
+        framework_log_event(
+            "provider_register_transient_factory",
+            &[("type", std::any::type_name::<T>().to_string())],
+        );
+        container
+            .register_transient_factory::<T, _>(move |container| {
+                (self.factory)(container).map_err(|err| {
+                    anyhow!(
+                        "Failed to build transient provider `{}`: {}",
+                        std::any::type_name::<T>(),
+                        err
+                    )
+                })
+            })
+            .map_err(|err| anyhow!("Failed to register transient provider: {err}"))?;
         Ok(())
     }
 }
@@ -153,5 +235,66 @@ mod tests {
         .expect_err("factory should fail");
 
         assert!(err.to_string().contains("AppService"));
+    }
+
+    #[test]
+    fn registers_request_factory_provider() {
+        #[derive(Clone)]
+        struct RequestId(&'static str);
+
+        struct RequestService(&'static str);
+
+        let container = Container::new();
+        register_provider(
+            &container,
+            Provider::request_factory(|c| {
+                let request_id = c.resolve::<RequestId>()?;
+                Ok(RequestService(request_id.0))
+            }),
+        )
+        .expect("request factory should register");
+
+        let scoped = container.scoped();
+        scoped
+            .override_value(RequestId("req-42"))
+            .expect("request id should be set");
+
+        let service = scoped
+            .resolve::<RequestService>()
+            .expect("request service should resolve");
+        assert_eq!(service.0, "req-42");
+    }
+
+    #[test]
+    fn registers_transient_factory_provider() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+
+        struct TransientService(usize);
+
+        let container = Container::new();
+        let counter = Arc::new(AtomicUsize::new(0));
+        let counter_for_factory = Arc::clone(&counter);
+
+        register_provider(
+            &container,
+            Provider::transient_factory(move |_| {
+                let value = counter_for_factory.fetch_add(1, Ordering::Relaxed) + 1;
+                Ok(TransientService(value))
+            }),
+        )
+        .expect("transient factory should register");
+
+        let first = container
+            .resolve::<TransientService>()
+            .expect("first transient should resolve");
+        let second = container
+            .resolve::<TransientService>()
+            .expect("second transient should resolve");
+
+        assert_eq!(first.0, 1);
+        assert_eq!(second.0, 2);
     }
 }

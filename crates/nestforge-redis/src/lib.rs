@@ -37,12 +37,17 @@ impl CacheStore for InMemoryRedisStore {
         &self,
         key: &str,
         value: &str,
-        _ttl_seconds: Option<u64>,
+        ttl_seconds: Option<u64>,
     ) -> nestforge_data::DataFuture<'_, Result<(), DataError>> {
         let key = key.to_string();
         let value = value.to_string();
         let map = Arc::clone(&self.values);
         Box::pin(async move {
+            if ttl_seconds.is_some() {
+                return Err(DataError::Query(
+                    "in-memory redis store does not support ttl".to_string(),
+                ));
+            }
             map.write()
                 .map_err(|_| DataError::Query("in-memory redis lock poisoned".to_string()))?
                 .insert(key, value);

@@ -1,58 +1,63 @@
-name: Semantic Release
+name: Release
 
 on:
-  workflow_run:
-    workflows:
-      - Sync Docs To Wiki
-    types:
-      - completed
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+  release_pr:
+    name: Create Release PR
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: refs/heads/main
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Run semantic-release
-        id: semantic
-        uses: cycjimmy/semantic-release-action@v4
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Open or update release PR
+        uses: release-plz/action@v0.5
         with:
-          semantic_version: 24
-          extra_plugins: |
-            @semantic-release/changelog@6.0.3
-            @semantic-release/git@10.0.1
-            conventional-changelog-conventionalcommits@8.0.0
+          command: release-pr
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Attach changelog and wiki link to release
-        if: steps.semantic.outputs.new_release_published == 'true'
-        uses: softprops/action-gh-release@v2
+  publish:
+    name: Publish Crates
+    runs-on: ubuntu-latest
+    needs: release_pr
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          tag_name: ${{ steps.semantic.outputs.new_release_git_tag }}
-          append_body: true
-          body: |
-            ---
-            ### Documentation
-            - Wiki: https://github.com/${{ github.repository }}/wiki
-          files: |
-            CHANGELOG.md
+          fetch-depth: 0
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Publish released crates and create GitHub releases
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

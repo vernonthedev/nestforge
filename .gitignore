@@ -9,3 +9,4 @@ AGENTS.md
 .agent/
 skills-lock.json
 .agents-lock.json
+.git/

@@ -21,6 +21,9 @@
 - `crates/nestforge-orm`: ORM abstractions for relational data
 - `crates/nestforge-data`: common patterns for non-relational adapters
 - `crates/nestforge-openapi`: OpenAPI support surface
+- `crates/nestforge-graphql`: GraphQL support surface
+- `crates/nestforge-grpc`: gRPC transport support surface
+- `crates/nestforge-websockets`: WebSocket gateway support surface
 - `crates/nestforge-testing`: testing module factory and provider overrides
 
 ## Example App
@@ -31,3 +34,24 @@
 - feature modules (`users/`, `settings/`, `versioning/`)
 - global guards/interceptors
 - versioned routes and global `/api` prefix
+
+`examples/hello-nestforge-graphql` shows a GraphQL-first structure:
+
+- minimal module bootstrap with config
+- async-graphql schema wiring through `NestForgeFactory`
+- GraphQL endpoint at `/graphql`
+- GraphiQL mounted at `/`
+
+`examples/hello-nestforge-grpc` shows a gRPC-first structure:
+
+- minimal module bootstrap with config
+- tonic code generation from `proto/`
+- a transport-focused `build.rs`
+- provider resolution inside a tonic service via `GrpcContext`
+
+`examples/hello-nestforge-websockets` shows a WebSocket-first structure:
+
+- minimal module bootstrap with config
+- gateway mounting through `NestForgeFactoryWebSocketExt`
+- WebSocket route at `/ws`
+- provider resolution inside a gateway via `WebSocketContext`

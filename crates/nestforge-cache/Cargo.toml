@@ -1,0 +1,19 @@
+[package]
+name = "nestforge-cache"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+readme = "../../README.md"
+description = "Cache interceptors and policies for NestForge"
+keywords = ["rust", "framework", "cache", "interceptor", "nestforge"]
+categories = ["web-programming", "caching"]
+
+[dependencies]
+axum = { workspace = true }
+http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+nestforge-core = { version = "1.1.0", path = "../nestforge-core" }
+nestforge-data = { version = "1.1.0", path = "../nestforge-data" }

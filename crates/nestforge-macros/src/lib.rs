@@ -4,11 +4,11 @@ use quote::quote;
 use syn::{
     bracketed,
     parse::{Parse, ParseStream},
-    parse_macro_input,
+    parse_macro_input, parse_quote,
     punctuated::Punctuated,
     spanned::Spanned,
-    parse_quote, Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, ImplItem, ImplItemFn,
-    ItemImpl, ItemStruct, LitStr, Meta, Token, Type,
+    Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, ImplItem, ImplItemFn, ItemImpl,
+    ItemStruct, LitStr, Meta, Token, Type,
 };
 
 /*
@@ -46,15 +46,27 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemImpl);
 
     let self_ty = input.self_ty.clone();
+    let controller_meta = extract_controller_route_meta(&mut input);
 
     let mut route_calls = Vec::new();
+    let mut route_docs = Vec::new();
 
     for impl_item in &mut input.items {
         let ImplItem::Fn(method) = impl_item else {
             continue;
         };
-        let (guards, interceptors) = extract_pipeline_meta(method);
+        let (guards, interceptors, exception_filters) = extract_pipeline_meta(method);
         let version = extract_version_meta(method);
+        let mut doc_meta = extract_route_doc_meta(method);
+        doc_meta.tags = merge_string_lists(controller_meta.tags.clone(), doc_meta.tags);
+        doc_meta.required_roles =
+            merge_string_lists(controller_meta.required_roles.clone(), doc_meta.required_roles);
+        doc_meta.requires_auth =
+            controller_meta.requires_auth || doc_meta.requires_auth || !doc_meta.required_roles.is_empty();
+        let guards = merge_type_lists(controller_meta.guards.clone(), guards);
+        let interceptors = merge_type_lists(controller_meta.interceptors.clone(), interceptors);
+        let exception_filters =
+            merge_type_lists(controller_meta.exception_filters.clone(), exception_filters);
 
         if let Some((http_method, path)) = extract_route_meta(method) {
             let method_name = &method.sig.ident;
@@ -62,9 +74,37 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let guard_inits = guards.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Guard> }
             });
+            let auth_guard_init = if doc_meta.requires_auth && doc_meta.required_roles.is_empty() {
+                quote! {
+                    std::sync::Arc::new(nestforge::RequireAuthenticationGuard::default())
+                        as std::sync::Arc<dyn nestforge::Guard>
+                }
+            } else {
+                quote! {}
+            };
+            let role_guard_init = if doc_meta.required_roles.is_empty() {
+                quote! {}
+            } else {
+                let roles = doc_meta
+                    .required_roles
+                    .iter()
+                    .map(|role| LitStr::new(role, method.sig.ident.span()));
+                quote! {
+                    std::sync::Arc::new(nestforge::RoleRequirementsGuard::new([#(#roles),*]))
+                        as std::sync::Arc<dyn nestforge::Guard>
+                }
+            };
             let interceptor_inits = interceptors.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Interceptor> }
             });
+            let exception_filter_inits = exception_filters.iter().map(|ty| {
+                quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::ExceptionFilter> }
+            });
+            let guard_tokens = if doc_meta.requires_auth || !doc_meta.required_roles.is_empty() {
+                quote! { vec![#(#guard_inits,)* #auth_guard_init #role_guard_init] }
+            } else {
+                quote! { vec![#(#guard_inits),*] }
+            };
             let version_tokens = if let Some(version) = &version {
                 let lit = LitStr::new(version, method.sig.ident.span());
                 quote! { Some(#lit) }
@@ -77,8 +117,9 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     builder = builder.get_with_pipeline(
                         #path_lit,
                         Self::#method_name,
-                        vec![#(#guard_inits),*],
+                        #guard_tokens,
                         vec![#(#interceptor_inits),*],
+                        vec![#(#exception_filter_inits),*],
                         #version_tokens
                     );
                 },
@@ -86,8 +127,9 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     builder = builder.post_with_pipeline(
                         #path_lit,
                         Self::#method_name,
-                        vec![#(#guard_inits),*],
+                        #guard_tokens,
                         vec![#(#interceptor_inits),*],
+                        vec![#(#exception_filter_inits),*],
                         #version_tokens
                     );
                 },
@@ -95,8 +137,9 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     builder = builder.put_with_pipeline(
                         #path_lit,
                         Self::#method_name,
-                        vec![#(#guard_inits),*],
+                        #guard_tokens,
                         vec![#(#interceptor_inits),*],
+                        vec![#(#exception_filter_inits),*],
                         #version_tokens
                     );
                 },
@@ -104,8 +147,9 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     builder = builder.delete_with_pipeline(
                         #path_lit,
                         Self::#method_name,
-                        vec![#(#guard_inits),*],
+                        #guard_tokens,
                         vec![#(#interceptor_inits),*],
+                        vec![#(#exception_filter_inits),*],
                         #version_tokens
                     );
                 },
@@ -113,6 +157,76 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             };
 
             route_calls.push(call);
+
+            let method_lit = LitStr::new(&http_method.to_uppercase(), method.sig.ident.span());
+            let response_docs = if doc_meta.responses.is_empty() {
+                quote! {
+                    vec![nestforge::RouteResponseDocumentation {
+                        status: 200,
+                        description: "OK".to_string(),
+                    }]
+                }
+            } else {
+                let responses = doc_meta.responses.iter().map(|response| {
+                    let description = LitStr::new(&response.description, method.sig.ident.span());
+                    let status = response.status;
+                    quote! {
+                        nestforge::RouteResponseDocumentation {
+                            status: #status,
+                            description: #description.to_string(),
+                        }
+                    }
+                });
+                quote! { vec![#(#responses),*] }
+            };
+            let summary_tokens = if let Some(summary) = &doc_meta.summary {
+                let summary_lit = LitStr::new(summary, method.sig.ident.span());
+                quote! { doc = doc.with_summary(#summary_lit); }
+            } else {
+                quote! {}
+            };
+            let description_tokens = if let Some(description) = &doc_meta.description {
+                let description_lit = LitStr::new(description, method.sig.ident.span());
+                quote! { doc = doc.with_description(#description_lit); }
+            } else {
+                quote! {}
+            };
+            let tag_tokens = if doc_meta.tags.is_empty() {
+                quote! {}
+            } else {
+                let tags = doc_meta.tags.iter().map(|tag| LitStr::new(tag, method.sig.ident.span()));
+                quote! { doc = doc.with_tags([#(#tags),*]); }
+            };
+            let auth_tokens = if doc_meta.requires_auth {
+                quote! { doc = doc.requires_auth(); }
+            } else {
+                quote! {}
+            };
+            let role_tokens = if doc_meta.required_roles.is_empty() {
+                quote! {}
+            } else {
+                let roles = doc_meta
+                    .required_roles
+                    .iter()
+                    .map(|role| LitStr::new(role, method.sig.ident.span()));
+                quote! { doc = doc.with_required_roles([#(#roles),*]); }
+            };
+
+            route_docs.push(quote! {
+                {
+                    let mut doc = nestforge::RouteDocumentation::new(
+                        #method_lit,
+                        nestforge::RouteBuilder::<#self_ty>::full_path(#path_lit, #version_tokens),
+                    )
+                    .with_responses(#response_docs);
+                    #summary_tokens
+                    #description_tokens
+                    #tag_tokens
+                    #auth_tokens
+                    #role_tokens
+                    doc
+                }
+            });
         }
     }
 
@@ -121,13 +235,19 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         impl nestforge::ControllerDefinition for #self_ty {
             fn router() -> axum::Router<nestforge::Container> {
-                nestforge::framework_log(format!(
-                    "Registering controller {}.",
-                    std::any::type_name::<#self_ty>()
-                ));
+                nestforge::framework_log_event(
+                    "controller_register",
+                    &[("controller", std::any::type_name::<#self_ty>().to_string())],
+                );
                 let mut builder = nestforge::RouteBuilder::<#self_ty>::new();
                 #(#route_calls)*
                 builder.build()
+            }
+        }
+
+        impl nestforge::DocumentedController for #self_ty {
+            fn route_docs() -> Vec<nestforge::RouteDocumentation> {
+                vec![#(#route_docs),*]
             }
         }
     };
@@ -154,11 +274,26 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
     let controller_calls = args.controllers.iter().map(|ty| {
         quote! { <#ty as nestforge::ControllerDefinition>::router() }
     });
+    let controller_doc_calls = args.controllers.iter().map(|ty| {
+        quote! { docs.extend(<#ty as nestforge::DocumentedController>::route_docs()); }
+    });
 
     let provider_regs = args.providers.iter().map(build_provider_registration);
 
     let import_refs = args.imports.iter().map(|ty| {
         quote! { nestforge::ModuleRef::of::<#ty>() }
+    });
+    let module_init_hooks = args.on_module_init.iter().map(|expr| {
+        quote! { #expr as nestforge::LifecycleHook }
+    });
+    let module_destroy_hooks = args.on_module_destroy.iter().map(|expr| {
+        quote! { #expr as nestforge::LifecycleHook }
+    });
+    let application_bootstrap_hooks = args.on_application_bootstrap.iter().map(|expr| {
+        quote! { #expr as nestforge::LifecycleHook }
+    });
+    let application_shutdown_hooks = args.on_application_shutdown.iter().map(|expr| {
+        quote! { #expr as nestforge::LifecycleHook }
     });
 
     let exported_types = args.exports.iter().map(|ty| {
@@ -195,6 +330,28 @@ pub fn module(attr: TokenStream, item: TokenStream) -> TokenStream {
                 vec![
                     #(#controller_calls),*
                 ]
+            }
+
+            fn route_docs() -> Vec<nestforge::RouteDocumentation> {
+                let mut docs = Vec::new();
+                #(#controller_doc_calls)*
+                docs
+            }
+
+            fn on_module_init() -> Vec<nestforge::LifecycleHook> {
+                vec![#(#module_init_hooks),*]
+            }
+
+            fn on_module_destroy() -> Vec<nestforge::LifecycleHook> {
+                vec![#(#module_destroy_hooks),*]
+            }
+
+            fn on_application_bootstrap() -> Vec<nestforge::LifecycleHook> {
+                vec![#(#application_bootstrap_hooks),*]
+            }
+
+            fn on_application_shutdown() -> Vec<nestforge::LifecycleHook> {
+                vec![#(#application_shutdown_hooks),*]
             }
         }
     };
@@ -241,6 +398,41 @@ pub fn use_interceptor(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
+pub fn use_exception_filter(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn summary(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn description(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn tag(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn response(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn authenticated(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn roles(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
 pub fn dto(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemStruct);
 
@@ -266,9 +458,12 @@ pub fn identifiable(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
     let ty_ok = matches!(id_field_ty, Type::Path(ref tp) if tp.path.is_ident("u64"));
     if !ty_ok {
-        return syn::Error::new(id_field_ty.span(), "identifiable id field must be of type `u64`")
-            .to_compile_error()
-            .into();
+        return syn::Error::new(
+            id_field_ty.span(),
+            "identifiable id field must be of type `u64`",
+        )
+        .to_compile_error()
+        .into();
     }
 
     TokenStream::from(quote! {
@@ -311,9 +506,12 @@ pub fn entity_dto(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
     let ty_ok = matches!(id_field_ty, Type::Path(ref tp) if tp.path.is_ident("u64"));
     if !ty_ok {
-        return syn::Error::new(id_field_ty.span(), "entity_dto id field must be of type `u64`")
-            .to_compile_error()
-            .into();
+        return syn::Error::new(
+            id_field_ty.span(),
+            "entity_dto id field must be of type `u64`",
+        )
+        .to_compile_error()
+        .into();
     }
 
     input.attrs.push(parse_quote!(
@@ -457,16 +655,18 @@ pub fn derive_validate(item: TokenStream) -> TokenStream {
             continue;
         };
         let field_name_lit = field_ident.to_string();
-        let (required, email) = parse_validate_rules(&field.attrs);
-        if !(required || email) {
+        let rules = parse_validate_rules(&field.attrs);
+        if !rules.has_rules() {
             continue;
         }
 
         let is_string = is_type_named(&field.ty, "String");
         let is_option_string = is_option_of(&field.ty, "String");
         let is_option_any = is_option_any(&field.ty);
+        let is_numeric = is_numeric_type(&field.ty);
+        let is_option_numeric = is_option_numeric_type(&field.ty);
 
-        if required {
+        if rules.required {
             if is_string {
                 checks.push(quote! {
                     if self.#field_ident.trim().is_empty() {
@@ -500,7 +700,7 @@ pub fn derive_validate(item: TokenStream) -> TokenStream {
             }
         }
 
-        if email {
+        if rules.email {
             if is_string {
                 checks.push(quote! {
                     if !self.#field_ident.trim().is_empty() && !self.#field_ident.contains('@') {
@@ -517,6 +717,102 @@ pub fn derive_validate(item: TokenStream) -> TokenStream {
                             errors.push(nestforge::ValidationIssue {
                                 field: #field_name_lit,
                                 message: format!("{} must be a valid email", #field_name_lit),
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        if let Some(min_length) = rules.min_length {
+            if is_string {
+                checks.push(quote! {
+                    if self.#field_ident.len() < #min_length {
+                        errors.push(nestforge::ValidationIssue {
+                            field: #field_name_lit,
+                            message: format!("{} must be at least {} characters", #field_name_lit, #min_length),
+                        });
+                    }
+                });
+            } else if is_option_string {
+                checks.push(quote! {
+                    if let Some(v) = &self.#field_ident {
+                        if v.len() < #min_length {
+                            errors.push(nestforge::ValidationIssue {
+                                field: #field_name_lit,
+                                message: format!("{} must be at least {} characters", #field_name_lit, #min_length),
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        if let Some(max_length) = rules.max_length {
+            if is_string {
+                checks.push(quote! {
+                    if self.#field_ident.len() > #max_length {
+                        errors.push(nestforge::ValidationIssue {
+                            field: #field_name_lit,
+                            message: format!("{} must be at most {} characters", #field_name_lit, #max_length),
+                        });
+                    }
+                });
+            } else if is_option_string {
+                checks.push(quote! {
+                    if let Some(v) = &self.#field_ident {
+                        if v.len() > #max_length {
+                            errors.push(nestforge::ValidationIssue {
+                                field: #field_name_lit,
+                                message: format!("{} must be at most {} characters", #field_name_lit, #max_length),
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        if let Some(min) = &rules.min {
+            if is_numeric {
+                checks.push(quote! {
+                    if self.#field_ident < #min {
+                        errors.push(nestforge::ValidationIssue {
+                            field: #field_name_lit,
+                            message: format!("{} must be at least {}", #field_name_lit, #min),
+                        });
+                    }
+                });
+            } else if is_option_numeric {
+                checks.push(quote! {
+                    if let Some(v) = self.#field_ident {
+                        if v < #min {
+                            errors.push(nestforge::ValidationIssue {
+                                field: #field_name_lit,
+                                message: format!("{} must be at least {}", #field_name_lit, #min),
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        if let Some(max) = &rules.max {
+            if is_numeric {
+                checks.push(quote! {
+                    if self.#field_ident > #max {
+                        errors.push(nestforge::ValidationIssue {
+                            field: #field_name_lit,
+                            message: format!("{} must be at most {}", #field_name_lit, #max),
+                        });
+                    }
+                });
+            } else if is_option_numeric {
+                checks.push(quote! {
+                    if let Some(v) = self.#field_ident {
+                        if v > #max {
+                            errors.push(nestforge::ValidationIssue {
+                                field: #field_name_lit,
+                                message: format!("{} must be at most {}", #field_name_lit, #max),
                             });
                         }
                     }
@@ -563,9 +859,10 @@ fn extract_route_meta(method: &mut ImplItemFn) -> Option<(String, String)> {
     found
 }
 
-fn extract_pipeline_meta(method: &mut ImplItemFn) -> (Vec<Type>, Vec<Type>) {
+fn extract_pipeline_meta(method: &mut ImplItemFn) -> (Vec<Type>, Vec<Type>, Vec<Type>) {
     let mut guards = Vec::new();
     let mut interceptors = Vec::new();
+    let mut exception_filters = Vec::new();
     let mut kept_attrs: Vec<Attribute> = Vec::new();
 
     for attr in method.attrs.drain(..) {
@@ -590,11 +887,81 @@ fn extract_pipeline_meta(method: &mut ImplItemFn) -> (Vec<Type>, Vec<Type>) {
             continue;
         }
 
+        if ident == "use_exception_filter" {
+            if let Ok(ty) = attr.parse_args::<Type>() {
+                exception_filters.push(ty);
+            }
+            continue;
+        }
+
         kept_attrs.push(attr);
     }
 
     method.attrs = kept_attrs;
-    (guards, interceptors)
+    (guards, interceptors, exception_filters)
+}
+
+#[derive(Default)]
+struct ControllerRouteMeta {
+    guards: Vec<Type>,
+    interceptors: Vec<Type>,
+    exception_filters: Vec<Type>,
+    tags: Vec<String>,
+    requires_auth: bool,
+    required_roles: Vec<String>,
+}
+
+fn extract_controller_route_meta(input: &mut ItemImpl) -> ControllerRouteMeta {
+    let mut meta = ControllerRouteMeta::default();
+    let mut kept_attrs: Vec<Attribute> = Vec::new();
+
+    for attr in input.attrs.drain(..) {
+        let ident = attr
+            .path()
+            .segments
+            .last()
+            .map(|seg| seg.ident.to_string())
+            .unwrap_or_default();
+
+        match ident.as_str() {
+            "use_guard" => {
+                if let Ok(ty) = attr.parse_args::<Type>() {
+                    meta.guards.push(ty);
+                }
+            }
+            "use_interceptor" => {
+                if let Ok(ty) = attr.parse_args::<Type>() {
+                    meta.interceptors.push(ty);
+                }
+            }
+            "use_exception_filter" => {
+                if let Ok(ty) = attr.parse_args::<Type>() {
+                    meta.exception_filters.push(ty);
+                }
+            }
+            "tag" => {
+                if let Ok(lit) = attr.parse_args::<LitStr>() {
+                    meta.tags.push(lit.value());
+                }
+            }
+            "authenticated" => {
+                meta.requires_auth = true;
+            }
+            "roles" => {
+                if let Ok(values) =
+                    attr.parse_args_with(Punctuated::<LitStr, Token![,]>::parse_terminated)
+                {
+                    meta.required_roles
+                        .extend(values.into_iter().map(|value| value.value()));
+                    meta.requires_auth = true;
+                }
+            }
+            _ => kept_attrs.push(attr),
+        }
+    }
+
+    input.attrs = kept_attrs;
+    meta
 }
 
 fn extract_version_meta(method: &mut ImplItemFn) -> Option<String> {
@@ -621,6 +988,97 @@ fn extract_version_meta(method: &mut ImplItemFn) -> Option<String> {
 
     method.attrs = kept_attrs;
     version
+}
+
+#[derive(Default)]
+struct RouteDocMeta {
+    summary: Option<String>,
+    description: Option<String>,
+    tags: Vec<String>,
+    responses: Vec<RouteResponseMeta>,
+    requires_auth: bool,
+    required_roles: Vec<String>,
+}
+
+struct RouteResponseMeta {
+    status: u16,
+    description: String,
+}
+
+fn extract_route_doc_meta(method: &mut ImplItemFn) -> RouteDocMeta {
+    let mut meta = RouteDocMeta::default();
+    let mut kept_attrs: Vec<Attribute> = Vec::new();
+
+    for attr in method.attrs.drain(..) {
+        let ident = attr
+            .path()
+            .segments
+            .last()
+            .map(|seg| seg.ident.to_string())
+            .unwrap_or_default();
+
+        match ident.as_str() {
+            "summary" => {
+                if let Ok(lit) = attr.parse_args::<LitStr>() {
+                    meta.summary = Some(lit.value());
+                }
+            }
+            "description" => {
+                if let Ok(lit) = attr.parse_args::<LitStr>() {
+                    meta.description = Some(lit.value());
+                }
+            }
+            "tag" => {
+                if let Ok(lit) = attr.parse_args::<LitStr>() {
+                    meta.tags.push(lit.value());
+                }
+            }
+            "response" => {
+                if let Ok(response) = attr.parse_args::<RouteResponseArgs>() {
+                    meta.responses.push(RouteResponseMeta {
+                        status: response.status,
+                        description: response.description.value(),
+                    });
+                }
+            }
+            "authenticated" => {
+                meta.requires_auth = true;
+            }
+            "roles" => {
+                if let Ok(values) = attr.parse_args_with(Punctuated::<LitStr, Token![,]>::parse_terminated) {
+                    meta.required_roles.extend(values.into_iter().map(|value| value.value()));
+                    meta.requires_auth = true;
+                }
+            }
+            _ => kept_attrs.push(attr),
+        }
+    }
+
+    method.attrs = kept_attrs;
+    meta
+}
+
+fn merge_string_lists(primary: Vec<String>, secondary: Vec<String>) -> Vec<String> {
+    let mut merged = primary;
+    for value in secondary {
+        if !merged.contains(&value) {
+            merged.push(value);
+        }
+    }
+    merged
+}
+
+fn merge_type_lists(primary: Vec<Type>, secondary: Vec<Type>) -> Vec<Type> {
+    let mut merged = primary;
+    for ty in secondary {
+        if !merged
+            .iter()
+            .any(|existing| quote!(#existing).to_string() == quote!(#ty).to_string())
+        {
+            merged.push(ty);
+        }
+    }
+    merged
 }
 
 fn parse_route_attr(attr: &Attribute) -> Option<(String, String)> {
@@ -650,7 +1108,16 @@ struct ModuleArgs {
     controllers: Vec<Type>,
     providers: Vec<Expr>,
     exports: Vec<Type>,
+    on_module_init: Vec<Expr>,
+    on_module_destroy: Vec<Expr>,
+    on_application_bootstrap: Vec<Expr>,
+    on_application_shutdown: Vec<Expr>,
     global: bool,
+}
+
+struct RouteResponseArgs {
+    status: u16,
+    description: LitStr,
 }
 
 struct EntityArgs {
@@ -672,12 +1139,56 @@ impl Parse for EntityArgs {
     }
 }
 
+impl Parse for RouteResponseArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut status = None;
+        let mut description = None;
+
+        while !input.is_empty() {
+            let key: Ident = input.parse()?;
+            input.parse::<Token![=]>()?;
+
+            if key == "status" {
+                let value = input.parse::<syn::LitInt>()?;
+                status = Some(value.base10_parse()?);
+            } else if key == "description" {
+                description = Some(input.parse::<LitStr>()?);
+            } else {
+                return Err(syn::Error::new(
+                    key.span(),
+                    "Unsupported response key. Use `status = ...` and `description = \"...\"`.",
+                ));
+            }
+
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            }
+        }
+
+        Ok(Self {
+            status: status.ok_or_else(|| {
+                syn::Error::new(input.span(), "response metadata requires `status = ...`")
+            })?,
+            description: description.ok_or_else(|| {
+                syn::Error::new(
+                    input.span(),
+                    "response metadata requires `description = \"...\"`",
+                )
+            })?,
+        })
+    }
+}
+
 impl Parse for ModuleArgs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut imports: Vec<Type> = Vec::new();
         let mut controllers: Vec<Type> = Vec::new();
         let mut providers: Vec<Expr> = Vec::new();
         let mut exports: Vec<Type> = Vec::new();
+        let mut on_module_init: Vec<Expr> = Vec::new();
+        let mut on_module_destroy: Vec<Expr> = Vec::new();
+        let mut on_application_bootstrap: Vec<Expr> = Vec::new();
+        let mut on_application_shutdown: Vec<Expr> = Vec::new();
         let mut global = false;
 
         while !input.is_empty() {
@@ -692,13 +1203,21 @@ impl Parse for ModuleArgs {
                 providers = parse_bracket_list::<Expr>(input)?;
             } else if key == "exports" {
                 exports = parse_bracket_list::<Type>(input)?;
+            } else if key == "on_module_init" {
+                on_module_init = parse_bracket_list::<Expr>(input)?;
+            } else if key == "on_module_destroy" {
+                on_module_destroy = parse_bracket_list::<Expr>(input)?;
+            } else if key == "on_application_bootstrap" {
+                on_application_bootstrap = parse_bracket_list::<Expr>(input)?;
+            } else if key == "on_application_shutdown" {
+                on_application_shutdown = parse_bracket_list::<Expr>(input)?;
             } else if key == "global" {
                 let lit: syn::LitBool = input.parse()?;
                 global = lit.value;
             } else {
                 return Err(syn::Error::new(
                     key.span(),
-                    "Unsupported module key. Use `imports`, `controllers`, `providers`, `exports`, or `global`.",
+                    "Unsupported module key. Use `imports`, `controllers`, `providers`, `exports`, lifecycle hook lists, or `global`.",
                 ));
             }
 
@@ -712,6 +1231,10 @@ impl Parse for ModuleArgs {
             controllers,
             providers,
             exports,
+            on_module_init,
+            on_module_destroy,
+            on_application_bootstrap,
+            on_application_shutdown,
             global,
         })
     }
@@ -836,9 +1359,29 @@ fn find_id_field(fields: &Fields) -> Option<(Ident, Type)> {
     by_attr.or(by_name)
 }
 
-fn parse_validate_rules(attrs: &[Attribute]) -> (bool, bool) {
-    let mut required = false;
-    let mut email = false;
+#[derive(Default)]
+struct ValidateRules {
+    required: bool,
+    email: bool,
+    min_length: Option<usize>,
+    max_length: Option<usize>,
+    min: Option<syn::Lit>,
+    max: Option<syn::Lit>,
+}
+
+impl ValidateRules {
+    fn has_rules(&self) -> bool {
+        self.required
+            || self.email
+            || self.min_length.is_some()
+            || self.max_length.is_some()
+            || self.min.is_some()
+            || self.max.is_some()
+    }
+}
+
+fn parse_validate_rules(attrs: &[Attribute]) -> ValidateRules {
+    let mut rules = ValidateRules::default();
 
     for attr in attrs {
         let is_validate = attr
@@ -853,15 +1396,25 @@ fn parse_validate_rules(attrs: &[Attribute]) -> (bool, bool) {
 
         let _ = attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("required") {
-                required = true;
+                rules.required = true;
             } else if meta.path.is_ident("email") {
-                email = true;
+                rules.email = true;
+            } else if meta.path.is_ident("min_length") {
+                let value = meta.value()?.parse::<syn::LitInt>()?;
+                rules.min_length = Some(value.base10_parse()?);
+            } else if meta.path.is_ident("max_length") {
+                let value = meta.value()?.parse::<syn::LitInt>()?;
+                rules.max_length = Some(value.base10_parse()?);
+            } else if meta.path.is_ident("min") {
+                rules.min = Some(meta.value()?.parse::<syn::Lit>()?);
+            } else if meta.path.is_ident("max") {
+                rules.max = Some(meta.value()?.parse::<syn::Lit>()?);
             }
             Ok(())
         });
     }
 
-    (required, email)
+    rules
 }
 
 fn is_type_named(ty: &Type, name: &str) -> bool {
@@ -897,4 +1450,38 @@ fn is_option_of(ty: &Type, inner_name: &str) -> bool {
         return false;
     };
     is_type_named(inner_ty, inner_name)
+}
+
+fn is_numeric_type(ty: &Type) -> bool {
+    matches!(ty, Type::Path(tp) if tp.path.is_ident("u8")
+        || tp.path.is_ident("u16")
+        || tp.path.is_ident("u32")
+        || tp.path.is_ident("u64")
+        || tp.path.is_ident("usize")
+        || tp.path.is_ident("i8")
+        || tp.path.is_ident("i16")
+        || tp.path.is_ident("i32")
+        || tp.path.is_ident("i64")
+        || tp.path.is_ident("isize")
+        || tp.path.is_ident("f32")
+        || tp.path.is_ident("f64"))
+}
+
+fn is_option_numeric_type(ty: &Type) -> bool {
+    let Type::Path(tp) = ty else {
+        return false;
+    };
+    let Some(seg) = tp.path.segments.last() else {
+        return false;
+    };
+    if seg.ident != "Option" {
+        return false;
+    }
+    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return false;
+    };
+    let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() else {
+        return false;
+    };
+    is_numeric_type(inner_ty)
 }

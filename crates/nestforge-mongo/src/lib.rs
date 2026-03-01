@@ -1,6 +1,9 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, RwLock,
+    },
 };
 
 use nestforge_data::{DataError, DocumentRepo};
@@ -23,12 +26,14 @@ impl MongoConfig {
 #[derive(Clone)]
 pub struct InMemoryMongoRepo<T> {
     docs: Arc<RwLock<HashMap<String, T>>>,
+    next_id: Arc<AtomicU64>,
 }
 
 impl<T> InMemoryMongoRepo<T> {
     pub fn new() -> Self {
         Self {
             docs: Arc::new(RwLock::new(HashMap::new())),
+            next_id: Arc::new(AtomicU64::new(1)),
         }
     }
 }
@@ -70,14 +75,9 @@ where
 
     fn insert(&self, doc: T) -> nestforge_data::DataFuture<'_, Result<T, DataError>> {
         let docs = Arc::clone(&self.docs);
+        let next_id = Arc::clone(&self.next_id);
         Box::pin(async move {
-            let id = format!(
-                "doc_{}",
-                docs.read()
-                    .map_err(|_| DataError::Query("lock".to_string()))?
-                    .len()
-                    + 1
-            );
+            let id = format!("doc_{}", next_id.fetch_add(1, Ordering::Relaxed));
             docs.write()
                 .map_err(|_| DataError::Query("in-memory mongo lock poisoned".to_string()))?
                 .insert(id, doc.clone());

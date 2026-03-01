@@ -73,8 +73,8 @@ impl QueryRoot {
         "ok"
     }
 
-    async fn app_name(&self, ctx: &Context<'_>) -> &str {
-        ctx.data_unchecked::<String>().as_str()
+    async fn app_name(&self, ctx: &Context<'_>) -> String {
+        ctx.data_unchecked::<String>().clone()
     }
 
     async fn users(&self, ctx: &Context<'_>) -> Vec<User> {

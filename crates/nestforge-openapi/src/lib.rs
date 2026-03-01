@@ -11,6 +11,7 @@ pub struct OpenApiRoute {
     pub description: Option<String>,
     pub tags: Vec<String>,
     pub requires_auth: bool,
+    pub required_roles: Vec<String>,
     pub responses: Vec<OpenApiResponse>,
 }
 
@@ -44,6 +45,7 @@ impl OpenApiDoc {
             description: None,
             tags: Vec::new(),
             requires_auth: false,
+            required_roles: Vec::new(),
             responses: vec![OpenApiResponse {
                 status: 200,
                 description: "OK".to_string(),
@@ -69,6 +71,7 @@ impl OpenApiDoc {
                     description: route.description,
                     tags: route.tags,
                     requires_auth: route.requires_auth,
+                    required_roles: route.required_roles,
                     responses: route
                         .responses
                         .into_iter()
@@ -105,6 +108,7 @@ impl OpenApiDoc {
                     "description": route.description,
                     "tags": route.tags,
                     "responses": responses,
+                    "x-required-roles": route.required_roles,
                     "security": if route.requires_auth { json!([{"bearerAuth": []}]) } else { json!([]) }
                 }),
             );

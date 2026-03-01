@@ -32,6 +32,8 @@ Controller methods can now declare metadata:
 
 ```rust
 #[nestforge::get("/users")]
+#[nestforge::authenticated]
+#[nestforge::roles("admin", "support")]
 #[nestforge::summary("List users")]
 #[nestforge::tag("users")]
 #[nestforge::response(status = 200, description = "Users returned")]
@@ -39,6 +41,8 @@ async fn list() -> nestforge::ApiResult<Vec<UserDto>> {
     # todo!()
 }
 ```
+
+`#[authenticated]` now enforces runtime authentication, and `#[roles(...)]` enforces that the authenticated identity has at least one required role.
 
 Generated docs can be mounted directly:
 

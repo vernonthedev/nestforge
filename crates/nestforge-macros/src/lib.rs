@@ -64,9 +64,34 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let guard_inits = guards.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Guard> }
             });
+            let auth_guard_init = if doc_meta.requires_auth && doc_meta.required_roles.is_empty() {
+                quote! {
+                    std::sync::Arc::new(nestforge::RequireAuthenticationGuard::default())
+                        as std::sync::Arc<dyn nestforge::Guard>
+                }
+            } else {
+                quote! {}
+            };
+            let role_guard_init = if doc_meta.required_roles.is_empty() {
+                quote! {}
+            } else {
+                let roles = doc_meta
+                    .required_roles
+                    .iter()
+                    .map(|role| LitStr::new(role, method.sig.ident.span()));
+                quote! {
+                    std::sync::Arc::new(nestforge::RoleRequirementsGuard::new([#(#roles),*]))
+                        as std::sync::Arc<dyn nestforge::Guard>
+                }
+            };
             let interceptor_inits = interceptors.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Interceptor> }
             });
+            let guard_tokens = if doc_meta.requires_auth || !doc_meta.required_roles.is_empty() {
+                quote! { vec![#(#guard_inits,)* #auth_guard_init #role_guard_init] }
+            } else {
+                quote! { vec![#(#guard_inits),*] }
+            };
             let version_tokens = if let Some(version) = &version {
                 let lit = LitStr::new(version, method.sig.ident.span());
                 quote! { Some(#lit) }
@@ -79,7 +104,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     builder = builder.get_with_pipeline(
                         #path_lit,
                         Self::#method_name,
-                        vec![#(#guard_inits),*],
+                        #guard_tokens,
                         vec![#(#interceptor_inits),*],
                         #version_tokens
                     );
@@ -88,7 +113,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     builder = builder.post_with_pipeline(
                         #path_lit,
                         Self::#method_name,
-                        vec![#(#guard_inits),*],
+                        #guard_tokens,
                         vec![#(#interceptor_inits),*],
                         #version_tokens
                     );
@@ -97,7 +122,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     builder = builder.put_with_pipeline(
                         #path_lit,
                         Self::#method_name,
-                        vec![#(#guard_inits),*],
+                        #guard_tokens,
                         vec![#(#interceptor_inits),*],
                         #version_tokens
                     );
@@ -106,7 +131,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     builder = builder.delete_with_pipeline(
                         #path_lit,
                         Self::#method_name,
-                        vec![#(#guard_inits),*],
+                        #guard_tokens,
                         vec![#(#interceptor_inits),*],
                         #version_tokens
                     );
@@ -160,6 +185,15 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             } else {
                 quote! {}
             };
+            let role_tokens = if doc_meta.required_roles.is_empty() {
+                quote! {}
+            } else {
+                let roles = doc_meta
+                    .required_roles
+                    .iter()
+                    .map(|role| LitStr::new(role, method.sig.ident.span()));
+                quote! { doc = doc.with_required_roles([#(#roles),*]); }
+            };
 
             route_docs.push(quote! {
                 {
@@ -172,6 +206,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     #description_tokens
                     #tag_tokens
                     #auth_tokens
+                    #role_tokens
                     doc
                 }
             });
@@ -367,6 +402,11 @@ pub fn response(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn authenticated(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn roles(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
@@ -864,6 +904,7 @@ struct RouteDocMeta {
     tags: Vec<String>,
     responses: Vec<RouteResponseMeta>,
     requires_auth: bool,
+    required_roles: Vec<String>,
 }
 
 struct RouteResponseMeta {
@@ -909,6 +950,12 @@ fn extract_route_doc_meta(method: &mut ImplItemFn) -> RouteDocMeta {
             }
             "authenticated" => {
                 meta.requires_auth = true;
+            }
+            "roles" => {
+                if let Ok(values) = attr.parse_args_with(Punctuated::<LitStr, Token![,]>::parse_terminated) {
+                    meta.required_roles.extend(values.into_iter().map(|value| value.value()));
+                    meta.requires_auth = true;
+                }
             }
             _ => kept_attrs.push(attr),
         }

@@ -10,7 +10,8 @@ pub use nestforge_core::{
     HttpException, Identifiable, InMemoryStore, Inject, InitializedModule, Interceptor,
     LifecycleHook, List, ModuleDefinition, ModuleRef, NextFn, NextFuture, OptionHttpExt,
     OptionalAuthUser, Param, Provider, Query, RegisterProvider, RequestContext, RequestId,
-    ResourceError, ResourceService, ResultHttpExt, RouteBuilder, RouteDocumentation,
+    RequireAuthenticationGuard, ResourceError, ResourceService, ResultHttpExt,
+    RoleRequirementsGuard, RouteBuilder, RouteDocumentation,
     RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors, ValidationIssue,
     framework_log, framework_log_event, Pipe, PipedBody, PipedParam, PipedQuery,
 };
@@ -28,8 +29,8 @@ pub use nestforge_http::NestForgeFactory;
 pub use nestforge_http::{MiddlewareConsumer, NestMiddleware};
 pub use nestforge_macros::{
     authenticated, controller, delete, description, dto, entity, entity_dto, get, id,
-    identifiable, module, post, put, response, response_dto, routes, summary, tag, use_guard,
-    use_interceptor, version, Identifiable, Validate,
+    identifiable, module, post, put, response, response_dto, roles, routes, summary, tag,
+    use_guard, use_interceptor, version, Identifiable, Validate,
 };
 
 #[macro_export]

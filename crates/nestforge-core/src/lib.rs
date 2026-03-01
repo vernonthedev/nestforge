@@ -37,7 +37,7 @@ pub use module::{
 };
 pub use pipeline::{
     apply_exception_filters, execute_pipeline, ExceptionFilter, Guard, Interceptor, NextFn,
-    NextFuture, RequestContext, run_guards,
+    NextFuture, RequestContext, RequireAuthenticationGuard, RoleRequirementsGuard, run_guards,
 };
 pub use provider::{register_provider, Provider, RegisterProvider};
 pub use request::ValidatedBody;

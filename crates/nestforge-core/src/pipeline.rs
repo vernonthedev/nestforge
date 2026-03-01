@@ -63,6 +63,52 @@ pub trait Guard: Send + Sync + 'static {
     fn can_activate(&self, ctx: &RequestContext) -> Result<(), HttpException>;
 }
 
+#[derive(Default)]
+pub struct RequireAuthenticationGuard;
+
+impl Guard for RequireAuthenticationGuard {
+    fn can_activate(&self, ctx: &RequestContext) -> Result<(), HttpException> {
+        if ctx.is_authenticated() {
+            Ok(())
+        } else {
+            Err(HttpException::unauthorized("Authentication required"))
+        }
+    }
+}
+
+pub struct RoleRequirementsGuard {
+    roles: Vec<String>,
+}
+
+impl RoleRequirementsGuard {
+    pub fn new<I, S>(roles: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        Self {
+            roles: roles.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl Guard for RoleRequirementsGuard {
+    fn can_activate(&self, ctx: &RequestContext) -> Result<(), HttpException> {
+        if !ctx.is_authenticated() {
+            return Err(HttpException::unauthorized("Authentication required"));
+        }
+
+        if self.roles.iter().any(|role| ctx.has_role(role)) {
+            Ok(())
+        } else {
+            Err(HttpException::forbidden(format!(
+                "Missing required role. Expected one of: {}",
+                self.roles.join(", ")
+            )))
+        }
+    }
+}
+
 pub type NextFuture = Pin<Box<dyn Future<Output = Response> + Send>>;
 pub type NextFn = Arc<dyn Fn(Request<Body>) -> NextFuture + Send + Sync + 'static>;
 
@@ -159,4 +205,50 @@ pub fn apply_exception_filters(
     }
 
     exception
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use axum::http::Method;
+
+    use crate::{AuthIdentity, Guard};
+
+    use super::{RequestContext, RequireAuthenticationGuard, RoleRequirementsGuard};
+
+    fn anonymous_context() -> RequestContext {
+        RequestContext {
+            method: Method::GET,
+            uri: "/".parse().expect("uri should parse"),
+            request_id: None,
+            auth_identity: None,
+        }
+    }
+
+    fn authenticated_context(roles: &[&str]) -> RequestContext {
+        RequestContext {
+            method: Method::GET,
+            uri: "/".parse().expect("uri should parse"),
+            request_id: None,
+            auth_identity: Some(Arc::new(AuthIdentity::new("user-1").with_roles(roles))),
+        }
+    }
+
+    #[test]
+    fn authentication_guard_rejects_anonymous_requests() {
+        let guard = RequireAuthenticationGuard;
+
+        assert!(guard.can_activate(&anonymous_context()).is_err());
+        assert!(guard.can_activate(&authenticated_context(&[])).is_ok());
+    }
+
+    #[test]
+    fn role_guard_accepts_any_matching_role() {
+        let guard = RoleRequirementsGuard::new(["admin", "support"]);
+
+        assert!(guard.can_activate(&authenticated_context(&["support"])).is_ok());
+        assert!(guard.can_activate(&authenticated_context(&["viewer"])).is_err());
+        assert!(guard.can_activate(&anonymous_context()).is_err());
+    }
 }

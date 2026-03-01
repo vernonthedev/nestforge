@@ -15,6 +15,7 @@ pub struct RouteDocumentation {
     pub tags: Vec<String>,
     pub responses: Vec<RouteResponseDocumentation>,
     pub requires_auth: bool,
+    pub required_roles: Vec<String>,
 }
 
 impl RouteDocumentation {
@@ -30,6 +31,7 @@ impl RouteDocumentation {
                 description: "OK".to_string(),
             }],
             requires_auth: false,
+            required_roles: Vec::new(),
         }
     }
 
@@ -59,6 +61,15 @@ impl RouteDocumentation {
 
     pub fn requires_auth(mut self) -> Self {
         self.requires_auth = true;
+        self
+    }
+
+    pub fn with_required_roles<I, S>(mut self, roles: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.required_roles = roles.into_iter().map(Into::into).collect();
         self
     }
 }

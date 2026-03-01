@@ -23,7 +23,7 @@ impl<M: ModuleDefinition> TestFactory<M> {
         T: Send + Sync + Clone + 'static,
     {
         self.overrides.push(Box::new(move |container| {
-            container.replace(value.clone())?;
+            container.override_value(value.clone())?;
             Ok(())
         }));
         self
@@ -31,12 +31,12 @@ impl<M: ModuleDefinition> TestFactory<M> {
 
     pub fn build(self) -> Result<TestingModule> {
         let container = Container::new();
-        let _ = initialize_module_graph::<M>(&container)?;
 
         for override_fn in self.overrides {
             override_fn(&container)?;
         }
 
+        let _ = initialize_module_graph::<M>(&container)?;
         Ok(TestingModule { container })
     }
 }
@@ -62,6 +62,7 @@ impl TestingModule {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nestforge_core::{register_provider, Provider};
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     struct AppConfig {
@@ -106,5 +107,41 @@ mod tests {
             .resolve::<AppConfig>()
             .expect("config should resolve");
         assert_eq!(*config, AppConfig { app_name: "test" });
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct GreetingService {
+        greeting: String,
+    }
+
+    struct FactoryModule;
+    impl ModuleDefinition for FactoryModule {
+        fn register(container: &Container) -> Result<()> {
+            register_provider(
+                container,
+                Provider::factory(|container| {
+                    let config = container.resolve::<AppConfig>()?;
+                    Ok(GreetingService {
+                        greeting: format!("hello {}", config.app_name),
+                    })
+                }),
+            )?;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn overrides_are_applied_before_factory_resolution() {
+        let module = TestFactory::<FactoryModule>::create()
+            .override_provider(AppConfig {
+                app_name: "override",
+            })
+            .build()
+            .expect("test module should build with transitive overrides");
+
+        let greeting = module
+            .resolve::<GreetingService>()
+            .expect("greeting service should resolve");
+        assert_eq!(greeting.greeting, "hello override");
     }
 }

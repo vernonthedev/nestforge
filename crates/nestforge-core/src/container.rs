@@ -26,6 +26,7 @@ use thiserror::Error;
 #[derive(Clone, Default)]
 pub struct Container {
     inner: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+    overrides: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
     names: Arc<RwLock<HashSet<&'static str>>>,
 }
 
@@ -78,14 +79,12 @@ impl Container {
 
         let type_id = TypeId::of::<T>();
 
-        /* Prevent accidental duplicate registration of the same type. */
         if map.contains_key(&type_id) {
             return Err(ContainerError::TypeAlreadyRegistered {
                 type_name: std::any::type_name::<T>(),
             });
         }
 
-        /* Store as Arc<dyn Any> so we can keep different types in one map. */
         map.insert(type_id, Arc::new(value));
         self.names
             .write()
@@ -104,6 +103,23 @@ impl Container {
             .map_err(|_| ContainerError::WriteLockPoisoned)?;
 
         map.insert(TypeId::of::<T>(), Arc::new(value));
+        self.names
+            .write()
+            .map_err(|_| ContainerError::WriteLockPoisoned)?
+            .insert(std::any::type_name::<T>());
+        Ok(())
+    }
+
+    pub fn override_value<T>(&self, value: T) -> Result<(), ContainerError>
+    where
+        T: Send + Sync + 'static,
+    {
+        let mut overrides = self
+            .overrides
+            .write()
+            .map_err(|_| ContainerError::WriteLockPoisoned)?;
+
+        overrides.insert(TypeId::of::<T>(), Arc::new(value));
         self.names
             .write()
             .map_err(|_| ContainerError::WriteLockPoisoned)?
@@ -131,25 +147,12 @@ impl Container {
     where
         T: Send + Sync + 'static,
     {
-        let map = self
-            .inner
-            .read()
-            .map_err(|_| ContainerError::ReadLockPoisoned)?;
+        if let Some(value) = self.resolve_from_map::<T>(&self.overrides)? {
+            return Ok(value);
+        }
 
-        let value = map
-            .get(&TypeId::of::<T>())
+        self.resolve_from_map::<T>(&self.inner)?
             .ok_or_else(|| ContainerError::TypeNotRegistered {
-                type_name: std::any::type_name::<T>(),
-            })?
-            .clone();
-
-        /*
-         * We stored the value as dyn Any, so now we downcast it back to the real type T.
-         * If downcast fails, the type in the map doesn’t match what we asked for.
-         */
-        value
-            .downcast::<T>()
-            .map_err(|_| ContainerError::DowncastFailed {
                 type_name: std::any::type_name::<T>(),
             })
     }
@@ -167,5 +170,53 @@ impl Container {
             }
             other => other,
         })
+    }
+
+    fn resolve_from_map<T>(
+        &self,
+        map: &Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+    ) -> Result<Option<Arc<T>>, ContainerError>
+    where
+        T: Send + Sync + 'static,
+    {
+        let map = map.read().map_err(|_| ContainerError::ReadLockPoisoned)?;
+        let Some(value) = map.get(&TypeId::of::<T>()).cloned() else {
+            return Ok(None);
+        };
+
+        let value = value.downcast::<T>().map_err(|_| ContainerError::DowncastFailed {
+            type_name: std::any::type_name::<T>(),
+        })?;
+
+        Ok(Some(value))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct AppConfig {
+        app_name: &'static str,
+    }
+
+    #[test]
+    fn override_value_takes_precedence_over_registered_value() {
+        let container = Container::new();
+
+        container
+            .register(AppConfig {
+                app_name: "default",
+            })
+            .expect("register should succeed");
+        container
+            .override_value(AppConfig { app_name: "test" })
+            .expect("override should succeed");
+
+        let config = container
+            .resolve::<AppConfig>()
+            .expect("config should resolve");
+        assert_eq!(config.app_name, "test");
     }
 }

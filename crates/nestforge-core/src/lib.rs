@@ -41,7 +41,7 @@ pub use pipeline::{
 };
 pub use provider::{register_provider, Provider, RegisterProvider};
 pub use request::ValidatedBody;
-pub use request::{Body, Cookies, Headers, Param, Query, RequestId};
+pub use request::{Body, Cookies, Headers, Param, Pipe, PipedBody, PipedParam, PipedQuery, Query, RequestId};
 pub use resource_service::{ResourceError, ResourceService};
 pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};

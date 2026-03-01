@@ -6,7 +6,13 @@ use axum::{
 };
 use serde::de::DeserializeOwned;
 
-use crate::{HttpException, Validate};
+use crate::{HttpException, RequestContext, Validate};
+
+pub trait Pipe<Input>: Send + Sync + 'static {
+    type Output;
+
+    fn transform(value: Input, ctx: &RequestContext) -> Result<Self::Output, HttpException>;
+}
 
 #[derive(Debug, Clone)]
 pub struct RequestId(pub Arc<str>);
@@ -105,6 +111,59 @@ where
     }
 }
 
+pub struct PipedParam<T, P>
+where
+    P: Pipe<T>,
+{
+    value: P::Output,
+    _marker: std::marker::PhantomData<(T, P)>,
+}
+
+impl<T, P> Deref for PipedParam<T, P>
+where
+    P: Pipe<T>,
+{
+    type Target = P::Output;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<T, P> PipedParam<T, P>
+where
+    P: Pipe<T>,
+{
+    pub fn into_inner(self) -> P::Output {
+        self.value
+    }
+}
+
+impl<S, T, P> FromRequestParts<S> for PipedParam<T, P>
+where
+    S: Send + Sync,
+    T: DeserializeOwned + Send + 'static,
+    P: Pipe<T>,
+{
+    type Rejection = HttpException;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let Path(value) = Path::<T>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| {
+                HttpException::bad_request("Invalid route parameter")
+                    .with_optional_request_id(request_id_from_extensions(&parts.extensions))
+            })?;
+        let ctx = RequestContext::from_parts(parts);
+        let value = P::transform(value, &ctx)?;
+
+        Ok(Self {
+            value,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Query<T>(pub T);
 
@@ -143,6 +202,59 @@ where
             })?;
 
         Ok(Self(value))
+    }
+}
+
+pub struct PipedQuery<T, P>
+where
+    P: Pipe<T>,
+{
+    value: P::Output,
+    _marker: std::marker::PhantomData<(T, P)>,
+}
+
+impl<T, P> Deref for PipedQuery<T, P>
+where
+    P: Pipe<T>,
+{
+    type Target = P::Output;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<T, P> PipedQuery<T, P>
+where
+    P: Pipe<T>,
+{
+    pub fn into_inner(self) -> P::Output {
+        self.value
+    }
+}
+
+impl<S, T, P> FromRequestParts<S> for PipedQuery<T, P>
+where
+    S: Send + Sync,
+    T: DeserializeOwned + Send + 'static,
+    P: Pipe<T>,
+{
+    type Rejection = HttpException;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let AxumQuery(value) = AxumQuery::<T>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| {
+                HttpException::bad_request("Invalid query parameters")
+                    .with_optional_request_id(request_id_from_extensions(&parts.extensions))
+            })?;
+        let ctx = RequestContext::from_parts(parts);
+        let value = P::transform(value, &ctx)?;
+
+        Ok(Self {
+            value,
+            _marker: std::marker::PhantomData,
+        })
     }
 }
 
@@ -270,6 +382,62 @@ where
             })?;
 
         Ok(Self(value))
+    }
+}
+
+pub struct PipedBody<T, P>
+where
+    P: Pipe<T>,
+{
+    value: P::Output,
+    _marker: std::marker::PhantomData<(T, P)>,
+}
+
+impl<T, P> Deref for PipedBody<T, P>
+where
+    P: Pipe<T>,
+{
+    type Target = P::Output;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<T, P> PipedBody<T, P>
+where
+    P: Pipe<T>,
+{
+    pub fn into_inner(self) -> P::Output {
+        self.value
+    }
+}
+
+impl<S, T, P> FromRequest<S> for PipedBody<T, P>
+where
+    S: Send + Sync,
+    T: DeserializeOwned + Send + 'static,
+    P: Pipe<T>,
+{
+    type Rejection = HttpException;
+
+    async fn from_request(
+        req: axum::extract::Request,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let ctx = RequestContext::from_request(&req);
+        let axum::Json(value) = axum::Json::<T>::from_request(req, state)
+            .await
+            .map_err(|_| {
+                HttpException::bad_request("Invalid JSON body")
+                    .with_optional_request_id(ctx.request_id.clone())
+            })?;
+        let value = P::transform(value, &ctx)?;
+
+        Ok(Self {
+            value,
+            _marker: std::marker::PhantomData,
+        })
     }
 }
 

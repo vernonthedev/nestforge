@@ -45,8 +45,29 @@ Controllers define HTTP routes.
 ## Request Types
 
 - `Param<T>`: path params
+- `PipedParam<T, P>`: path params transformed by a pipe
+- `Query<T>`: query params
+- `PipedQuery<T, P>`: query params transformed by a pipe
 - `Body<T>`: JSON body
+- `PipedBody<T, P>`: JSON body transformed by a pipe
 - `ValidatedBody<T>`: JSON body + validation
+
+Pipes let you transform or reject extracted values before handler logic runs:
+
+```rust
+struct SlugPipe;
+
+impl nestforge::Pipe<String> for SlugPipe {
+    type Output = String;
+
+    fn transform(
+        value: String,
+        _ctx: &nestforge::RequestContext,
+    ) -> Result<Self::Output, nestforge::HttpException> {
+        Ok(value.trim().to_lowercase())
+    }
+}
+```
 
 ## Validation
 

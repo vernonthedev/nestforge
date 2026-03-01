@@ -7,7 +7,7 @@ use std::{
 use axum::{
     body::Body,
     extract::Request,
-    http::{Method, Uri},
+    http::{request::Parts, Method, Uri},
     middleware::Next,
     response::IntoResponse,
     response::Response,
@@ -25,6 +25,15 @@ pub struct RequestContext {
 }
 
 impl RequestContext {
+    pub fn from_parts(parts: &Parts) -> Self {
+        Self {
+            method: parts.method.clone(),
+            uri: parts.uri.clone(),
+            request_id: crate::request::request_id_from_extensions(&parts.extensions),
+            auth_identity: parts.extensions.get::<Arc<AuthIdentity>>().cloned(),
+        }
+    }
+
     pub fn from_request(req: &Request) -> Self {
         Self {
             method: req.method().clone(),

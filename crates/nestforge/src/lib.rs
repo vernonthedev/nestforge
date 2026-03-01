@@ -12,7 +12,7 @@ pub use nestforge_core::{
     OptionalAuthUser, Param, Provider, Query, RegisterProvider, RequestContext, RequestId,
     ResourceError, ResourceService, ResultHttpExt, RouteBuilder, RouteDocumentation,
     RouteResponseDocumentation, Validate, ValidatedBody, ValidationErrors, ValidationIssue,
-    framework_log, framework_log_event,
+    framework_log, framework_log_event, Pipe, PipedBody, PipedParam, PipedQuery,
 };
 
 #[cfg(feature = "config")]

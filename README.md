@@ -96,6 +96,20 @@ Server runs on:
 http://127.0.0.1:3000
 ```
 
+## Releases
+
+NestForge now uses a Rust-native release flow based on `release-plz`.
+
+- Pushes to `main` update or open a release PR with the next crate versions.
+- Merging that release PR publishes the changed crates to crates.io in dependency order.
+- The root `CHANGELOG.md` is updated from the `nestforge` package release notes, so conventional commits remain the source for changelog entries.
+
+Repository setup required for publishing:
+
+- Add `CARGO_REGISTRY_TOKEN` to GitHub Actions secrets.
+- Keep using Conventional Commits for changes you want included in the release notes.
+- Expect first-time publishes for brand new crates to require a manual bootstrap publish before full automation can take over.
+
 ## Quick Start (CLI)
 
 Install locally from this workspace:

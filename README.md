@@ -49,6 +49,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - `crates/nestforge-data`: non-relational data abstractions
 - `examples/hello-nestforge`: full example app
 - `examples/hello-nestforge-graphql`: GraphQL-first example app
+- `examples/hello-nestforge-grpc`: gRPC-first example app
 
 ## Quick Start (Repo)
 
@@ -63,6 +64,12 @@ GraphQL-first example:
 
 ```bash
 cargo run -p hello-nestforge-graphql
+```
+
+gRPC-first example:
+
+```bash
+cargo run -p hello-nestforge-grpc
 ```
 
 Server runs on:
@@ -183,6 +190,9 @@ NestForgeGrpcFactory::<AppModule>::create()?
     })
     .await?;
 ```
+
+See `examples/hello-nestforge-grpc` for a full tonic-based setup with `proto/greeter.proto`,
+`build.rs`, generated bindings, and provider resolution through `GrpcContext`.
 
 ## Documentation
 

@@ -120,6 +120,11 @@ impl Db {
         Ok(result.rows_affected())
     }
 
+    pub async fn execute_script(&self, sql: &str) -> Result<(), DbError> {
+        sqlx::raw_sql(sql).execute(&self.primary).await?;
+        Ok(())
+    }
+
     pub async fn execute_named(&self, name: &str, sql: &str) -> Result<u64, DbError> {
         let pool = self.pool_named(name)?;
         let result = sqlx::query::<Any>(sql).execute(pool).await?;
@@ -165,6 +170,11 @@ impl DbTransaction {
     pub async fn execute(&mut self, sql: &str) -> Result<u64, DbError> {
         let result = sqlx::query::<Any>(sql).execute(&mut *self.tx).await?;
         Ok(result.rows_affected())
+    }
+
+    pub async fn execute_script(&mut self, sql: &str) -> Result<(), DbError> {
+        sqlx::raw_sql(sql).execute(&mut *self.tx).await?;
+        Ok(())
     }
 
     pub async fn fetch_all<T>(&mut self, sql: &str) -> Result<Vec<T>, DbError>

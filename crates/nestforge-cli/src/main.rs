@@ -321,9 +321,8 @@ fn db_migrate(app_root: &Path) -> Result<()> {
             .to_string();
         let sql = fs::read_to_string(&migration)
             .with_context(|| format!("Failed to read migration {}", migration.display()))?;
-        let statements = split_sql_statements(&sql);
 
-        if statements.is_empty() {
+        if !contains_sql_content(&sql) {
             println!("Skipping empty migration {}", file_name);
             let hash = compute_content_hash(&sql);
             append_applied_migration(app_root, &file_name, &hash)?;
@@ -336,11 +335,9 @@ fn db_migrate(app_root: &Path) -> Result<()> {
                 .await
                 .with_context(|| format!("Migration {} failed to start transaction", file_name))?;
 
-            for stmt in &statements {
-                tx.execute(stmt).await.with_context(|| {
-                    format!("Migration {} failed on statement: {}", file_name, stmt)
-                })?;
-            }
+            tx.execute_script(&sql)
+                .await
+                .with_context(|| format!("Migration {} failed while executing SQL script", file_name))?;
 
             tx.commit()
                 .await
@@ -1645,128 +1642,12 @@ fn env_path_or_default(app_root: &Path) -> PathBuf {
     app_root.join(".env")
 }
 
-fn split_sql_statements(sql: &str) -> Vec<String> {
-    let mut statements = Vec::new();
-    let mut current = String::new();
-    let mut chars = sql.chars().peekable();
-    let mut in_single_quote = false;
-    let mut in_double_quote = false;
-    let mut in_line_comment = false;
-    let mut in_block_comment = false;
-    let mut dollar_quote_tag: Option<String> = None;
-
-    while let Some(ch) = chars.next() {
-        if in_line_comment {
-            current.push(ch);
-            if ch == '\n' {
-                in_line_comment = false;
-            }
-            continue;
-        }
-
-        if in_block_comment {
-            current.push(ch);
-            if ch == '*' && chars.peek() == Some(&'/') {
-                current.push(chars.next().expect("peeked slash must exist"));
-                in_block_comment = false;
-            }
-            continue;
-        }
-
-        if let Some(tag) = &dollar_quote_tag {
-            current.push(ch);
-            if ch == '$' && current.ends_with(tag) {
-                dollar_quote_tag = None;
-            }
-            continue;
-        }
-
-        if !in_single_quote && !in_double_quote {
-            if ch == '-' && chars.peek() == Some(&'-') {
-                current.push(ch);
-                current.push(chars.next().expect("peeked dash must exist"));
-                in_line_comment = true;
-                continue;
-            }
-
-            if ch == '/' && chars.peek() == Some(&'*') {
-                current.push(ch);
-                current.push(chars.next().expect("peeked star must exist"));
-                in_block_comment = true;
-                continue;
-            }
-
-            if ch == '$' {
-                let mut probe = String::from("$");
-                let mut iter = chars.clone();
-                while let Some(next) = iter.next() {
-                    probe.push(next);
-                    if next == '$' {
-                        break;
-                    }
-                    if !(next == '_' || next.is_ascii_alphanumeric()) {
-                        probe.clear();
-                        break;
-                    }
-                }
-
-                if probe.len() >= 2 && probe.ends_with('$') {
-                    current.push_str(&probe);
-                    for _ in 1..probe.len() {
-                        let _ = chars.next();
-                    }
-                    dollar_quote_tag = Some(probe);
-                    continue;
-                }
-            }
-        }
-
-        match ch {
-            '\'' if !in_double_quote => {
-                current.push(ch);
-                if in_single_quote && chars.peek() == Some(&'\'') {
-                    current.push(chars.next().expect("peeked quote must exist"));
-                } else {
-                    in_single_quote = !in_single_quote;
-                }
-            }
-            '"' if !in_single_quote => {
-                current.push(ch);
-                in_double_quote = !in_double_quote;
-            }
-            ';' if !in_single_quote && !in_double_quote => {
-                current.push(ch);
-                push_sql_statement(&mut statements, &current);
-                current.clear();
-            }
-            _ => current.push(ch),
-        }
-    }
-
-    push_sql_statement(&mut statements, &current);
-    statements
-}
-
 fn compute_content_hash(content: &str) -> String {
     use sha2::{Digest, Sha256};
 
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
     format!("{:x}", hasher.finalize())
-}
-
-fn push_sql_statement(statements: &mut Vec<String>, raw_statement: &str) {
-    let trimmed = raw_statement.trim();
-    if trimmed.is_empty() || !contains_sql_content(trimmed) {
-        return;
-    }
-
-    let statement = if trimmed.ends_with(';') {
-        trimmed.to_string()
-    } else {
-        format!("{trimmed};")
-    };
-    statements.push(statement);
 }
 
 fn contains_sql_content(sql: &str) -> bool {
@@ -1812,39 +1693,20 @@ fn contains_sql_content(sql: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{compute_content_hash, split_sql_statements};
+    use super::{compute_content_hash, contains_sql_content};
 
     #[test]
-    fn split_sql_statements_ignores_comment_only_input() {
+    fn contains_sql_content_ignores_comment_only_input() {
         let sql = "-- heading\n/* block comment */\n";
-        let statements = split_sql_statements(sql);
 
-        assert!(statements.is_empty());
+        assert!(!contains_sql_content(sql));
     }
 
     #[test]
-    fn split_sql_statements_keeps_header_comments_with_sql() {
+    fn contains_sql_content_detects_real_sql_after_comments() {
         let sql = "-- create users table\nCREATE TABLE users (id INT);\n";
-        let statements = split_sql_statements(sql);
 
-        assert_eq!(
-            statements,
-            vec!["-- create users table\nCREATE TABLE users (id INT);"]
-        );
-    }
-
-    #[test]
-    fn split_sql_statements_does_not_split_semicolons_inside_strings() {
-        let sql = "INSERT INTO logs(message) VALUES ('hello;world');\nSELECT 1;\n";
-        let statements = split_sql_statements(sql);
-
-        assert_eq!(
-            statements,
-            vec![
-                "INSERT INTO logs(message) VALUES ('hello;world');",
-                "SELECT 1;",
-            ]
-        );
+        assert!(contains_sql_content(sql));
     }
 
     #[test]

@@ -1,5 +1,7 @@
 use std::{
+    future::Future,
     net::SocketAddr,
+    pin::Pin,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -11,12 +13,12 @@ use anyhow::Result;
 use axum::{
     http::{header::HeaderName, HeaderValue},
     middleware::from_fn,
-    response::Response,
+    response::{IntoResponse, Response},
     Router,
 };
 use nestforge_core::{
-    execute_pipeline, framework_log_event, initialize_module_graph, Container, Guard, Interceptor,
-    ModuleDefinition, RequestId,
+    execute_pipeline, framework_log_event, initialize_module_graph, AuthIdentity, Container,
+    Guard, HttpException, Interceptor, ModuleDefinition, RequestId,
 };
 
 /*
@@ -36,9 +38,13 @@ pub struct NestForgeFactory<M: ModuleDefinition> {
     controllers: Vec<Router<Container>>,
     global_prefix: Option<String>,
     version: Option<String>,
+    auth_resolver: Option<Arc<AuthResolver>>,
     global_guards: Vec<Arc<dyn Guard>>,
     global_interceptors: Vec<Arc<dyn Interceptor>>,
 }
+
+type AuthFuture = Pin<Box<dyn Future<Output = Result<Option<AuthIdentity>, HttpException>> + Send>>;
+type AuthResolver = dyn Fn(Option<String>, Container) -> AuthFuture + Send + Sync;
 
 impl<M: ModuleDefinition> NestForgeFactory<M> {
     pub fn create() -> Result<Self> {
@@ -51,6 +57,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
             controllers,
             global_prefix: None,
             version: None,
+            auth_resolver: None,
             global_guards: Vec::new(),
             global_interceptors: Vec::new(),
         })
@@ -104,6 +111,17 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    pub fn with_auth_resolver<F, Fut>(mut self, resolver: F) -> Self
+    where
+        F: Fn(Option<String>, Container) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<Option<AuthIdentity>, HttpException>> + Send + 'static,
+    {
+        self.auth_resolver = Some(Arc::new(move |token, container| {
+            Box::pin(resolver(token, container))
+        }));
+        self
+    }
+
     pub fn into_router(self) -> Router {
         /*
         Build a router that EXPECTS Container state.
@@ -128,6 +146,8 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
 
         let global_guards = Arc::new(self.global_guards);
         let global_interceptors = Arc::new(self.global_interceptors);
+        let auth_resolver = self.auth_resolver.clone();
+        let request_container = self.container.clone();
 
         let app = app.route_layer(from_fn(move |req, next| {
             let guards = Arc::clone(&global_guards);
@@ -137,7 +157,13 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
 
         Router::new()
             .merge(app)
-            .layer(from_fn(request_context_middleware))
+            .layer(from_fn(move |req, next| {
+                let auth_resolver = auth_resolver.clone();
+                let request_container = request_container.clone();
+                async move {
+                    request_context_middleware(req, next, request_container, auth_resolver).await
+                }
+            }))
             .with_state(self.container)
     }
 
@@ -160,12 +186,22 @@ const REQUEST_ID_HEADER: &str = "x-request-id";
 async fn request_context_middleware(
     mut req: axum::extract::Request,
     next: axum::middleware::Next,
+    container: Container,
+    auth_resolver: Option<Arc<AuthResolver>>,
 ) -> Response {
     let request_id = RequestId::new(generate_request_id());
     let request_id_value = request_id.value().to_string();
     let method = req.method().to_string();
     let path = req.uri().path().to_string();
     let started = Instant::now();
+    let bearer_token = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
 
     req.extensions_mut().insert(request_id);
     framework_log_event(
@@ -176,6 +212,39 @@ async fn request_context_middleware(
             ("path", path.clone()),
         ],
     );
+
+    if let Some(resolver) = auth_resolver {
+        match resolver(bearer_token, container).await {
+            Ok(Some(identity)) => {
+                framework_log_event(
+                    "auth_identity_resolved",
+                    &[
+                        ("request_id", request_id_value.clone()),
+                        ("subject", identity.subject.clone()),
+                    ],
+                );
+                req.extensions_mut().insert(Arc::new(identity));
+            }
+            Ok(None) => {}
+            Err(err) => {
+                let mut response = err
+                    .with_request_id(request_id_value.clone())
+                    .into_response();
+                attach_request_id_header(&mut response, &request_id_value);
+                framework_log_event(
+                    "request_complete",
+                    &[
+                        ("request_id", request_id_value),
+                        ("method", method),
+                        ("path", path),
+                        ("status", response.status().as_u16().to_string()),
+                        ("duration_ms", started.elapsed().as_millis().to_string()),
+                    ],
+                );
+                return response;
+            }
+        }
+    }
 
     let mut response = next.run(req).await;
     attach_request_id_header(&mut response, &request_id_value);
@@ -217,7 +286,7 @@ mod tests {
     use anyhow::Result;
     use axum::Json;
     use nestforge_core::{
-        ApiResult, Container, ControllerBasePath, ControllerDefinition, HttpException,
+        ApiResult, AuthUser, Container, ControllerBasePath, ControllerDefinition, HttpException,
         ModuleDefinition, RouteBuilder,
     };
     use tower::ServiceExt;
@@ -241,6 +310,10 @@ mod tests {
             Err(HttpException::bad_request("broken request")
                 .with_request_id(request_id.value().to_string()))
         }
+
+        async fn me(user: AuthUser) -> ApiResult<String> {
+            Ok(Json(user.subject.clone()))
+        }
     }
 
     impl ControllerDefinition for HealthController {
@@ -248,6 +321,7 @@ mod tests {
             RouteBuilder::<Self>::new()
                 .get("/", Self::ok)
                 .get("/fail", Self::fail)
+                .get("/me", Self::me)
                 .build()
         }
     }
@@ -301,5 +375,28 @@ mod tests {
 
         assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
         assert!(response.headers().contains_key(REQUEST_ID_HEADER));
+    }
+
+    #[tokio::test]
+    async fn auth_resolver_inserts_identity_for_auth_user_extractor() {
+        let app = NestForgeFactory::<TestModule>::create()
+            .expect("factory should build")
+            .with_auth_resolver(|token, _container| async move {
+                Ok(token.map(|_| AuthIdentity::new("demo-user").with_roles(["admin"])))
+            })
+            .into_router();
+
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/health/me")
+                    .header(axum::http::header::AUTHORIZATION, "Bearer demo-token")
+                    .body(axum::body::Body::empty())
+                    .expect("request should build"),
+            )
+            .await
+            .expect("request should succeed");
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
     }
 }

@@ -7,6 +7,7 @@
 * - DI helpers
 * - In memory store
 */
+pub mod auth;
 pub mod container;
 pub mod error;
 pub mod http_ext;
@@ -21,6 +22,7 @@ pub mod route_builder;
 pub mod store;
 pub mod validation;
 
+pub use auth::{AuthIdentity, AuthUser, BearerToken};
 pub use container::{Container, ContainerError};
 pub use error::HttpException;
 pub use http_ext::{OptionHttpExt, ResultHttpExt};

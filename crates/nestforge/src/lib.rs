@@ -4,11 +4,11 @@
 * use nestforge::{NestForgeFactory, ModuleDefinition, Container};
 */
 pub use nestforge_core::{
-    initialize_module_graph, register_provider, ApiResult, Body, Container, ContainerError,
-    ControllerBasePath, ControllerDefinition, Guard, HttpException, Identifiable, InMemoryStore,
-    Inject, Interceptor, List, ModuleDefinition, ModuleRef, NextFn, NextFuture, OptionHttpExt,
-    Param, Provider, Query, RegisterProvider, RequestContext, RequestId, ResourceError,
-    ResourceService,
+    initialize_module_graph, register_provider, ApiResult, AuthIdentity, AuthUser, BearerToken,
+    Body, Container, ContainerError, ControllerBasePath, ControllerDefinition, Guard,
+    HttpException, Identifiable, InMemoryStore, Inject, Interceptor, List, ModuleDefinition,
+    ModuleRef, NextFn, NextFuture, OptionHttpExt, Param, Provider, Query, RegisterProvider,
+    RequestContext, RequestId, ResourceError, ResourceService,
     ResultHttpExt, RouteBuilder, Validate, ValidatedBody, ValidationErrors, ValidationIssue,
     framework_log, framework_log_event,
 };

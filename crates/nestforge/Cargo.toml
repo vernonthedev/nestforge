@@ -24,6 +24,7 @@ nestforge-grpc = { version = "1.1.0", path = "../nestforge-grpc", optional = tru
 nestforge-schedule = { version = "1.1.0", path = "../nestforge-schedule", optional = true }
 nestforge-websockets = { version = "1.1.0", path = "../nestforge-websockets", optional = true }
 nestforge-data = { version = "1.1.0", path = "../nestforge-data", optional = true }
+nestforge-cache = { version = "1.1.0", path = "../nestforge-cache", optional = true }
 nestforge-mongo = { version = "1.1.0", path = "../nestforge-mongo", optional = true }
 nestforge-redis = { version = "1.1.0", path = "../nestforge-redis", optional = true }
 tokio = { workspace = true }
@@ -41,6 +42,7 @@ grpc = ["dep:nestforge-grpc"]
 schedule = ["dep:nestforge-schedule"]
 websockets = ["dep:nestforge-websockets"]
 data = ["dep:nestforge-data"]
+cache = ["dep:nestforge-cache", "data"]
 mongo = ["dep:nestforge-mongo", "data"]
 redis = ["dep:nestforge-redis", "data"]
 

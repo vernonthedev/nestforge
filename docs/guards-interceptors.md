@@ -99,6 +99,20 @@ NestForgeFactory::<AppModule>::create()?
     .use_interceptor::<LoggingInterceptor>()
 ```
 
+Cache interceptors are available through the optional `cache` feature:
+
+```rust
+#[derive(Default)]
+struct UsersCache;
+
+impl nestforge::CachePolicy for UsersCache {
+    type Store = nestforge::InMemoryRedisStore;
+}
+
+NestForgeFactory::<AppModule>::create()?
+    .use_interceptor::<nestforge::CacheInterceptor<UsersCache>>();
+```
+
 ## Execution Order
 
 Request flow:

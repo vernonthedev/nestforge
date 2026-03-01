@@ -1389,6 +1389,7 @@ version = "1.1.0"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
+ "nestforge-cache",
  "nestforge-config",
  "nestforge-core",
  "nestforge-data",
@@ -1408,6 +1409,18 @@ dependencies = [
  "serde_json",
  "tokio",
  "tower 0.5.3",
+]
+
+[[package]]
+name = "nestforge-cache"
+version = "1.1.0"
+dependencies = [
+ "axum 0.8.8",
+ "http",
+ "nestforge-core",
+ "nestforge-data",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

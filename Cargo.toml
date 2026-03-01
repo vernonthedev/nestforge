@@ -19,6 +19,7 @@ members = [
   "crates/nestforge-schedule",
   "crates/nestforge-websockets",
   "crates/nestforge-data",
+  "crates/nestforge-cache",
   "crates/nestforge-mongo",
   "crates/nestforge-redis",
   ]

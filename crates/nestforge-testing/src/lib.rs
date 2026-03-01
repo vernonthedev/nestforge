@@ -112,13 +112,21 @@ impl TestingModule {
         self.http_router()
             .merge(graphql_router_with_config(schema, config).with_state(self.container.clone()))
     }
+
+    pub fn shutdown(&self) -> Result<()> {
+        self.runtime.run_module_destroy(&self.container)?;
+        self.runtime.run_application_shutdown(&self.container)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc as StdArc, Mutex};
+
     use async_graphql::{EmptyMutation, EmptySubscription};
-    use nestforge_core::{register_provider, ControllerDefinition, Provider};
+    use nestforge_core::{register_provider, ControllerDefinition, LifecycleHook, Provider};
     use tower::ServiceExt;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -283,5 +291,53 @@ mod tests {
             .expect("graphql request should succeed");
 
         assert_eq!(response.status(), axum::http::StatusCode::OK);
+    }
+
+    #[derive(Clone)]
+    struct HookLog(StdArc<Mutex<Vec<&'static str>>>);
+
+    fn record_destroy(container: &Container) -> Result<()> {
+        let log = container.resolve::<HookLog>()?;
+        log.0.lock().expect("hook log should be writable").push("destroy");
+        Ok(())
+    }
+
+    fn record_shutdown(container: &Container) -> Result<()> {
+        let log = container.resolve::<HookLog>()?;
+        log.0
+            .lock()
+            .expect("hook log should be writable")
+            .push("shutdown");
+        Ok(())
+    }
+
+    struct HookModule;
+
+    impl ModuleDefinition for HookModule {
+        fn register(container: &Container) -> Result<()> {
+            container.register(HookLog(StdArc::new(Mutex::new(Vec::new()))))?;
+            Ok(())
+        }
+
+        fn on_module_destroy() -> Vec<LifecycleHook> {
+            vec![record_destroy]
+        }
+
+        fn on_application_shutdown() -> Vec<LifecycleHook> {
+            vec![record_shutdown]
+        }
+    }
+
+    #[test]
+    fn shutdown_runs_destroy_and_shutdown_hooks() {
+        let module = TestFactory::<HookModule>::create()
+            .build()
+            .expect("hook testing module should build");
+
+        module.shutdown().expect("testing module should shut down");
+
+        let log = module.resolve::<HookLog>().expect("hook log should resolve");
+        let entries = log.0.lock().expect("hook log should be readable").clone();
+        assert_eq!(entries, vec!["destroy", "shutdown"]);
     }
 }

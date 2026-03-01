@@ -24,6 +24,14 @@ The built `TestingModule` can still resolve providers directly:
 let config = module.resolve::<AppConfig>()?;
 ```
 
+When a test finishes with modules that own cleanup work, call:
+
+```rust
+module.shutdown()?;
+```
+
+That runs module destroy and application shutdown lifecycle hooks inside the testing runtime.
+
 ## Build An HTTP Router
 
 `TestingModule::http_router()` merges the module controllers into a ready-to-test Axum router with the framework container attached as state.

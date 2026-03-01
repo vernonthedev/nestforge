@@ -1959,20 +1959,21 @@ fn template_app_config_rs(transport: AppTransport) -> String {
         AppTransport::Graphql => "NestForge GraphQL",
         AppTransport::Grpc => "NestForge gRPC",
         AppTransport::Websockets => "NestForge WebSockets",
+        AppTransport::Microservices => "NestForge Microservices",
     };
 
     format!(
         r#"#[derive(Clone)]
-pub struct AppConfig {
+pub struct AppConfig {{
     pub app_name: String,
-}
+}}
 
-impl nestforge::FromEnv for AppConfig {
-    fn from_env(env: &nestforge::EnvStore) -> Result<Self, nestforge::ConfigError> {
+impl nestforge::FromEnv for AppConfig {{
+    fn from_env(env: &nestforge::EnvStore) -> Result<Self, nestforge::ConfigError> {{
         let app_name = env.get("APP_NAME").unwrap_or("{default_app_name}").to_string();
-        Ok(Self { app_name })
-    }
-}
+        Ok(Self {{ app_name }})
+    }}
+}}
 "#
     )
 }
@@ -2104,6 +2105,33 @@ pub struct GreeterGrpcService {
     ctx: GrpcContext,
 }
 
+impl GreeterGrpcService {
+    pub fn new(ctx: GrpcContext) -> Self {
+        Self { ctx }
+    }
+}
+
+#[nestforge::tonic::async_trait]
+impl Greeter for GreeterGrpcService {
+    async fn say_hello(
+        &self,
+        request: Request<HelloRequest>,
+    ) -> Result<Response<HelloReply>, Status> {
+        let name = request.into_inner().name.trim().to_string();
+        if name.is_empty() {
+            return Err(Status::invalid_argument("name is required"));
+        }
+
+        let config = self.ctx.resolve::<AppConfig>()?;
+        Ok(Response::new(HelloReply {
+            message: format!("Hello, {name}! Welcome to {}.", config.app_name),
+        }))
+    }
+}
+"#
+    .to_string()
+}
+
 fn template_ws_mod_rs() -> String {
     r#"mod events_gateway;
 
@@ -2197,33 +2225,6 @@ impl WebSocketGateway for EventsGateway {
     .to_string()
 }
 
-impl GreeterGrpcService {
-    pub fn new(ctx: GrpcContext) -> Self {
-        Self { ctx }
-    }
-}
-
-#[nestforge::tonic::async_trait]
-impl Greeter for GreeterGrpcService {
-    async fn say_hello(
-        &self,
-        request: Request<HelloRequest>,
-    ) -> Result<Response<HelloReply>, Status> {
-        let name = request.into_inner().name.trim().to_string();
-        if name.is_empty() {
-            return Err(Status::invalid_argument("name is required"));
-        }
-
-        let config = self.ctx.resolve::<AppConfig>()?;
-        Ok(Response::new(HelloReply {
-            message: format!("Hello, {name}! Welcome to {}.", config.app_name),
-        }))
-    }
-}
-"#
-    .to_string()
-}
-
 fn template_named_grpc_service_rs(service_name: &str, pascal_name: &str) -> String {
     let rpc_name = format!("get_{}_status", service_name);
     format!(
@@ -2277,6 +2278,7 @@ fn template_env_file(app_name: &str, transport: AppTransport) -> String {
         AppTransport::Graphql => "# Generated for a NestForge GraphQL app.\n",
         AppTransport::Grpc => "# Generated for a NestForge gRPC app.\n",
         AppTransport::Websockets => "# Generated for a NestForge WebSocket app.\n",
+        AppTransport::Microservices => "# Generated for a NestForge Microservices app.\n",
     };
 
     format!(

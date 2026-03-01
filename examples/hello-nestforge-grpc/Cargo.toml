@@ -9,6 +9,9 @@ build = "build.rs"
 [dependencies]
 nestforge = { path = "../../crates/nestforge", features = ["config", "grpc", "microservices"] }
 axum = { workspace = true }
+http = { workspace = true }
+prost = { workspace = true }
+tonic = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }

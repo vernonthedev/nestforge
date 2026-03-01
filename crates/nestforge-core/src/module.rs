@@ -1,6 +1,6 @@
 use anyhow::Result;
 use axum::Router;
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use crate::{framework_log_event, Container, RouteDocumentation};
 
@@ -20,36 +20,124 @@ pub trait ControllerDefinition: Send + Sync + 'static {
     fn router() -> Router<Container>;
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct ModuleRef {
     pub name: &'static str,
-    pub register: fn(&Container) -> Result<()>,
-    pub controllers: fn() -> Vec<Router<Container>>,
-    pub route_docs: fn() -> Vec<RouteDocumentation>,
-    pub on_module_init: fn() -> Vec<LifecycleHook>,
-    pub on_module_destroy: fn() -> Vec<LifecycleHook>,
-    pub on_application_bootstrap: fn() -> Vec<LifecycleHook>,
-    pub on_application_shutdown: fn() -> Vec<LifecycleHook>,
-    pub imports: fn() -> Vec<ModuleRef>,
-    pub exports: fn() -> Vec<&'static str>,
-    pub is_global: fn() -> bool,
+    pub register: Arc<dyn Fn(&Container) -> Result<()> + Send + Sync>,
+    pub controllers: Arc<dyn Fn() -> Vec<Router<Container>> + Send + Sync>,
+    pub route_docs: Arc<dyn Fn() -> Vec<RouteDocumentation> + Send + Sync>,
+    pub on_module_init: Arc<dyn Fn() -> Vec<LifecycleHook> + Send + Sync>,
+    pub on_module_destroy: Arc<dyn Fn() -> Vec<LifecycleHook> + Send + Sync>,
+    pub on_application_bootstrap: Arc<dyn Fn() -> Vec<LifecycleHook> + Send + Sync>,
+    pub on_application_shutdown: Arc<dyn Fn() -> Vec<LifecycleHook> + Send + Sync>,
+    pub imports: Arc<dyn Fn() -> Vec<ModuleRef> + Send + Sync>,
+    pub exports: Arc<dyn Fn() -> Vec<&'static str> + Send + Sync>,
+    pub is_global: Arc<dyn Fn() -> bool + Send + Sync>,
 }
 
 impl ModuleRef {
     pub fn of<M: ModuleDefinition>() -> Self {
         Self {
             name: M::module_name(),
-            register: M::register,
-            controllers: M::controllers,
-            route_docs: M::route_docs,
-            on_module_init: M::on_module_init,
-            on_module_destroy: M::on_module_destroy,
-            on_application_bootstrap: M::on_application_bootstrap,
-            on_application_shutdown: M::on_application_shutdown,
-            imports: M::imports,
-            exports: M::exports,
-            is_global: M::is_global,
+            register: Arc::new(M::register),
+            controllers: Arc::new(M::controllers),
+            route_docs: Arc::new(M::route_docs),
+            on_module_init: Arc::new(M::on_module_init),
+            on_module_destroy: Arc::new(M::on_module_destroy),
+            on_application_bootstrap: Arc::new(M::on_application_bootstrap),
+            on_application_shutdown: Arc::new(M::on_application_shutdown),
+            imports: Arc::new(M::imports),
+            exports: Arc::new(M::exports),
+            is_global: Arc::new(M::is_global),
         }
+    }
+
+    pub fn dynamic(
+        name: &'static str,
+        register: impl Fn(&Container) -> Result<()> + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            name,
+            register: Arc::new(register),
+            controllers: Arc::new(Vec::new),
+            route_docs: Arc::new(Vec::new),
+            on_module_init: Arc::new(Vec::new),
+            on_module_destroy: Arc::new(Vec::new),
+            on_application_bootstrap: Arc::new(Vec::new),
+            on_application_shutdown: Arc::new(Vec::new),
+            imports: Arc::new(Vec::new),
+            exports: Arc::new(Vec::new),
+            is_global: Arc::new(|| false),
+        }
+    }
+
+    pub fn with_imports(
+        mut self,
+        imports: impl Fn() -> Vec<ModuleRef> + Send + Sync + 'static,
+    ) -> Self {
+        self.imports = Arc::new(imports);
+        self
+    }
+
+    pub fn with_exports(
+        mut self,
+        exports: impl Fn() -> Vec<&'static str> + Send + Sync + 'static,
+    ) -> Self {
+        self.exports = Arc::new(exports);
+        self
+    }
+
+    pub fn with_controllers(
+        mut self,
+        controllers: impl Fn() -> Vec<Router<Container>> + Send + Sync + 'static,
+    ) -> Self {
+        self.controllers = Arc::new(controllers);
+        self
+    }
+
+    pub fn with_route_docs(
+        mut self,
+        route_docs: impl Fn() -> Vec<RouteDocumentation> + Send + Sync + 'static,
+    ) -> Self {
+        self.route_docs = Arc::new(route_docs);
+        self
+    }
+
+    pub fn with_module_init_hooks(
+        mut self,
+        hooks: impl Fn() -> Vec<LifecycleHook> + Send + Sync + 'static,
+    ) -> Self {
+        self.on_module_init = Arc::new(hooks);
+        self
+    }
+
+    pub fn with_module_destroy_hooks(
+        mut self,
+        hooks: impl Fn() -> Vec<LifecycleHook> + Send + Sync + 'static,
+    ) -> Self {
+        self.on_module_destroy = Arc::new(hooks);
+        self
+    }
+
+    pub fn with_application_bootstrap_hooks(
+        mut self,
+        hooks: impl Fn() -> Vec<LifecycleHook> + Send + Sync + 'static,
+    ) -> Self {
+        self.on_application_bootstrap = Arc::new(hooks);
+        self
+    }
+
+    pub fn with_application_shutdown_hooks(
+        mut self,
+        hooks: impl Fn() -> Vec<LifecycleHook> + Send + Sync + 'static,
+    ) -> Self {
+        self.on_application_shutdown = Arc::new(hooks);
+        self
+    }
+
+    pub fn as_global(mut self) -> Self {
+        self.is_global = Arc::new(|| true);
+        self
     }
 }
 
@@ -528,5 +616,39 @@ mod tests {
                 "application_shutdown"
             ]
         );
+    }
+
+    #[derive(Clone)]
+    struct DynamicConfig {
+        label: &'static str,
+    }
+
+    struct DynamicRootModule;
+
+    impl ModuleDefinition for DynamicRootModule {
+        fn imports() -> Vec<ModuleRef> {
+            let config = DynamicConfig { label: "captured" };
+            vec![ModuleRef::dynamic("DynamicConfigModule", move |container| {
+                container.register(config.clone())?;
+                Ok(())
+            })
+            .with_exports(|| vec![std::any::type_name::<DynamicConfig>()])]
+        }
+
+        fn register(_container: &Container) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn dynamic_module_ref_can_capture_runtime_configuration() {
+        let container = Container::new();
+        initialize_module_graph::<DynamicRootModule>(&container)
+            .expect("dynamic module graph should initialize");
+
+        let config = container
+            .resolve::<DynamicConfig>()
+            .expect("dynamic config should resolve");
+        assert_eq!(config.label, "captured");
     }
 }

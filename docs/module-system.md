@@ -87,3 +87,27 @@ Available hook lists:
 - `on_application_bootstrap`
 - `on_module_destroy`
 - `on_application_shutdown`
+
+## Dynamic Modules
+
+NestForge can now build runtime-configured imports with `ModuleRef::dynamic(...)`.
+
+That gives you a NestJS-style `register(...)` pattern:
+
+```rust
+fn auth_module(secret: String) -> nestforge::ModuleRef {
+    nestforge::ModuleRef::dynamic("AuthModule", move |container| {
+        container.register(AuthConfig { secret: secret.clone() })?;
+        Ok(())
+    })
+    .with_exports(|| vec![std::any::type_name::<AuthConfig>()])
+}
+```
+
+Then import it from a module:
+
+```rust
+fn imports() -> Vec<nestforge::ModuleRef> {
+    vec![auth_module("dev-secret".to_string())]
+}
+```

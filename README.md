@@ -15,7 +15,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 
 > [!IMPORTANT]
 > **Stable Release**
-> NestForge **1.0.0** is now published on crates.io.
+> NestForge **1.2.0** is now published on crates.io.
 
 ## What You Get
 
@@ -288,6 +288,7 @@ NestForgeFactory::<AppModule>::create()?
 
 ## Documentation
 
+- Main Documentation: [https://nestforge.suredoc.net](https://nestforge.suredoc.net)
 - Wiki: [https://github.com/vernonthedev/nestforge/wiki](https://github.com/vernonthedev/nestforge/wiki)
 - Project docs: [https://vernonthedev.github.io/nestforge/docs/Home.md](https://vernonthedev.github.io/nestforge/docs/Home.md)
 

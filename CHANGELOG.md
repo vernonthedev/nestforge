@@ -141,3 +141,17 @@ Documentation wiki: https://github.com/vernonthedev/nestforge/wiki
 * chore: removed unnecessary commit file that popped up during development ([6c02a67](https://github.com/vernonthedev/nestforge/commit/6c02a6754e10079662b50ee4209102a755ab0635))
 * chore: modularize NestForge into new crates, bump workspace version to 1.1.0, and add a release publishing script ([6c4ef46](https://github.com/vernonthedev/nestforge/commit/6c4ef463ab253dc253d4f65338eb51017f513e04))
 
+
+
+## [1.2.1](https://github.com/vernonthedev/nestforge/compare/v1.2.0...v1.2.1) (2026-03-06)
+
+### Fixes
+
+* fix: removed all unused vars ([e8bd504](https://github.com/vernonthedev/nestforge/commit/e8bd504fe8f1c8376bb6416d631fa76127d5f56a))
+
+### Other
+
+* docs: updated application documentations ([53ae54b](https://github.com/vernonthedev/nestforge/commit/53ae54bd04eb7e27a07cec9e5cbf199acdeeb324))
+* chore: application fixes for the primitive bugs ([2602290](https://github.com/vernonthedev/nestforge/commit/2602290d0f5c742f8a1574fa3b3e8d8fdd864e99))
+* docs: updated version number to 1.2.0 in README ([543abfc](https://github.com/vernonthedev/nestforge/commit/543abfcef53e7fb96fc25412c3005ccd361a2ac7))
+

@@ -2,6 +2,18 @@
 
 All notable changes to the `nestforge` crate are documented in this file.
 
+## [1.2.1](https://github.com/vernonthedev/nestforge/compare/v1.2.0...v1.2.1) (2026-03-06)
+
+### Fixes
+
+* fix: removed all unused vars ([e8bd504](https://github.com/vernonthedev/nestforge/commit/e8bd504fe8f1c8376bb6416d631fa76127d5f56a))
+
+### Other
+
+* docs: updated application documentations ([53ae54b](https://github.com/vernonthedev/nestforge/commit/53ae54bd04eb7e27a07cec9e5cbf199acdeeb324))
+* chore: application fixes for the primitive bugs ([2602290](https://github.com/vernonthedev/nestforge/commit/2602290d0f5c742f8a1574fa3b3e8d8fdd864e99))
+* docs: updated version number to 1.2.0 in README ([543abfc](https://github.com/vernonthedev/nestforge/commit/543abfcef53e7fb96fc25412c3005ccd361a2ac7))
+
 ## [1.2.0](https://github.com/vernonthedev/nestforge/compare/v1.1.0...v1.2.0) (2026-03-01)
 
 ### Features

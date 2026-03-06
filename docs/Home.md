@@ -1,33 +1,40 @@
-# NestForge Docs
+# Welcome to NestForge
 
-This folder explains how NestForge works with simple language and practical examples.
+NestForge is a modular backend framework for Rust, heavily inspired by the architecture of NestJS. It provides a structured way to build scalable, maintainable, and high-performance server-side applications.
 
-## Read In This Order
+## Getting Started
 
-1. [Quick Start](quick-start.md)
-2. [Core Concepts](core-concepts.md)
-3. [Module System](module-system.md)
-4. [Middleware](middleware.md)
-5. [Guards And Interceptors](guards-interceptors.md)
-6. [Auth And OpenAPI](auth-openapi.md)
-7. [GraphQL](graphql.md)
-8. [gRPC](grpc.md)
-9. [WebSockets](websockets.md)
-10. [Schedule](schedule.md)
-11. [Cache](cache.md)
-12. [Microservices](microservices.md)
-13. [Testing](testing.md)
-14. [Config Module](config-module.md)
-15. [Resource Service Patterns](resource-service-patterns.md)
-16. [Macros](macros.md)
-17. [CLI Guide](cli-guide.md)
-18. [Project Structure](project-structure.md)
-19. [Example App Walkthrough](example-app.md)
-20. [Example API Endpoints](example-api.md)
-21. [File Map](file-map.md)
+If you are new to NestForge, we recommend following these guides in order:
 
-## Who This Is For
+1. **[Quick Start](./quick-start.md)**: Create and run your first app in 5 minutes.
+2. **[Installation Guide](./project-structure.md)**: Detail on workspace layout and prerequisites.
+3. **[Core Concepts](./core-concepts.md)**: Understand the mental model behind NestForge.
+4. **[Module System](./module-system.md)**: How dependency injection and wiring works.
+5. **[CLI Guide](./cli-guide.md)**: Speed up development with generators.
 
-- New users learning NestForge
-- Teams moving from NestJS to Rust
-- Contributors working on framework internals
+## Guided Workflows
+
+Step-by-step processes for common tasks:
+
+- **[OpenAPI Documentation Setup](./auth-openapi.md)**: Set up auto-generated docs from scratch.
+- **[Relational Databases](./resource-service-patterns.md)**: CRUD patterns and service layers.
+- **[Testing Workflow](./testing.md)**: How to write unit and integration tests.
+- **[Configuration](./config-module.md)**: Managing environment variables and secrets.
+
+## Advanced Transports
+
+NestForge supports multiple protocols out of the box:
+
+- **[GraphQL](./graphql.md)**: Using Apollo-style resolvers.
+- **[gRPC](./grpc.md)**: Professional microservice communication.
+- **[WebSockets](./websockets.md)**: Real-time bi-directional events.
+- **[Microservices](./microservices.md)**: In-process and distributed message buses.
+
+---
+
+## Why NestForge?
+
+- **Modular**: Encourages grouping features into logical bundles.
+- **Type-Safe**: Leverages Rust's powerful type system for DI and validation.
+- **Productive**: CLI and macros remove the boilerplate typically associated with Rust web-dev.
+- **Flexible**: Choose your transport: REST, GraphQL, gRPC, or even raw WebSockets.

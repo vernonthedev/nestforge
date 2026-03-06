@@ -1,92 +1,106 @@
 # Quick Start
 
-## Requirements
+Get your first NestForge application up and running in minutes. This guide covers project creation, basic routing, and running the server.
 
-- Rust and Cargo installed
+## 1. Prerequisites
 
-## Run The Workspace
+Ensure you have the Rust toolchain installed:
 
-```bash
-cargo check --workspace
-cargo test --workspace
-cargo run -p hello-nestforge
-```
+- [Install Rust](https://rustup.rs/)
 
-Server URL:
+## 2. Install NestForge CLI
 
-```text
-http://127.0.0.1:3000
-```
-
-## Install CLI
+The CLI is the recommended way to manage NestForge projects.
 
 ```bash
+# Install from crates.io
+cargo install nestforge-cli
+
+# OR install from a local checkout (if developing the framework)
 cargo install --path crates/nestforge-cli
 ```
 
-## Create A New App
+## 3. Create a New Application
+
+Scaffold a fresh HTTP project:
 
 ```bash
-nestforge new demo-api
-cd demo-api
+nestforge new my-nestforge-app
+cd my-nestforge-app
+```
+
+## 4. Run the Server
+
+NestForge projects use standard Cargo commands:
+
+```bash
 cargo run
 ```
 
-Create a GraphQL-first app:
+By default, the server will be available at [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
-```bash
-nestforge new demo-graphql --transport graphql
+---
+
+## Basic Application Structure
+
+A minimal NestForge app consists of an **AppModule** and a **Controller**.
+
+### The Controller
+
+Define your routes in a struct marked with `#[controller]`.
+
+```rust
+use nestforge::{controller, routes, ApiResult};
+use axum::Json;
+
+#[controller("/")]
+pub struct AppController;
+
+#[routes]
+impl AppController {
+    #[nestforge::get("/")]
+    async fn get_hello() -> ApiResult<String> {
+        Ok(Json("Hello from NestForge!".to_string()))
+    }
+}
 ```
 
-Create a gRPC-first app:
+### The Module
 
-```bash
-nestforge new demo-grpc --transport grpc
+Wire everything together in a module.
+
+```rust
+use nestforge::module;
+use crate::AppController;
+
+#[module(
+    controllers = [AppController],
+    providers = [],
+)]
+pub struct AppModule;
 ```
 
-Create a WebSocket-first app:
+### The Main Entry Point
 
-```bash
-nestforge new demo-events --transport websockets
+Bootstrap the app using `NestForgeFactory`.
+
+```rust
+use nestforge::NestForgeFactory;
+use crate::app_module::AppModule;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    NestForgeFactory::<AppModule>::create()?
+        .listen(3000)
+        .await?;
+    Ok(())
+}
 ```
 
-The generated GraphQL app mounts `/graphql` and GraphiQL at `/`.
+---
 
-The generated gRPC app listens on:
+## Next Steps
 
-```text
-127.0.0.1:50051
-```
-
-The generated WebSocket app mounts:
-
-```text
-/ws
-```
-
-## Generate Code
-
-```bash
-nestforge g module users
-nestforge g resource users --module users
-nestforge g guard auth
-nestforge g interceptor logging
-```
-
-## Run DB Commands
-
-```bash
-nestforge db init
-nestforge db generate create_users_table
-nestforge db migrate
-nestforge db status
-```
-
-## Useful Commands
-
-```bash
-cargo fmt --all
-cargo clippy --workspace --all-targets -D warnings
-nestforge docs
-nestforge fmt
-```
+- **Add OpenAPI Documentation**: Learn how to [setup OpenAPI from scratch](./auth-openapi.md).
+- **Generate Features**: Use `nestforge g module <name>` to add new features.
+- **Dependency Injection**: Explore the [Module System](./module-system.md).

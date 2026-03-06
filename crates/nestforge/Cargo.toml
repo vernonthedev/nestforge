@@ -53,5 +53,6 @@ redis = ["dep:nestforge-redis", "data"]
 serde = { workspace = true }
 tower = { workspace = true }
 serde_json = { workspace = true }
+async-graphql = "7.0.2"
 
 

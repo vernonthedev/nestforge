@@ -1,8 +1,8 @@
 #![cfg(feature = "openapi")]
 
 use nestforge::{
-    authenticated, controller, get, openapi_doc_for_module, response, routes, summary, tag,
-    roles, Container, ModuleDefinition,
+    authenticated, controller, get, openapi_doc_for_module, response, roles, routes, summary, tag,
+    Container, ModuleDefinition,
 };
 
 #[controller("/users")]

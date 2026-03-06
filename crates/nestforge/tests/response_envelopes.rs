@@ -2,17 +2,18 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use nestforge::{ApiEnvelopeResult, ResponseEnvelope};
 use tower::ServiceExt;
 
+#[nestforge::controller("/users")]
 #[derive(Default)]
 struct EnvelopeController;
 
-#[nestforge::controller("/users")]
+#[nestforge::routes]
 impl EnvelopeController {
     #[nestforge::get]
-    async fn list() -> ApiEnvelopeResult<Vec<String>> {
-        Ok(ResponseEnvelope::paginated(
+    #[allow(dead_code)]
+    async fn list() -> nestforge::ApiEnvelopeResult<Vec<String>> {
+        Ok(nestforge::ResponseEnvelope::paginated(
             vec!["alice".to_string(), "bob".to_string()],
             1,
             10,
@@ -21,10 +22,10 @@ impl EnvelopeController {
     }
 }
 
+#[nestforge::module(controllers = [EnvelopeController])]
 #[derive(Default)]
 struct EnvelopeModule;
 
-#[nestforge::module(controllers = [EnvelopeController])]
 impl EnvelopeModule {}
 
 #[tokio::test]

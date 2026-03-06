@@ -2642,7 +2642,7 @@ fn to_pascal_case(input: &str) -> String {
             let mut chars = part.chars();
             match chars.next() {
                 Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                None => String::new(),
+                std::option::Option::None => String::new(),
             }
         })
         .collect::<String>()
@@ -3007,7 +3007,7 @@ mod tests {
     use super::{
         compute_content_hash, contains_sql_content, parse_new_transport_arg,
         template_microservice_patterns_rs, template_request_decorator_rs, template_serializer_rs,
-        AppTransport,
+        template_named_ws_gateway_rs, template_exception_filter_rs, AppTransport,
     };
 
     #[test]

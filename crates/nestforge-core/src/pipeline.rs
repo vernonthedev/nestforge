@@ -142,7 +142,7 @@ fn next_to_fn(next: Next) -> NextFn {
 
             match next {
                 Some(next) => next.run(req).await,
-                None => HttpException::internal_server_error("Pipeline next called multiple times")
+                std::option::Option::None => crate::HttpException::internal_server_error("Pipeline next called multiple times")
                     .into_response(),
             }
         })
@@ -231,7 +231,7 @@ mod tests {
             method: Method::GET,
             uri: "/".parse().expect("uri should parse"),
             request_id: None,
-            auth_identity: Some(Arc::new(AuthIdentity::new("user-1").with_roles(roles))),
+            auth_identity: Some(Arc::new(AuthIdentity::new("user-1").with_roles(roles.iter().copied()))),
         }
     }
 

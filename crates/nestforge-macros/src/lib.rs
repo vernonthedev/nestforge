@@ -52,7 +52,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut route_docs = Vec::new();
 
     for impl_item in &mut input.items {
-        let ImplItem::Fn(method) = impl_item else {
+        let ImplItem::Fn(ref mut method) = impl_item else {
             continue;
         };
         let (guards, interceptors, exception_filters) = extract_pipeline_meta(method);
@@ -237,7 +237,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             fn router() -> axum::Router<nestforge::Container> {
                 nestforge::framework_log_event(
                     "controller_register",
-                    &[("controller", std::any::type_name::<#self_ty>().to_string())],
+                    &[("controller", std::string::String::from(std::any::type_name::<#self_ty>()))] as &[(&str, std::string::String)],
                 );
                 let mut builder = nestforge::RouteBuilder::<#self_ty>::new();
                 #(#route_calls)*
@@ -1418,7 +1418,10 @@ fn parse_validate_rules(attrs: &[Attribute]) -> ValidateRules {
 }
 
 fn is_type_named(ty: &Type, name: &str) -> bool {
-    matches!(ty, Type::Path(tp) if tp.path.is_ident(name))
+    match ty {
+        Type::Path(tp) => tp.path.is_ident(name),
+        _ => false,
+    }
 }
 
 fn is_option_any(ty: &Type) -> bool {
@@ -1446,14 +1449,17 @@ fn is_option_of(ty: &Type, inner_name: &str) -> bool {
     let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
         return false;
     };
-    let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() else {
+    let Some(syn::GenericArgument::Type(ref inner_ty)) = args.args.first() else {
         return false;
     };
     is_type_named(inner_ty, inner_name)
 }
 
 fn is_numeric_type(ty: &Type) -> bool {
-    matches!(ty, Type::Path(tp) if tp.path.is_ident("u8")
+    let Type::Path(tp) = ty else {
+        return false;
+    };
+    tp.path.is_ident("u8")
         || tp.path.is_ident("u16")
         || tp.path.is_ident("u32")
         || tp.path.is_ident("u64")
@@ -1464,7 +1470,7 @@ fn is_numeric_type(ty: &Type) -> bool {
         || tp.path.is_ident("i64")
         || tp.path.is_ident("isize")
         || tp.path.is_ident("f32")
-        || tp.path.is_ident("f64"))
+        || tp.path.is_ident("f64")
 }
 
 fn is_option_numeric_type(ty: &Type) -> bool {
@@ -1480,7 +1486,7 @@ fn is_option_numeric_type(ty: &Type) -> bool {
     let syn::PathArguments::AngleBracketed(args) = &seg.arguments else {
         return false;
     };
-    let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() else {
+    let Some(syn::GenericArgument::Type(ref inner_ty)) = args.args.first() else {
         return false;
     };
     is_numeric_type(inner_ty)

@@ -22,10 +22,11 @@ impl nestforge::RequestDecorator for CorrelationId {
     }
 }
 
+#[nestforge::controller("/decorators")]
 #[derive(Default)]
 struct DecoratorController;
 
-#[nestforge::controller("/decorators")]
+#[nestforge::routes]
 impl DecoratorController {
     #[nestforge::get("/correlation")]
     async fn correlation_id(id: nestforge::Decorated<CorrelationId>) -> nestforge::ApiResult<String> {
@@ -33,10 +34,10 @@ impl DecoratorController {
     }
 }
 
+#[nestforge::module(controllers = [DecoratorController])]
 #[derive(Default)]
 struct DecoratorModule;
 
-#[nestforge::module(controllers = [DecoratorController])]
 impl DecoratorModule {}
 
 #[tokio::test]

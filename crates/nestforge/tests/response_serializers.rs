@@ -2,7 +2,6 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use nestforge::{ApiSerializedResult, ResponseSerializer, Serialized};
 use tower::ServiceExt;
 
 #[derive(Clone)]
@@ -20,7 +19,7 @@ struct UserDto {
 
 struct UserSerializer;
 
-impl ResponseSerializer<UserEntity> for UserSerializer {
+impl nestforge::ResponseSerializer<UserEntity> for UserSerializer {
     type Output = UserDto;
 
     fn serialize(value: UserEntity) -> Self::Output {
@@ -32,14 +31,15 @@ impl ResponseSerializer<UserEntity> for UserSerializer {
     }
 }
 
+#[nestforge::controller("/serializers")]
 #[derive(Default)]
 struct SerializerController;
 
-#[nestforge::controller("/serializers")]
+#[nestforge::routes]
 impl SerializerController {
     #[nestforge::get("/user")]
-    async fn user() -> ApiSerializedResult<UserEntity, UserSerializer> {
-        Ok(Serialized::new(UserEntity {
+    async fn user() -> nestforge::ApiSerializedResult<UserEntity, UserSerializer> {
+        Ok(nestforge::Serialized::new(UserEntity {
             id: 7,
             email: "alice@example.com".to_string(),
             password_hash: "secret".to_string(),
@@ -47,10 +47,10 @@ impl SerializerController {
     }
 }
 
+#[nestforge::module(controllers = [SerializerController])]
 #[derive(Default)]
 struct SerializerModule;
 
-#[nestforge::module(controllers = [SerializerController])]
 impl SerializerModule {}
 
 #[tokio::test]

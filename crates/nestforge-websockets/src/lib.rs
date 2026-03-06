@@ -181,8 +181,8 @@ pub async fn handle_websocket_microservice_message(
 
 fn parse_websocket_microservice_frame(message: Message) -> Result<WebSocketMicroserviceFrame> {
     match message {
-        Message::Text(text) => Ok(serde_json::from_str(&text)?),
-        Message::Binary(bytes) => Ok(serde_json::from_slice(&bytes)?),
+        Message::Text(text) => Ok(serde_json::from_str(text.as_str())?),
+        Message::Binary(bytes) => Ok(serde_json::from_slice(bytes.as_ref())?),
         other => anyhow::bail!("Unsupported websocket microservice message: {other:?}"),
     }
 }
@@ -281,6 +281,7 @@ mod tests {
         Arc,
     };
 
+    use axum::http::HeaderMap;
     use nestforge_microservices::MicroserviceRegistry;
 
     use super::{
@@ -326,7 +327,7 @@ mod tests {
         match response {
             Some(Message::Text(payload)) => {
                 let json: serde_json::Value =
-                    serde_json::from_str(&payload).expect("response should be json");
+                    serde_json::from_str(payload.as_str()).expect("response should be json");
                 assert_eq!(json["payload"], serde_json::json!(7));
             }
             other => panic!("unexpected websocket response: {other:?}"),

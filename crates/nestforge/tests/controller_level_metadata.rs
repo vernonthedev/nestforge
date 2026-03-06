@@ -1,6 +1,6 @@
 use nestforge::{
-    authenticated, controller, roles, routes, AuthIdentity, Container, ExceptionFilter,
-    ModuleDefinition, NestForgeFactory, RequestContext,
+    controller, routes, AuthIdentity, Container, ExceptionFilter, ModuleDefinition,
+    NestForgeFactory, RequestContext,
 };
 use tower::ServiceExt;
 

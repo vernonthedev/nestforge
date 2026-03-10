@@ -15,6 +15,7 @@ use ratatui::{
 use std::io::{self, Stdout};
 
 use crate::cli::{AppTransport, GeneratorKindArg, GeneratorLayout};
+use crate::ui::BRAND_BANNER;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TuiGenerateResult {
@@ -149,7 +150,7 @@ impl Default for NewWizardState {
 
 impl NewWizardState {
     fn render(&self, frame: &mut ratatui::Frame<'_>) {
-        let area = centered_rect(frame.area(), 78, 48);
+        let area = centered_rect(frame.area(), 94, 66);
         frame.render_widget(Clear, area);
         frame.render_widget(
             Block::default()
@@ -166,6 +167,7 @@ impl NewWizardState {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
+                Constraint::Length(6),
                 Constraint::Length(2),
                 Constraint::Length(3),
                 Constraint::Length(3),
@@ -174,12 +176,13 @@ impl NewWizardState {
             ])
             .split(inner);
 
+        frame.render_widget(brand_banner_block(), chunks[0]);
         frame.render_widget(
             Paragraph::new(
                 "Create a new NestForge app. Tab moves focus, Enter advances, Esc cancels.",
             )
             .style(Style::default().gray()),
-            chunks[0],
+            chunks[1],
         );
         frame.render_widget(
             field_row(
@@ -188,7 +191,7 @@ impl NewWizardState {
                 "Type the project folder name",
                 matches!(self.focus, NewField::Name),
             ),
-            chunks[1],
+            chunks[2],
         );
         frame.render_widget(
             field_row(
@@ -197,18 +200,18 @@ impl NewWizardState {
                 "Use Left/Right to change",
                 matches!(self.focus, NewField::Transport),
             ),
-            chunks[2],
+            chunks[3],
         );
         frame.render_widget(
             submit_block("Create App", matches!(self.focus, NewField::Submit)),
-            chunks[3],
+            chunks[4],
         );
         frame.render_widget(
             status_line(
                 self.error.as_deref(),
                 "Only the name field accepts typed text. Transport is a selector.",
             ),
-            chunks[4],
+            chunks[5],
         );
     }
 
@@ -313,7 +316,7 @@ impl GenerateWizardState {
     }
 
     fn render(&self, frame: &mut ratatui::Frame<'_>) {
-        let area = centered_rect(frame.area(), 74, 58);
+        let area = centered_rect(frame.area(), 94, 76);
         frame.render_widget(Clear, area);
         frame.render_widget(
             Block::default()
@@ -330,6 +333,7 @@ impl GenerateWizardState {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
+                Constraint::Length(6),
                 Constraint::Length(2),
                 Constraint::Length(2),
                 Constraint::Length(3),
@@ -339,12 +343,13 @@ impl GenerateWizardState {
             ])
             .split(inner);
 
+        frame.render_widget(brand_banner_block(), chunks[0]);
         frame.render_widget(
             Paragraph::new(
                 "Step-by-step wizard. Enter continues, Backspace edits text, Esc cancels.",
             )
             .style(Style::default().gray()),
-            chunks[0],
+            chunks[1],
         );
         frame.render_widget(
             Paragraph::new(format!(
@@ -354,15 +359,15 @@ impl GenerateWizardState {
                 self.step_title()
             ))
             .style(Style::default().cyan().add_modifier(Modifier::BOLD)),
-            chunks[1],
-        );
-        frame.render_widget(
-            prompt_card(self.step_title(), self.step_value(), self.step_hint()),
             chunks[2],
         );
         frame.render_widget(
-            status_line(self.error.as_deref(), self.step_controls()),
+            prompt_card(self.step_title(), self.step_value(), self.step_hint()),
             chunks[3],
+        );
+        frame.render_widget(
+            status_line(self.error.as_deref(), self.step_controls()),
+            chunks[4],
         );
         frame.render_widget(
             summary_card(&[
@@ -397,14 +402,14 @@ impl GenerateWizardState {
                     },
                 ),
             ]),
-            chunks[4],
+            chunks[5],
         );
         frame.render_widget(
             Paragraph::new(
                 "Enter applies the current step. Up/Left goes back. Down/Right goes forward.",
             )
             .style(Style::default().dark_gray()),
-            chunks[5],
+            chunks[6],
         );
     }
 
@@ -711,6 +716,20 @@ fn field_row<'a>(title: &'a str, value: &'a str, hint: &'a str, active: bool) ->
             .borders(Borders::ALL)
             .border_style(active_border(active)),
     )
+}
+
+fn brand_banner_block<'a>() -> Paragraph<'a> {
+    let lines = BRAND_BANNER
+        .iter()
+        .map(|line| {
+            Line::from(vec![Span::styled(
+                *line,
+                Style::default().cyan().add_modifier(Modifier::BOLD),
+            )])
+        })
+        .collect::<Vec<_>>();
+
+    Paragraph::new(lines)
 }
 
 fn prompt_card<'a>(title: &'a str, value: String, hint: &'a str) -> Paragraph<'a> {

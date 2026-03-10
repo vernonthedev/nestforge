@@ -154,7 +154,6 @@ impl NewWizardState {
         frame.render_widget(Clear, area);
         frame.render_widget(
             Block::default()
-                .title(" NestForge New App ")
                 .borders(Borders::ALL)
                 .border_style(Style::default().cyan()),
             area,
@@ -320,7 +319,6 @@ impl GenerateWizardState {
         frame.render_widget(Clear, area);
         frame.render_widget(
             Block::default()
-                .title(" NestForge Generate ")
                 .borders(Borders::ALL)
                 .border_style(Style::default().cyan()),
             area,

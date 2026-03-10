@@ -9,11 +9,17 @@ use std::{
 use crate::cli::{AppTransport, GeneratorKindArg};
 
 pub fn print_brand_banner() {
-    println!(
-        "{} {}",
-        "NestForge".bright_cyan().bold(),
-        "CLI".bright_yellow().bold()
-    );
+    let banner = [
+        " _      _____  ____   _____  _   _  _____  _____ ",
+        "| |    |  __ \\|  _ \\ / ____|| \\ | |/ ____||  ___|",
+        "| |    | |__) | |_) | (___  |  \\| | |  __ | |__  ",
+        "| |    |  ___/|  _ < \\___ \\ | . ` | | |_ ||  __| ",
+        "| |____| |    | |_) |____) || |\\  | |__| || |___ ",
+        "|______|_|    |____/|_____/ |_| \\_|\\_____||_____|",
+    ];
+    for line in banner {
+        println!("{}", line.bright_cyan().bold());
+    }
     println!("{}", "Scaffold. Generate. Ship.".dimmed());
 }
 

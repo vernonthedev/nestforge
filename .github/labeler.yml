@@ -1,0 +1,37 @@
+core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "crates/nestforge-core/**"
+          - "crates/nestforge/**"
+          - "crates/nestforge-macros/**"
+
+modules:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "crates/nestforge-http/**"
+          - "crates/nestforge-graphql/**"
+          - "crates/nestforge-grpc/**"
+          - "crates/nestforge-microservices/**"
+          - "crates/nestforge-websockets/**"
+          - "crates/nestforge-openapi/**"
+          - "crates/nestforge-cache/**"
+          - "crates/nestforge-config/**"
+          - "crates/nestforge-data/**"
+          - "crates/nestforge-db/**"
+          - "crates/nestforge-mongo/**"
+          - "crates/nestforge-orm/**"
+          - "crates/nestforge-redis/**"
+          - "crates/nestforge-schedule/**"
+          - "crates/nestforge-testing/**"
+
+cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "crates/nestforge-cli/**"
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "README.md"
+          - "docs/**"
+          - ".github/**"

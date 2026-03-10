@@ -1,0 +1,80 @@
+name: "Feature Request"
+description: "Propose a NestForge feature with technical and performance details"
+title: "feat: "
+labels: ["triage-needed"]
+body:
+  - type: markdown
+    attributes:
+      value: "Use this form for proposed framework or CLI improvements that need clear technical scope."
+  - type: dropdown
+    id: area
+    attributes:
+      label: "Area"
+      description: "Which part of NestForge does this primarily affect?"
+      options:
+        - "core"
+        - "modules"
+        - "cli"
+    validations:
+      required: true
+  - type: input
+    id: nestforge_version
+    attributes:
+      label: "NestForge Version"
+      placeholder: "1.3.0"
+    validations:
+      required: true
+  - type: input
+    id: rust_version
+    attributes:
+      label: "Rust Version"
+      placeholder: "rustc 1.87.0"
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: "Summary"
+      placeholder: "What capability should exist, and who benefits from it?"
+    validations:
+      required: true
+  - type: textarea
+    id: technical_spec
+    attributes:
+      label: "Technical Spec"
+      description: "Describe the API shape, crate boundaries, module graph impact, and integration points."
+      placeholder: |
+        Proposed API:
+        Owning crate:
+        Runtime or macro changes:
+        Compatibility notes:
+    validations:
+      required: true
+  - type: textarea
+    id: breaking_change
+    attributes:
+      label: "Breaking Change Analysis"
+      placeholder: |
+        Breaking change: yes/no
+        Affected crates:
+        Migration path:
+    validations:
+      required: true
+  - type: textarea
+    id: performance
+    attributes:
+      label: "Performance Impact"
+      placeholder: |
+        Runtime impact:
+        Allocation impact:
+        Startup impact:
+        Compile-time impact:
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "Alternatives Considered"
+      placeholder: "List alternative designs, packages, or workarounds considered."
+    validations:
+      required: true

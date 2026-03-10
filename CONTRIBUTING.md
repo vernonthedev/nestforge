@@ -73,6 +73,16 @@ Keep changes in the most specific crate.
 
 Do not place framework internals in `examples/`.
 
+## Flat Folder Architecture
+
+NestForge now defaults to a flat-first project layout for generated code.
+
+- Keep bootstrap files such as `app_module.rs`, `app_controller.rs`, `app_service.rs`, and `app_config.rs` at the `src/` root when they belong to the application root.
+- For feature modules, prefer placing generated resources side-by-side in the feature directory when flat layout is enabled.
+- Do not introduce empty `controllers/` or `services/` folders for a new starter app.
+- Only create nested folders when they are required by the chosen generator layout or when a module genuinely contains multiple related files in that category.
+- Keep `mod.rs` exports aligned with the chosen layout so generated code compiles immediately.
+
 ## Build, Test, and Lint
 
 Run from repository root.
@@ -154,6 +164,12 @@ If behavior changes, update:
 - `README.md` for user-facing usage changes
 - `docs/` pages for framework concepts and guides
 - Example app when it helps clarify usage
+
+Community and governance changes should also update:
+
+- `CODE_OF_CONDUCT.md` when enforcement expectations change
+- `SECURITY.md` when disclosure channels or support windows change
+- `.github/ISSUE_TEMPLATE/` and `.github/pull_request_template.md` when contribution workflows change
 
 ## Commit Message Rules
 

@@ -1,13 +1,151 @@
 use anyhow::{bail, Context, Result};
+use clap::{
+    builder::{styling::AnsiColor, Styles},
+    Args, CommandFactory, Parser, Subcommand, ValueEnum,
+};
+use indicatif::{ProgressBar, ProgressStyle};
+use miette::{miette, IntoDiagnostic};
 use nestforge_db::{Db, DbConfig};
+use owo_colors::OwoColorize;
 use std::{
     collections::{HashMap, HashSet},
-    env, fs,
+    env, fmt, fs,
     io::{self, IsTerminal, Write},
     path::{Path, PathBuf},
     process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
+
+#[derive(Parser, Debug)]
+#[command(
+    name = "nestforge",
+    about = "NestForge CLI for scaffolding modular Rust backends",
+    long_about = None,
+    styles = cli_styles(),
+    disable_help_subcommand = true
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Create a new NestForge application
+    New(NewArgs),
+    /// Generate framework resources and feature modules
+    #[command(alias = "g")]
+    Generate(GenerateArgs),
+    /// Database migration commands
+    Db(DbArgs),
+    /// Export OpenAPI documentation
+    #[command(visible_alias = "docs")]
+    ExportDocs(ExportDocsArgs),
+    /// Format Rust sources with cargo fmt
+    Fmt,
+}
+
+#[derive(Args, Debug)]
+struct NewArgs {
+    /// Application name
+    app_name: Option<String>,
+    /// Transport runtime
+    #[arg(long, value_enum)]
+    transport: Option<TransportArg>,
+    /// Disable interactive prompts
+    #[arg(long)]
+    no_tui: bool,
+}
+
+#[derive(Args, Debug)]
+struct GenerateArgs {
+    /// Generator kind
+    #[arg(value_enum)]
+    kind: Option<GeneratorKindArg>,
+    /// Resource or module name
+    name: Option<String>,
+    /// Feature module target
+    #[arg(long)]
+    module: Option<String>,
+    /// Generate files in the current module root
+    #[arg(long)]
+    flat: bool,
+    /// Disable DTO field prompts
+    #[arg(long)]
+    no_prompt: bool,
+    /// Disable interactive prompts
+    #[arg(long)]
+    no_tui: bool,
+}
+
+#[derive(Args, Debug)]
+struct DbArgs {
+    #[command(subcommand)]
+    action: DbCommand,
+}
+
+#[derive(Subcommand, Debug)]
+enum DbCommand {
+    Init,
+    Generate {
+        /// Migration name
+        name: String,
+    },
+    Migrate,
+    Status,
+}
+
+#[derive(Args, Debug)]
+struct ExportDocsArgs {
+    /// Output format
+    #[arg(long, value_enum, default_value_t = DocsFormatArg::Json)]
+    format: DocsFormatArg,
+    /// Output file path
+    #[arg(long)]
+    output: Option<PathBuf>,
+    /// OpenAPI title
+    #[arg(long, default_value = "NestForge API")]
+    title: String,
+    /// OpenAPI version
+    #[arg(long, default_value = "0.1.0")]
+    version: String,
+    /// Root module type
+    #[arg(long, default_value = "AppModule")]
+    module_type: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum TransportArg {
+    Http,
+    Graphql,
+    Grpc,
+    Microservices,
+    Websockets,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum GeneratorKindArg {
+    Resource,
+    Controller,
+    Service,
+    Module,
+    Guard,
+    Decorator,
+    Filter,
+    Middleware,
+    Interceptor,
+    Serializer,
+    Graphql,
+    Grpc,
+    Gateway,
+    Microservice,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum DocsFormatArg {
+    Json,
+    Yaml,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum AppTransport {
@@ -48,7 +186,19 @@ enum DtoFieldType {
     F64,
 }
 
+fn cli_styles() -> Styles {
+    Styles::styled()
+        .header(AnsiColor::BrightCyan.on_default().bold())
+        .usage(AnsiColor::BrightYellow.on_default().bold())
+        .literal(AnsiColor::BrightGreen.on_default())
+        .placeholder(AnsiColor::BrightMagenta.on_default())
+        .error(AnsiColor::BrightRed.on_default().bold())
+        .valid(AnsiColor::BrightGreen.on_default().bold())
+        .invalid(AnsiColor::BrightRed.on_default().bold())
+}
+
 impl AppTransport {
+    #[cfg_attr(not(test), allow(dead_code))]
     fn parse(value: &str) -> Result<Self> {
         match value {
             "http" => Ok(Self::Http),
@@ -68,6 +218,51 @@ impl AppTransport {
             Self::Microservices => "Microservices",
             Self::Websockets => "WebSocket",
         }
+    }
+}
+
+impl fmt::Display for AppTransport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.label())
+    }
+}
+
+impl From<TransportArg> for AppTransport {
+    fn from(value: TransportArg) -> Self {
+        match value {
+            TransportArg::Http => Self::Http,
+            TransportArg::Graphql => Self::Graphql,
+            TransportArg::Grpc => Self::Grpc,
+            TransportArg::Microservices => Self::Microservices,
+            TransportArg::Websockets => Self::Websockets,
+        }
+    }
+}
+
+impl GeneratorKindArg {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Resource => "resource",
+            Self::Controller => "controller",
+            Self::Service => "service",
+            Self::Module => "module",
+            Self::Guard => "guard",
+            Self::Decorator => "decorator",
+            Self::Filter => "filter",
+            Self::Middleware => "middleware",
+            Self::Interceptor => "interceptor",
+            Self::Serializer => "serializer",
+            Self::Graphql => "graphql",
+            Self::Grpc => "grpc",
+            Self::Gateway => "gateway",
+            Self::Microservice => "microservice",
+        }
+    }
+}
+
+impl fmt::Display for GeneratorKindArg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.label())
     }
 }
 
@@ -106,126 +301,277 @@ impl DtoFieldType {
     }
 }
 
-fn main() -> Result<()> {
-    let args: Vec<String> = env::args().collect();
+fn main() -> miette::Result<()> {
+    let cli = Cli::parse();
 
-    if args.len() < 2 {
-        print_help();
+    if cli.command.is_none() {
+        print_brand_banner();
+        Cli::command().print_help().into_diagnostic()?;
+        println!();
         return Ok(());
     }
 
-    match args[1].as_str() {
-        "new" => {
-            let app_name = args
-                .get(2)
-                .context("Missing app name. Example: nestforge new demo-app")?;
-            let transport = parse_new_transport_arg(&args[3..])?;
-            create_new_app(app_name, transport)?;
-        }
-        "g" | "generate" => {
-            let kind = args
-                .get(2)
-                .context("Missing generator kind. Example: nestforge g resource users")?;
-            let name = args
-                .get(3)
-                .context("Missing generator name. Example: nestforge g resource users")?;
-            let options = parse_generator_options(&args[4..])?;
+    run_cli(cli).map_err(render_cli_error)
+}
 
-            match kind.as_str() {
-                "resource" => {
-                    generate_resource(
-                        name,
-                        options.target_module.as_deref(),
-                        options.layout,
-                        options.prompt_for_dto,
-                    )?
-                }
-                "controller" => {
-                    generate_controller_only(name, options.target_module.as_deref(), options.layout)?
-                }
-                "service" => {
-                    generate_service_only(name, options.target_module.as_deref(), options.layout)?
-                }
-                "module" => generate_module(name, options.layout)?,
-                "guard" => generate_guard_only(name)?,
-                "decorator" => generate_request_decorator_only(name)?,
-                "filter" => generate_exception_filter_only(name)?,
-                "middleware" => generate_middleware_only(name)?,
-                "interceptor" => generate_interceptor_only(name)?,
-                "serializer" => generate_serializer_only(name)?,
-                "graphql" => generate_graphql_resolver_only(name)?,
-                "grpc" => generate_grpc_service_only(name)?,
-                "gateway" => generate_websocket_gateway_only(name)?,
-                "microservice" => generate_microservice_patterns_only(name)?,
-                _ => bail!(
-                    "Unknown generator `{}`. Use: resource | controller | service | module | guard | decorator | filter | middleware | interceptor | serializer | graphql | grpc | gateway | microservice",
-                    kind
-                ),
-            }
+fn run_cli(cli: Cli) -> Result<()> {
+    match cli.command.expect("command checked above") {
+        Commands::New(args) => {
+            let (app_name, transport) = resolve_new_args(args)?;
+            create_new_app(&app_name, transport)?;
         }
-        "db" => run_db_command(&args)?,
-        "docs" | "export-docs" => run_export_docs_command(&args[2..])?,
-        "fmt" => run_fmt_command()?,
-        _ => {
-            print_help();
+        Commands::Generate(args) => {
+            let (kind, name, options) = resolve_generate_args(args)?;
+            run_generate_command(kind, &name, options)?;
         }
+        Commands::Db(args) => run_db_command_structured(args)?,
+        Commands::ExportDocs(args) => run_export_docs_command_with_options(ExportDocsOptions {
+            format: match args.format {
+                DocsFormatArg::Json => "json".to_string(),
+                DocsFormatArg::Yaml => "yaml".to_string(),
+            },
+            output: args.output,
+            title: args.title,
+            version: args.version,
+            module_type: args.module_type,
+        })?,
+        Commands::Fmt => run_fmt_command()?,
     }
 
     Ok(())
 }
 
-fn print_help() {
-    println!("NestForge CLI");
-    println!();
-    println!("Usage:");
-    println!("  nestforge new <app-name>");
-    println!("  nestforge new <app-name> --transport <http|graphql|grpc|microservices|websockets>");
-    println!("  nestforge g resource <name>");
-    println!("  nestforge g controller <name>");
-    println!("  nestforge g service <name>");
-    println!("  nestforge g resource <name> --module <feature>");
-    println!("  nestforge g resource <name> --module <feature> --flat");
-    println!("  nestforge g module <name>");
-    println!("  nestforge g guard <name>");
-    println!("  nestforge g decorator <name>");
-    println!("  nestforge g filter <name>");
-    println!("  nestforge g middleware <name>");
-    println!("  nestforge g interceptor <name>");
-    println!("  nestforge g serializer <name>");
-    println!("  nestforge g graphql <name>");
-    println!("  nestforge g grpc <name>");
-    println!("  nestforge g gateway <name>");
-    println!("  nestforge g microservice <name>");
-    println!("  nestforge db init");
-    println!("  nestforge db generate <name>");
-    println!("  nestforge db migrate");
-    println!("  nestforge db status");
-    println!("  nestforge export-docs");
-    println!("  nestforge export-docs --format yaml --output docs/openapi.yaml");
-    println!("  nestforge fmt");
-    println!();
-    println!("Install:");
-    println!("  cargo install --path crates/nestforge-cli");
-    println!();
-    println!("Examples:");
-    println!("  nestforge new care-api");
-    println!("  nestforge new catalog-api --transport graphql");
-    println!("  nestforge new greeter-service --transport grpc");
-    println!("  nestforge new app-bus --transport microservices");
-    println!("  nestforge new realtime-events --transport websockets");
-    println!("  nestforge g resource users");
-    println!("  nestforge g resource users --module users --flat");
-    println!("  nestforge g decorator correlation_id");
-    println!("  nestforge g filter rewrite_bad_request");
-    println!("  nestforge g middleware audit");
-    println!("  nestforge g serializer user");
-    println!("  nestforge g graphql users");
-    println!("  nestforge g grpc billing");
-    println!("  nestforge g gateway events");
-    println!("  nestforge g microservice users");
-    println!("  nestforge export-docs");
-    println!("  nestforge db init");
-    println!("  nestforge db generate create_users_table");
+fn print_brand_banner() {
+    println!(
+        "{} {}",
+        "NestForge".bright_cyan().bold(),
+        "CLI".bright_yellow().bold()
+    );
+    println!("{}", "Scaffold. Generate. Ship.".dimmed());
+}
+
+fn render_cli_error(error: anyhow::Error) -> miette::Report {
+    let message = error.to_string();
+
+    if message.contains("Run generator inside an app folder") {
+        return miette!(
+            help = "Change into a NestForge app directory containing `Cargo.toml` and `src/`, then rerun the command.",
+            "{}",
+            message
+        );
+    }
+
+    if message.contains("openapi") && message.contains("feature") {
+        return miette!(
+            help = "Enable the dependency feature in your app: nestforge = { features = [\"openapi\"] }",
+            "{}",
+            message
+        );
+    }
+
+    if message.contains("Target module") && message.contains("not found") {
+        return miette!(
+            help = "Create the module first with `nestforge generate module <name>` or point `--module` at an existing feature.",
+            "{}",
+            message
+        );
+    }
+
+    miette!("{}", message)
+}
+
+fn resolve_new_args(args: NewArgs) -> Result<(String, AppTransport)> {
+    let interactive = interactive_enabled(!args.no_tui);
+    let app_name = match args.app_name {
+        Some(name) => name,
+        None if interactive => prompt_string("Application name (example: care-api)", false)?,
+        None => {
+            bail!("Missing app name. Use `nestforge new <app-name>` or run in interactive mode.")
+        }
+    };
+
+    let transport = match args.transport {
+        Some(transport) => transport.into(),
+        None if interactive => prompt_transport()?,
+        None => AppTransport::Http,
+    };
+
+    Ok((app_name, transport))
+}
+
+fn resolve_generate_args(
+    args: GenerateArgs,
+) -> Result<(GeneratorKindArg, String, GeneratorOptions)> {
+    let interactive = interactive_enabled(!args.no_tui);
+    let kind = match args.kind {
+        Some(kind) => kind,
+        None if interactive => prompt_generator_kind()?,
+        None => bail!("Missing generator kind. Use `nestforge generate <kind> <name>`."),
+    };
+
+    let name = match args.name {
+        Some(name) => name,
+        None if interactive => prompt_string("Resource or module name (example: users)", false)?,
+        None => bail!(
+            "Missing generator name. Use `nestforge generate {}` <name>.",
+            kind.label()
+        ),
+    };
+
+    let target_module = if args.module.is_some() {
+        args.module.map(|value| normalize_resource_name(&value))
+    } else if interactive
+        && matches!(
+            kind,
+            GeneratorKindArg::Resource | GeneratorKindArg::Controller | GeneratorKindArg::Service
+        )
+        && prompt_yes_no("Generate inside a feature module?", false)?
+    {
+        let module_name = prompt_string("Target module name", false)?;
+        Some(normalize_resource_name(&module_name))
+    } else {
+        None
+    };
+
+    Ok((
+        kind,
+        name,
+        GeneratorOptions {
+            target_module,
+            layout: if args.flat {
+                GeneratorLayout::Flat
+            } else {
+                GeneratorLayout::Nested
+            },
+            prompt_for_dto: !args.no_prompt,
+        },
+    ))
+}
+
+fn run_generate_command(
+    kind: GeneratorKindArg,
+    name: &str,
+    options: GeneratorOptions,
+) -> Result<()> {
+    match kind {
+        GeneratorKindArg::Resource => generate_resource(
+            name,
+            options.target_module.as_deref(),
+            options.layout,
+            options.prompt_for_dto,
+        ),
+        GeneratorKindArg::Controller => {
+            generate_controller_only(name, options.target_module.as_deref(), options.layout)
+        }
+        GeneratorKindArg::Service => {
+            generate_service_only(name, options.target_module.as_deref(), options.layout)
+        }
+        GeneratorKindArg::Module => generate_module(name, options.layout),
+        GeneratorKindArg::Guard => generate_guard_only(name),
+        GeneratorKindArg::Decorator => generate_request_decorator_only(name),
+        GeneratorKindArg::Filter => generate_exception_filter_only(name),
+        GeneratorKindArg::Middleware => generate_middleware_only(name),
+        GeneratorKindArg::Interceptor => generate_interceptor_only(name),
+        GeneratorKindArg::Serializer => generate_serializer_only(name),
+        GeneratorKindArg::Graphql => generate_graphql_resolver_only(name),
+        GeneratorKindArg::Grpc => generate_grpc_service_only(name),
+        GeneratorKindArg::Gateway => generate_websocket_gateway_only(name),
+        GeneratorKindArg::Microservice => generate_microservice_patterns_only(name),
+    }
+}
+
+fn run_db_command_structured(args: DbArgs) -> Result<()> {
+    let app_root = detect_app_root()?;
+    match args.action {
+        DbCommand::Init => db_init(&app_root),
+        DbCommand::Generate { name } => db_generate(&app_root, &name),
+        DbCommand::Migrate => db_migrate(&app_root),
+        DbCommand::Status => db_status(&app_root),
+    }
+}
+
+fn interactive_enabled(enabled: bool) -> bool {
+    enabled && io::stdin().is_terminal() && io::stdout().is_terminal()
+}
+
+fn prompt_transport() -> Result<AppTransport> {
+    let choices = [
+        AppTransport::Http,
+        AppTransport::Graphql,
+        AppTransport::Grpc,
+        AppTransport::Microservices,
+        AppTransport::Websockets,
+    ];
+    println!("Select a transport:");
+    for (index, choice) in choices.iter().enumerate() {
+        println!("  {}. {}", index + 1, choice);
+    }
+
+    loop {
+        let value = prompt_string("Transport number", false)?;
+        let Ok(choice) = value.parse::<usize>() else {
+            println!("Enter a number from the list.");
+            continue;
+        };
+        if let Some(transport) = choices.get(choice.saturating_sub(1)).copied() {
+            return Ok(transport);
+        }
+        println!("Enter a number from the list.");
+    }
+}
+
+fn prompt_generator_kind() -> Result<GeneratorKindArg> {
+    let choices = [
+        GeneratorKindArg::Resource,
+        GeneratorKindArg::Controller,
+        GeneratorKindArg::Service,
+        GeneratorKindArg::Module,
+        GeneratorKindArg::Guard,
+        GeneratorKindArg::Decorator,
+        GeneratorKindArg::Filter,
+        GeneratorKindArg::Middleware,
+        GeneratorKindArg::Interceptor,
+        GeneratorKindArg::Serializer,
+        GeneratorKindArg::Graphql,
+        GeneratorKindArg::Grpc,
+        GeneratorKindArg::Gateway,
+        GeneratorKindArg::Microservice,
+    ];
+    println!("Select a generator:");
+    for (index, choice) in choices.iter().enumerate() {
+        println!("  {}. {}", index + 1, choice);
+    }
+
+    loop {
+        let value = prompt_string("Generator number", false)?;
+        let Ok(choice) = value.parse::<usize>() else {
+            println!("Enter a number from the list.");
+            continue;
+        };
+        if let Some(kind) = choices.get(choice.saturating_sub(1)).copied() {
+            return Ok(kind);
+        }
+        println!("Enter a number from the list.");
+    }
+}
+
+fn start_spinner(message: impl Into<String>) -> ProgressBar {
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::with_template("{spinner:.cyan} {msg}")
+            .expect("spinner template should be valid"),
+    );
+    spinner.enable_steady_tick(std::time::Duration::from_millis(80));
+    spinner.set_message(message.into());
+    spinner
+}
+
+fn print_success(message: impl AsRef<str>) {
+    println!("{} {}", "[ok]".bright_green(), message.as_ref());
+}
+
+fn print_note(message: impl AsRef<str>) {
+    println!("{} {}", "[>]".bright_blue(), message.as_ref());
 }
 
 /* ------------------------------
@@ -238,6 +584,12 @@ fn create_new_app(app_name: &str, transport: AppTransport) -> Result<()> {
     if app_dir.exists() {
         bail!("App `{}` already exists at {}", app_name, app_dir.display());
     }
+
+    let spinner = start_spinner(format!(
+        "Scaffolding {} app {}",
+        transport.label(),
+        app_name.bold()
+    ));
 
     fs::create_dir_all(app_dir.join("src/services"))?;
 
@@ -276,20 +628,17 @@ fn create_new_app(app_name: &str, transport: AppTransport) -> Result<()> {
         &template_env_file(app_name, transport),
     )?;
 
-    println!(
+    spinner.finish_and_clear();
+    print_success(format!(
         "Created NestForge {} app at {}",
         transport.label(),
         app_dir.display()
-    );
-    println!();
-    println!("Next:");
-    println!("  cd {}", app_dir.display());
-    println!("  cargo run");
+    ));
+    print_note(format!("Next: cd {}", app_dir.display()));
+    print_note("Then run: cargo run");
 
     if matches!(transport, AppTransport::Http) {
-        println!();
-        println!("Then generate your first resource:");
-        println!("  nestforge g resource users");
+        print_note("Then generate your first resource: nestforge generate resource users");
     }
 
     Ok(())
@@ -369,29 +718,6 @@ fn scaffold_transport_files(app_dir: &Path, transport: AppTransport) -> Result<(
    DB COMMANDS
 ------------------------------ */
 
-fn run_db_command(args: &[String]) -> Result<()> {
-    let action = args
-        .get(2)
-        .context("Missing db command. Use: init | generate | migrate | status")?;
-    let app_root = detect_app_root()?;
-
-    match action.as_str() {
-        "init" => db_init(&app_root),
-        "generate" => {
-            let name = args
-                .get(3)
-                .context("Missing migration name. Example: nestforge db generate create_users")?;
-            db_generate(&app_root, name)
-        }
-        "migrate" => db_migrate(&app_root),
-        "status" => db_status(&app_root),
-        _ => bail!(
-            "Unknown db command `{}`. Use: init | generate | migrate | status",
-            action
-        ),
-    }
-}
-
 fn run_fmt_command() -> Result<()> {
     let target_dir = detect_app_root().or_else(|_| env::current_dir())?;
     let status = Command::new("cargo")
@@ -408,9 +734,15 @@ fn run_fmt_command() -> Result<()> {
     Ok(())
 }
 
-fn run_export_docs_command(args: &[String]) -> Result<()> {
+fn run_export_docs_command_with_options(options: ExportDocsOptions) -> Result<()> {
     let app_root = detect_app_root().or_else(|_| env::current_dir())?;
-    let options = parse_export_docs_options(args)?;
+    run_export_docs_command_with_options_at(app_root, options)
+}
+
+fn run_export_docs_command_with_options_at(
+    app_root: PathBuf,
+    options: ExportDocsOptions,
+) -> Result<()> {
     let output = options.output.unwrap_or_else(|| {
         let file_name = match options.format.as_str() {
             "yaml" => "openapi.yaml",
@@ -419,7 +751,13 @@ fn run_export_docs_command(args: &[String]) -> Result<()> {
         app_root.join("docs").join(file_name)
     });
 
-    export_openapi_docs(&app_root, &options.title, &options.version, &options.module_type, &output)
+    export_openapi_docs(
+        &app_root,
+        &options.title,
+        &options.version,
+        &options.module_type,
+        &output,
+    )
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -431,6 +769,7 @@ struct ExportDocsOptions {
     module_type: String,
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn parse_export_docs_options(args: &[String]) -> Result<ExportDocsOptions> {
     let mut format = "json".to_string();
     let mut output = None;
@@ -500,6 +839,11 @@ fn export_openapi_docs(
     module_type: &str,
     output: &Path,
 ) -> Result<()> {
+    let spinner = start_spinner(format!(
+        "Exporting OpenAPI {} to {}",
+        title.bold(),
+        output.display()
+    ));
     let main_rs = app_root.join("src/main.rs");
     let temp_bin = app_root.join("src/bin/nestforge_export_docs.rs");
     let top_level_mods = collect_top_level_modules(&main_rs)?;
@@ -543,22 +887,35 @@ fn main() -> anyhow::Result<()> {{
 
     write_file(&temp_bin, &script)?;
     let status = Command::new("cargo")
-        .args(["run", "--offline", "--quiet", "--bin", "nestforge_export_docs"])
+        .args([
+            "run",
+            "--offline",
+            "--quiet",
+            "--bin",
+            "nestforge_export_docs",
+        ])
         .current_dir(app_root)
         .status()
         .with_context(|| format!("Failed to run cargo export in {}", app_root.display()))?;
 
     let cleanup_result = fs::remove_file(&temp_bin);
     if let Err(error) = cleanup_result {
-        eprintln!("Warning: failed to remove {}: {error}", temp_bin.display());
+        spinner.println(format!(
+            "{} failed to remove {}: {error}",
+            "warning".bright_yellow(),
+            temp_bin.display()
+        ));
     }
 
     if !status.success() {
+        spinner.finish_and_clear();
         bail!(
             "OpenAPI export failed. Ensure the app builds with `nestforge` feature `openapi` enabled."
         );
     }
 
+    spinner.finish_and_clear();
+    print_success(format!("Exported OpenAPI spec to {}", output.display()));
     Ok(())
 }
 
@@ -739,6 +1096,7 @@ fn generate_resource(
     let pascal_plural = to_pascal_case(&resource);
     let pascal_singular = to_pascal_case(&singular);
     let dto_fields = collect_dto_fields(&pascal_singular, prompt_for_dto)?;
+    let spinner = start_spinner(format!("Generating resource {}", resource.bold()));
 
     let target_root = generator_target_root(&app_root, target_module)?;
     let imports = resource_import_paths(target_module, layout, &resource, &singular);
@@ -791,7 +1149,8 @@ fn generate_resource(
         patch_app_module(&app_root, layout, &resource, &pascal_plural)?;
     }
 
-    println!("Generated resource `{}`", resource);
+    spinner.finish_and_clear();
+    print_success(format!("Generated resource `{}`", resource));
     Ok(())
 }
 
@@ -1226,13 +1585,22 @@ fn generate_dto_files(
     let update_file = dto_dir.join(format!("update_{}_dto.rs", singular));
 
     if !entity_file.exists() {
-        write_file(&entity_file, &template_entity_dto_rs(pascal_singular, fields))?;
+        write_file(
+            &entity_file,
+            &template_entity_dto_rs(pascal_singular, fields),
+        )?;
     }
     if !create_file.exists() {
-        write_file(&create_file, &template_create_dto_rs(pascal_singular, fields))?;
+        write_file(
+            &create_file,
+            &template_create_dto_rs(pascal_singular, fields),
+        )?;
     }
     if !update_file.exists() {
-        write_file(&update_file, &template_update_dto_rs(pascal_singular, fields))?;
+        write_file(
+            &update_file,
+            &template_update_dto_rs(pascal_singular, fields),
+        )?;
     }
 
     let _ = resource; // kept for future template customization
@@ -1263,7 +1631,10 @@ fn collect_dto_fields(resource_name: &str, prompt_for_dto: bool) -> Result<Vec<D
             continue;
         }
 
-        if fields.iter().any(|field: &DtoFieldSpec| field.name == normalized) {
+        if fields
+            .iter()
+            .any(|field: &DtoFieldSpec| field.name == normalized)
+        {
             println!("Field `{normalized}` already exists.");
             continue;
         }
@@ -1337,7 +1708,10 @@ fn prompt_field_type() -> Result<DtoFieldType> {
             continue;
         };
 
-        if let Some(ty) = DtoFieldType::choices().get(choice.saturating_sub(1)).copied() {
+        if let Some(ty) = DtoFieldType::choices()
+            .get(choice.saturating_sub(1))
+            .copied()
+        {
             return Ok(ty);
         }
 
@@ -2152,6 +2526,7 @@ fn patch_app_module_providers_only(
    TEMPLATE HELPERS
 ------------------------------ */
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn parse_new_transport_arg(args: &[String]) -> Result<AppTransport> {
     if args.is_empty() {
         return Ok(AppTransport::Http);
@@ -3236,7 +3611,10 @@ fn collect_top_level_modules(main_rs: &Path) -> Result<Vec<String>> {
         }
     }
 
-    if !modules.iter().any(|module_name| module_name == "app_module") {
+    if !modules
+        .iter()
+        .any(|module_name| module_name == "app_module")
+    {
         bail!(
             "Could not find `mod app_module;` in {}. Use `--module-type` or export from a standard NestForge app layout.",
             main_rs.display()
@@ -3258,7 +3636,10 @@ fn resolve_top_level_module_path(app_root: &Path, module_name: &str) -> Result<P
         return Ok(directory_mod);
     }
 
-    bail!("Could not resolve module `{module_name}` under {}", src_root.display())
+    bail!(
+        "Could not resolve module `{module_name}` under {}",
+        src_root.display()
+    )
 }
 
 fn relative_path_from(from_file: &Path, to_file: &Path) -> Result<String> {
@@ -3288,6 +3669,7 @@ fn normalize_resource_name(name: &str) -> String {
     to_snake_case(name).replace(' ', "_")
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn parse_generator_options(args: &[String]) -> Result<GeneratorOptions> {
     let mut target_module = None;
     let mut layout = GeneratorLayout::Nested;
@@ -3298,7 +3680,9 @@ fn parse_generator_options(args: &[String]) -> Result<GeneratorOptions> {
         match args[index].as_str() {
             "--module" => {
                 let Some(value) = args.get(index + 1) else {
-                    bail!("Invalid generator options. Use: --module <feature> [--flat] [--no-prompt]");
+                    bail!(
+                        "Invalid generator options. Use: --module <feature> [--flat] [--no-prompt]"
+                    );
                 };
                 let module = normalize_resource_name(value);
                 if module.is_empty() {
@@ -3824,11 +4208,11 @@ mod tests {
 
     use super::{
         compute_content_hash, contains_sql_content, parse_export_docs_options,
-        parse_generator_options,
-        parse_new_transport_arg, template_exception_filter_rs, template_feature_mod_rs,
-        template_microservice_patterns_rs, template_named_ws_gateway_rs, template_create_dto_rs,
-        template_request_decorator_rs, template_serializer_rs, AppTransport, GeneratorLayout,
-        GeneratorOptions, DtoFieldSpec, DtoFieldType, ExportDocsOptions,
+        parse_generator_options, parse_new_transport_arg, template_create_dto_rs,
+        template_exception_filter_rs, template_feature_mod_rs, template_microservice_patterns_rs,
+        template_named_ws_gateway_rs, template_request_decorator_rs, template_serializer_rs,
+        AppTransport, DtoFieldSpec, DtoFieldType, ExportDocsOptions, GeneratorLayout,
+        GeneratorOptions,
     };
 
     #[test]

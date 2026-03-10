@@ -175,16 +175,16 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 let responses = doc_meta.responses.iter().map(|response| {
                     let description = LitStr::new(&response.description, method.sig.ident.span());
                     let status = response.status;
-                        quote! {
-                            nestforge::RouteResponseDocumentation {
-                                status: #status,
-                                description: #description.to_string(),
-                                schema: None,
-                            }
+                    quote! {
+                        nestforge::RouteResponseDocumentation {
+                            status: #status,
+                            description: #description.to_string(),
+                            schema: None,
                         }
-                    });
-                    quote! { vec![#(#responses),*] }
-                };
+                    }
+                });
+                quote! { vec![#(#responses),*] }
+            };
             let request_schema_tokens = infer_request_body_doc_tokens(method);
             let response_schema_tokens = infer_response_body_doc_tokens(&method.sig.output);
             let summary_tokens = if let Some(summary) = &doc_meta.summary {
@@ -224,23 +224,23 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             };
 
             route_docs.push(quote! {
-                {
-                    let mut doc = nestforge::RouteDocumentation::new(
-                        #method_lit,
-                        nestforge::RouteBuilder::<#self_ty>::full_path(#path_lit, #version_tokens),
-                    )
-                    .with_responses(#response_docs);
-                    #summary_tokens
-                    #description_tokens
-                      #tag_tokens
-                      #auth_tokens
-                      #role_tokens
-                      #request_schema_tokens
-                      #response_schema_tokens
-                      doc
-                  }
-              });
-          }
+              {
+                  let mut doc = nestforge::RouteDocumentation::new(
+                      #method_lit,
+                      nestforge::RouteBuilder::<#self_ty>::full_path(#path_lit, #version_tokens),
+                  )
+                  .with_responses(#response_docs);
+                  #summary_tokens
+                  #description_tokens
+                    #tag_tokens
+                    #auth_tokens
+                    #role_tokens
+                    #request_schema_tokens
+                    #response_schema_tokens
+                    doc
+                }
+            });
+        }
     }
 
     let expanded = quote! {
@@ -473,7 +473,10 @@ fn build_openapi_schema_body(input: &ItemStruct) -> TokenStream2 {
         };
     };
 
-    let property_builders = fields.named.iter().filter_map(build_openapi_property_tokens);
+    let property_builders = fields
+        .named
+        .iter()
+        .filter_map(build_openapi_property_tokens);
     let required_fields = fields
         .named
         .iter()
@@ -1304,7 +1307,9 @@ fn extract_response_payload_doc(output: &ReturnType) -> Option<TokenStream2> {
 }
 
 fn response_payload_doc_tokens(ty: &Type) -> Option<TokenStream2> {
-    if let Some((value_ty, serializer_ty)) = extract_two_inner_types_named(ty, &["ApiSerializedResult"]) {
+    if let Some((value_ty, serializer_ty)) =
+        extract_two_inner_types_named(ty, &["ApiSerializedResult"])
+    {
         return Some(quote! {
             doc = doc.with_success_response_schema(
                 nestforge::openapi_schema_for::<<#serializer_ty as nestforge::ResponseSerializer<#value_ty>>::Output>()

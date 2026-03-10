@@ -130,14 +130,14 @@ impl OpenApiDoc {
             description: None,
             tags: Vec::new(),
             requires_auth: false,
-              required_roles: Vec::new(),
-              responses: vec![OpenApiResponse {
-                  status: 200,
-                  description: "OK".to_string(),
-                  schema: None,
-              }],
-              request_body: None,
-          });
+            required_roles: Vec::new(),
+            responses: vec![OpenApiResponse {
+                status: 200,
+                description: "OK".to_string(),
+                schema: None,
+            }],
+            request_body: None,
+        });
         self
     }
 
@@ -194,10 +194,7 @@ impl OpenApiDoc {
                         });
                     }
 
-                    (
-                        response.status.to_string(),
-                        body,
-                    )
+                    (response.status.to_string(), body)
                 })
                 .collect::<serde_json::Map<String, Value>>();
             let mut operation = json!({
@@ -219,10 +216,7 @@ impl OpenApiDoc {
                     }
                 });
             }
-            obj.insert(
-                method,
-                operation,
-            );
+            obj.insert(method, operation);
         }
 
         let schemas = self
@@ -294,7 +288,10 @@ where
                 move || async move { yaml_response(payload.clone()) }
             }),
         )
-        .route(&config.docs_path, get(move || async move { Html(primary_docs.clone()) }));
+        .route(
+            &config.docs_path,
+            get(move || async move { Html(primary_docs.clone()) }),
+        );
 
     if let Some(path) = &config.swagger_ui_path {
         router = router.route(

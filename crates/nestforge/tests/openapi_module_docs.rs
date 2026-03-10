@@ -96,9 +96,11 @@ fn openapi_doc_for_module_collects_documented_routes() {
 
     let openapi = doc.to_openapi_json();
     let create_operation = &openapi["paths"]["/users"]["post"];
-    assert!(create_operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
-        .as_str()
-        .is_some());
+    assert!(
+        create_operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+            .as_str()
+            .is_some()
+    );
     assert_eq!(
         openapi["components"]["schemas"]["CreateUserDto"]["properties"]["email"]["format"],
         "email"

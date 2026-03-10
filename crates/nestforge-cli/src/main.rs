@@ -309,8 +309,6 @@ fn create_new_app(app_name: &str, transport: AppTransport, enable_openapi: bool)
         app_name.bold()
     ));
 
-    fs::create_dir_all(app_dir.join("src/services"))?;
-
     /* Cargo.toml */
     write_file(
         &app_dir.join("Cargo.toml"),
@@ -375,6 +373,10 @@ fn scaffold_transport_files(app_dir: &Path, transport: AppTransport) -> Result<(
             fs::create_dir_all(app_dir.join("src/guards"))?;
             fs::create_dir_all(app_dir.join("src/interceptors"))?;
 
+            write_file(
+                &app_dir.join("src/app_service.rs"),
+                &template_app_service_rs(),
+            )?;
             write_file(
                 &app_dir.join("src/app_controller.rs"),
                 &template_app_controller_rs(),
@@ -2374,6 +2376,7 @@ fn template_main_rs(app_name: &str, transport: AppTransport, enable_openapi: boo
             format!(
                 r#"mod app_config;
 mod app_controller;
+mod app_service;
 mod app_module;
 mod guards;
 mod health_controller;
@@ -2533,11 +2536,12 @@ async fn main() -> anyhow::Result<()> {
 
 fn template_app_module_rs(transport: AppTransport) -> String {
     match transport {
-        AppTransport::Http => r#"use nestforge::{module, ConfigModule, ConfigOptions};
+        AppTransport::Http => r#"use nestforge::{module, ConfigModule, ConfigOptions, Provider};
 
 use crate::{
     app_config::AppConfig,
     app_controller::AppController,
+    app_service::AppService,
     health_controller::HealthController,
 };
 
@@ -2556,9 +2560,13 @@ fn load_app_config() -> anyhow::Result<AppConfig> {
     ],
     providers = [
         load_app_config()?,
+        Provider::factory(|container| {
+            let config = container.resolve::<AppConfig>()?;
+            Ok(AppService::new(config.as_ref()))
+        }),
         /* nestforge:providers */
     ],
-    exports = []
+    exports = [AppConfig, AppService]
 )]
 pub struct AppModule;
 "#
@@ -2648,7 +2656,7 @@ fn template_dto_mod_rs() -> String {
 fn template_app_controller_rs() -> String {
     r#"use nestforge::{controller, routes, HttpException, Inject};
 
-use crate::app_config::AppConfig;
+use crate::app_service::AppService;
 
 #[controller("")]
 pub struct AppController;
@@ -2656,8 +2664,31 @@ pub struct AppController;
 #[routes]
 impl AppController {
     #[nestforge::get("/")]
-    async fn root(cfg: Inject<AppConfig>) -> Result<String, HttpException> {
-        Ok(format!("Welcome to {}", cfg.app_name))
+    async fn root(service: Inject<AppService>) -> Result<String, HttpException> {
+        Ok(service.welcome_message())
+    }
+}
+"#
+    .to_string()
+}
+
+fn template_app_service_rs() -> String {
+    r#"use crate::app_config::AppConfig;
+
+#[derive(Clone)]
+pub struct AppService {
+    app_name: String,
+}
+
+impl AppService {
+    pub fn new(config: &AppConfig) -> Self {
+        Self {
+            app_name: config.app_name.clone(),
+        }
+    }
+
+    pub fn welcome_message(&self) -> String {
+        format!("Welcome to {}", self.app_name)
     }
 }
 "#
@@ -4078,6 +4109,13 @@ mod tests {
     }
 
     #[test]
+    fn template_main_rs_declares_root_app_service_for_http_apps() {
+        let main_rs = super::template_main_rs("demo-api", AppTransport::Http, false);
+
+        assert!(main_rs.contains("mod app_service;"));
+    }
+
+    #[test]
     fn template_graphql_schema_imports_async_graphql_crate_path() {
         let schema = super::template_graphql_schema_rs();
 
@@ -4094,6 +4132,16 @@ mod tests {
         );
 
         assert!(manifest.contains("async-graphql = \"7\""));
+    }
+
+    #[test]
+    fn template_app_module_registers_root_app_service_for_http_apps() {
+        let module_rs = super::template_app_module_rs(AppTransport::Http);
+
+        assert!(module_rs.contains("app_service::AppService"));
+        assert!(module_rs.contains("Provider::factory(|container| {"));
+        assert!(module_rs.contains("Ok(AppService::new(config.as_ref()))"));
+        assert!(module_rs.contains("exports = [AppConfig, AppService]"));
     }
 
     #[test]

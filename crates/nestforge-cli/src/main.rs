@@ -1643,6 +1643,8 @@ version = "0.1.0"
 edition = "2021"
 {package_extra}
 
+[workspace]
+
 [dependencies]
 {nestforge_dep}
 {dependency_lines}{build_dependencies}
@@ -3071,6 +3073,17 @@ mod tests {
             parse_new_transport_arg(&args).expect("transport should parse"),
             AppTransport::Websockets
         ));
+    }
+
+    #[test]
+    fn template_app_cargo_toml_declares_workspace_root() {
+        let manifest = super::template_app_cargo_toml(
+            "demo-app",
+            "nestforge = { version = \"1.2.1\", features = [\"config\"] }".to_string(),
+            AppTransport::Http,
+        );
+
+        assert!(manifest.contains("\n[workspace]\n"));
     }
 
     #[test]

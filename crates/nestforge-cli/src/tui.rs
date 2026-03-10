@@ -444,6 +444,12 @@ impl GenerateWizardState {
             KeyCode::Char(' ') if matches!(self.step, GenerateStep::Prompt) => {
                 self.no_prompt = !self.no_prompt;
             }
+            KeyCode::Char('1') if matches!(self.step, GenerateStep::InModule) => {
+                self.in_module = false;
+            }
+            KeyCode::Char('2') if matches!(self.step, GenerateStep::InModule) => {
+                self.in_module = true;
+            }
             KeyCode::Char('y') | KeyCode::Char('Y')
                 if matches!(self.step, GenerateStep::InModule) =>
             {
@@ -464,6 +470,12 @@ impl GenerateWizardState {
             {
                 self.flat = false;
             }
+            KeyCode::Char('1') if matches!(self.step, GenerateStep::Layout) => {
+                self.flat = false;
+            }
+            KeyCode::Char('2') if matches!(self.step, GenerateStep::Layout) => {
+                self.flat = true;
+            }
             KeyCode::Char('e') | KeyCode::Char('E')
                 if matches!(self.step, GenerateStep::Prompt) =>
             {
@@ -472,6 +484,12 @@ impl GenerateWizardState {
             KeyCode::Char('d') | KeyCode::Char('D')
                 if matches!(self.step, GenerateStep::Prompt) =>
             {
+                self.no_prompt = true;
+            }
+            KeyCode::Char('1') if matches!(self.step, GenerateStep::Prompt) => {
+                self.no_prompt = false;
+            }
+            KeyCode::Char('2') if matches!(self.step, GenerateStep::Prompt) => {
                 self.no_prompt = true;
             }
             KeyCode::Enter if matches!(self.step, GenerateStep::Kind) => {
@@ -590,13 +608,15 @@ impl GenerateWizardState {
                 "Use Left/Right to cycle. Enter keeps the current generator and continues."
             }
             GenerateStep::Name => "Type a name like users, health, auth, or billing.",
-            GenerateStep::InModule => "Use Left/Right or Y/N to choose No or Yes. Enter continues.",
+            GenerateStep::InModule => {
+                "Type 1 for No or 2 for Yes. Left/Right and Y/N also work. Enter continues."
+            }
             GenerateStep::ModuleName => "Type the existing feature module name.",
             GenerateStep::Layout => {
-                "Use Left/Right or N/F to choose Nested or Flat. Enter continues."
+                "Type 1 for Nested or 2 for Flat. Left/Right and N/F also work. Enter continues."
             }
             GenerateStep::Prompt => {
-                "Use Left/Right or E/D to choose enabled or disabled DTO prompts. Enter continues."
+                "Type 1 for enabled or 2 for disabled DTO prompts. Left/Right and E/D also work. Enter continues."
             }
             GenerateStep::Review => {
                 "Press Enter to generate now, or Left/Up to revise earlier answers."
@@ -608,11 +628,13 @@ impl GenerateWizardState {
         match self.step {
             GenerateStep::Kind => "Left/Right changes the generator. Enter continues.",
             GenerateStep::Name => "Type the name. Backspace edits. Enter continues.",
-            GenerateStep::InModule => "Left=No, Right=Yes, Y=yes, N=no. Enter continues.",
+            GenerateStep::InModule => "1=No, 2=Yes, Left=No, Right=Yes, Y=yes, N=no. Enter continues.",
             GenerateStep::ModuleName => "Type the module name. Backspace edits. Enter continues.",
-            GenerateStep::Layout => "Left=Nested, Right=Flat, N=nested, F=flat. Enter continues.",
+            GenerateStep::Layout => {
+                "1=Nested, 2=Flat, Left=Nested, Right=Flat, N=nested, F=flat. Enter continues."
+            }
             GenerateStep::Prompt => {
-                "Left=enabled, Right=disabled, E=enabled, D=disabled. Enter continues."
+                "1=Enabled, 2=Disabled, Left=enabled, Right=disabled, E=enabled, D=disabled. Enter continues."
             }
             GenerateStep::Review => "Enter generates. Left or Up goes back to the previous step.",
         }
@@ -624,24 +646,24 @@ impl GenerateWizardState {
             GenerateStep::Name => value_or_hint(&self.name, "Type the generated name here"),
             GenerateStep::InModule => {
                 if self.in_module {
-                    "Current choice: Yes".to_string()
+                    "Current choice: Yes (2)".to_string()
                 } else {
-                    "Current choice: No".to_string()
+                    "Current choice: No (1)".to_string()
                 }
             }
             GenerateStep::ModuleName => value_or_hint(&self.module, "Type the target module name"),
             GenerateStep::Layout => {
                 if self.flat {
-                    "Current layout: Flat".to_string()
+                    "Current layout: Flat (2)".to_string()
                 } else {
-                    "Current layout: Nested".to_string()
+                    "Current layout: Nested (1)".to_string()
                 }
             }
             GenerateStep::Prompt => {
                 if self.no_prompt {
-                    "Current choice: Disabled".to_string()
+                    "Current choice: Disabled (2)".to_string()
                 } else {
-                    "Current choice: Enabled".to_string()
+                    "Current choice: Enabled (1)".to_string()
                 }
             }
             GenerateStep::Review => "Ready to generate with the current selections.".to_string(),

@@ -2490,14 +2490,14 @@ async fn main() -> anyhow::Result<()> {
         TransportMetadata::new().insert("source", "scaffold"),
     );
 
-    let response: serde_json::Value = client
-        .send(
-            "app.ping",
-            serde_json::json!({{
-                "name": "NestForge"
-            }}),
-        )
-        .await?;
+        let response: serde_json::Value = client
+            .send(
+                "app.ping",
+                serde_json::json!({
+                    "name": "NestForge"
+                }),
+            )
+            .await?;
 
     println!("{}", serde_json::to_string_pretty(&response)?);
     module.shutdown()?;
@@ -4067,6 +4067,14 @@ mod tests {
 
         assert!(main_rs.contains("NestForgeFactoryOpenApiExt"));
         assert!(main_rs.contains(".with_openapi_docs(\"Marknon API\", \"1.0.0\")?"));
+    }
+
+    #[test]
+    fn template_main_rs_generates_valid_microservices_json_macro() {
+        let main_rs = super::template_main_rs("professor", AppTransport::Microservices, false);
+
+        assert!(main_rs.contains("serde_json::json!({"));
+        assert!(!main_rs.contains("serde_json::json!({{"));
     }
 
     #[test]

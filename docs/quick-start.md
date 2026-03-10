@@ -41,6 +41,55 @@ By default, the server will be available at [http://127.0.0.1:3000](http://127.0
 
 ---
 
+## Generator Layouts
+
+NestForge supports two generator layouts:
+
+- `nested`: controllers, services, and DTOs go into their own subfolders.
+- `flat`: generated files stay side-by-side in the feature folder.
+
+Use `--flat` when generating a module or resource:
+
+```bash
+nestforge g module users --flat
+nestforge g resource users --module users --flat
+```
+
+Flat layout output:
+
+```text
+src/users/
+  mod.rs
+  controller.rs
+  service.rs
+  user_dto.rs
+  create_user_dto.rs
+  update_user_dto.rs
+  users_controller.rs
+  users_service.rs
+```
+
+Nested layout output:
+
+```text
+src/users/
+  mod.rs
+  controllers/
+    controller.rs
+    users_controller.rs
+  services/
+    service.rs
+    users_service.rs
+  dto/
+    user_dto.rs
+    create_user_dto.rs
+    update_user_dto.rs
+```
+
+If you prefer the older nested layout, just omit `--flat`.
+
+---
+
 ## Basic Application Structure
 
 A minimal NestForge app consists of an **AppModule** and a **Controller**.

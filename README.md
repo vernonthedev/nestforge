@@ -166,6 +166,44 @@ nestforge g grpc billing
 nestforge g gateway events
 ```
 
+Flat feature layout:
+
+```bash
+nestforge g module users --flat
+nestforge g resource users --module users --flat
+```
+
+This keeps generated files together in the feature root:
+
+```text
+src/users/
+  mod.rs
+  controller.rs
+  service.rs
+  user_dto.rs
+  create_user_dto.rs
+  update_user_dto.rs
+  users_controller.rs
+  users_service.rs
+```
+
+Without `--flat`, the CLI keeps the older nested layout:
+
+```text
+src/users/
+  mod.rs
+  controllers/
+    controller.rs
+    users_controller.rs
+  services/
+    service.rs
+    users_service.rs
+  dto/
+    user_dto.rs
+    create_user_dto.rs
+    update_user_dto.rs
+```
+
 DB commands:
 
 ```bash

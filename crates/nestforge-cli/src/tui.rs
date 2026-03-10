@@ -411,20 +411,20 @@ impl GenerateWizardState {
     fn handle_key(&mut self, code: KeyCode) -> Result<bool> {
         match code {
             KeyCode::Esc => bail!("TUI cancelled by user."),
-            KeyCode::Up | KeyCode::Left => {
-                if matches!(self.step, GenerateStep::Kind) {
-                    self.kind = previous_kind(self.kind);
-                } else {
-                    self.step = self.previous_step();
-                }
-            }
-            KeyCode::Down | KeyCode::Right => {
-                if matches!(self.step, GenerateStep::Kind) {
-                    self.kind = next_kind(self.kind);
-                } else {
-                    self.step = self.next_step();
-                }
-            }
+            KeyCode::Up | KeyCode::Left => match self.step {
+                GenerateStep::Kind => self.kind = previous_kind(self.kind),
+                GenerateStep::InModule => self.in_module = false,
+                GenerateStep::Layout => self.flat = false,
+                GenerateStep::Prompt => self.no_prompt = false,
+                _ => self.step = self.previous_step(),
+            },
+            KeyCode::Down | KeyCode::Right => match self.step {
+                GenerateStep::Kind => self.kind = next_kind(self.kind),
+                GenerateStep::InModule => self.in_module = true,
+                GenerateStep::Layout => self.flat = true,
+                GenerateStep::Prompt => self.no_prompt = true,
+                _ => self.step = self.next_step(),
+            },
             KeyCode::Backspace if matches!(self.step, GenerateStep::Name) => {
                 self.name.pop();
             }
@@ -444,6 +444,36 @@ impl GenerateWizardState {
             KeyCode::Char(' ') if matches!(self.step, GenerateStep::Prompt) => {
                 self.no_prompt = !self.no_prompt;
             }
+            KeyCode::Char('y') | KeyCode::Char('Y')
+                if matches!(self.step, GenerateStep::InModule) =>
+            {
+                self.in_module = true;
+            }
+            KeyCode::Char('n') | KeyCode::Char('N')
+                if matches!(self.step, GenerateStep::InModule) =>
+            {
+                self.in_module = false;
+            }
+            KeyCode::Char('f') | KeyCode::Char('F')
+                if matches!(self.step, GenerateStep::Layout) =>
+            {
+                self.flat = true;
+            }
+            KeyCode::Char('n') | KeyCode::Char('N')
+                if matches!(self.step, GenerateStep::Layout) =>
+            {
+                self.flat = false;
+            }
+            KeyCode::Char('e') | KeyCode::Char('E')
+                if matches!(self.step, GenerateStep::Prompt) =>
+            {
+                self.no_prompt = false;
+            }
+            KeyCode::Char('d') | KeyCode::Char('D')
+                if matches!(self.step, GenerateStep::Prompt) =>
+            {
+                self.no_prompt = true;
+            }
             KeyCode::Enter if matches!(self.step, GenerateStep::Kind) => {
                 self.step = self.next_step();
             }
@@ -455,7 +485,6 @@ impl GenerateWizardState {
                 }
             }
             KeyCode::Enter if matches!(self.step, GenerateStep::InModule) => {
-                self.in_module = !self.in_module;
                 self.step = self.next_step();
             }
             KeyCode::Enter if matches!(self.step, GenerateStep::ModuleName) => {
@@ -468,11 +497,9 @@ impl GenerateWizardState {
                 }
             }
             KeyCode::Enter if matches!(self.step, GenerateStep::Layout) => {
-                self.flat = !self.flat;
                 self.step = self.next_step();
             }
             KeyCode::Enter if matches!(self.step, GenerateStep::Prompt) => {
-                self.no_prompt = !self.no_prompt;
                 self.step = self.next_step();
             }
             KeyCode::Enter if matches!(self.step, GenerateStep::Review) => {
@@ -563,10 +590,14 @@ impl GenerateWizardState {
                 "Use Left/Right to cycle. Enter keeps the current generator and continues."
             }
             GenerateStep::Name => "Type a name like users, health, auth, or billing.",
-            GenerateStep::InModule => "Press Space or Enter to toggle between Yes and No.",
+            GenerateStep::InModule => "Use Left/Right or Y/N to choose No or Yes. Enter continues.",
             GenerateStep::ModuleName => "Type the existing feature module name.",
-            GenerateStep::Layout => "Press Space or Enter to switch between Nested and Flat.",
-            GenerateStep::Prompt => "Press Space or Enter to enable or disable DTO prompts.",
+            GenerateStep::Layout => {
+                "Use Left/Right or N/F to choose Nested or Flat. Enter continues."
+            }
+            GenerateStep::Prompt => {
+                "Use Left/Right or E/D to choose enabled or disabled DTO prompts. Enter continues."
+            }
             GenerateStep::Review => {
                 "Press Enter to generate now, or Left/Up to revise earlier answers."
             }
@@ -577,15 +608,11 @@ impl GenerateWizardState {
         match self.step {
             GenerateStep::Kind => "Left/Right changes the generator. Enter continues.",
             GenerateStep::Name => "Type the name. Backspace edits. Enter continues.",
-            GenerateStep::InModule => {
-                "Space toggles Yes/No. Enter applies the current choice and continues."
-            }
+            GenerateStep::InModule => "Left=No, Right=Yes, Y=yes, N=no. Enter continues.",
             GenerateStep::ModuleName => "Type the module name. Backspace edits. Enter continues.",
-            GenerateStep::Layout => {
-                "Space toggles Flat/Nested. Enter applies the current choice and continues."
-            }
+            GenerateStep::Layout => "Left=Nested, Right=Flat, N=nested, F=flat. Enter continues.",
             GenerateStep::Prompt => {
-                "Space toggles DTO prompts. Enter applies the current choice and continues."
+                "Left=enabled, Right=disabled, E=enabled, D=disabled. Enter continues."
             }
             GenerateStep::Review => "Enter generates. Left or Up goes back to the previous step.",
         }

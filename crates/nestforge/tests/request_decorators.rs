@@ -29,7 +29,9 @@ struct DecoratorController;
 #[nestforge::routes]
 impl DecoratorController {
     #[nestforge::get("/correlation")]
-    async fn correlation_id(id: nestforge::Decorated<CorrelationId>) -> nestforge::ApiResult<String> {
+    async fn correlation_id(
+        id: nestforge::Decorated<CorrelationId>,
+    ) -> nestforge::ApiResult<String> {
         Ok(axum::Json(id.into_inner()))
     }
 }

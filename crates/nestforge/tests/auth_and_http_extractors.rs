@@ -12,10 +12,7 @@ fn auth_guard_rejects_unauthenticated_requests() {
         auth_identity: None,
     };
 
-    let result = <RequireAuthGuard as nestforge::Guard>::can_activate(
-        &RequireAuthGuard,
-        &ctx,
-    );
+    let result = <RequireAuthGuard as nestforge::Guard>::can_activate(&RequireAuthGuard, &ctx);
     assert!(result.is_err());
 }
 
@@ -25,9 +22,7 @@ fn headers_and_cookies_wrappers_are_constructible() {
     header_map.insert("x-demo", "yes".parse().expect("header should parse"));
     let headers = Headers(header_map);
     assert_eq!(
-        headers
-            .get("x-demo")
-            .and_then(|value| value.to_str().ok()),
+        headers.get("x-demo").and_then(|value| value.to_str().ok()),
         Some("yes")
     );
 
@@ -46,9 +41,6 @@ fn role_guard_rejects_authenticated_users_without_required_role() {
         )),
     };
 
-    let result = <RequireAdminGuard as nestforge::Guard>::can_activate(
-        &RequireAdminGuard,
-        &ctx,
-    );
+    let result = <RequireAdminGuard as nestforge::Guard>::can_activate(&RequireAdminGuard, &ctx);
     assert!(result.is_err());
 }

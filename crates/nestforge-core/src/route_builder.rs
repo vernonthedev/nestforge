@@ -127,7 +127,15 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.route_with_pipeline("GET", path, get(handler), guards, interceptors, filters, version)
+        self.route_with_pipeline(
+            "GET",
+            path,
+            get(handler),
+            guards,
+            interceptors,
+            filters,
+            version,
+        )
     }
 
     pub fn post_with_pipeline<H, TState>(
@@ -143,7 +151,15 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.route_with_pipeline("POST", path, post(handler), guards, interceptors, filters, version)
+        self.route_with_pipeline(
+            "POST",
+            path,
+            post(handler),
+            guards,
+            interceptors,
+            filters,
+            version,
+        )
     }
 
     pub fn put_with_pipeline<H, TState>(
@@ -159,7 +175,15 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.route_with_pipeline("PUT", path, put(handler), guards, interceptors, filters, version)
+        self.route_with_pipeline(
+            "PUT",
+            path,
+            put(handler),
+            guards,
+            interceptors,
+            filters,
+            version,
+        )
     }
 
     pub fn delete_with_pipeline<H, TState>(
@@ -175,7 +199,15 @@ where
         H: axum::handler::Handler<TState, Container> + Clone + Send + Sync + 'static,
         TState: 'static,
     {
-        self.route_with_pipeline("DELETE", path, delete(handler), guards, interceptors, filters, version)
+        self.route_with_pipeline(
+            "DELETE",
+            path,
+            delete(handler),
+            guards,
+            interceptors,
+            filters,
+            version,
+        )
     }
 
     fn route_with_pipeline(
@@ -201,9 +233,7 @@ where
             let guards = Arc::clone(&guards);
             let interceptors = Arc::clone(&interceptors);
             let filters = Arc::clone(&filters);
-            async move {
-                execute_pipeline(req, next, guards, interceptors, filters).await
-            }
+            async move { execute_pipeline(req, next, guards, interceptors, filters).await }
         }));
 
         Self {

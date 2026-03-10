@@ -4,7 +4,9 @@ use axum::{
     http::{header::CONTENT_TYPE, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
 };
-use nestforge_core::{framework_log_event, Container, Interceptor, NextFn, NextFuture, RequestContext};
+use nestforge_core::{
+    framework_log_event, Container, Interceptor, NextFn, NextFuture, RequestContext,
+};
 use nestforge_data::CacheStore;
 use serde::{Deserialize, Serialize};
 
@@ -38,11 +40,7 @@ pub trait CachePolicy: Default + Clone + Send + Sync + 'static {
             return None;
         }
 
-        Some(format!(
-            "{}:{}",
-            std::any::type_name::<Self>(),
-            req.uri()
-        ))
+        Some(format!("{}:{}", std::any::type_name::<Self>(), req.uri()))
     }
 
     fn ttl_seconds(&self) -> Option<u64> {
@@ -105,19 +103,13 @@ where
             if let Ok(Some(cached)) = store.get(&cache_key).await {
                 match serde_json::from_str::<CachedHttpResponse>(&cached) {
                     Ok(response) => {
-                        framework_log_event(
-                            "response_cache_hit",
-                            &[("key", cache_key.clone())],
-                        );
+                        framework_log_event("response_cache_hit", &[("key", cache_key.clone())]);
                         return response.into_response();
                     }
                     Err(err) => {
                         framework_log_event(
                             "response_cache_deserialize_failed",
-                            &[
-                                ("key", cache_key.clone()),
-                                ("error", err.to_string()),
-                            ],
+                            &[("key", cache_key.clone()), ("error", err.to_string())],
                         );
                     }
                 }
@@ -134,10 +126,7 @@ where
                 Err(err) => {
                     framework_log_event(
                         "response_cache_read_failed",
-                        &[
-                            ("key", cache_key),
-                            ("error", err.to_string()),
-                        ],
+                        &[("key", cache_key), ("error", err.to_string())],
                     );
                     return nestforge_core::HttpException::internal_server_error(
                         "Failed to read response body for caching",
@@ -172,20 +161,14 @@ where
                     {
                         framework_log_event(
                             "response_cache_store_failed",
-                            &[
-                                ("key", cache_key),
-                                ("error", err.to_string()),
-                            ],
+                            &[("key", cache_key), ("error", err.to_string())],
                         );
                     }
                 }
                 Err(err) => {
                     framework_log_event(
                         "response_cache_serialize_failed",
-                        &[
-                            ("key", cache_key),
-                            ("error", err.to_string()),
-                        ],
+                        &[("key", cache_key), ("error", err.to_string())],
                     );
                 }
             }

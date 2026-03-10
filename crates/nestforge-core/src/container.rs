@@ -27,12 +27,8 @@ use thiserror::Error;
 pub struct Container {
     inner: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
     overrides: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
-    request_factories: Arc<
-        RwLock<HashMap<TypeId, Arc<RequestFactoryFn>>>,
-    >,
-    transient_factories: Arc<
-        RwLock<HashMap<TypeId, Arc<TransientFactoryFn>>>,
-    >,
+    request_factories: Arc<RwLock<HashMap<TypeId, Arc<RequestFactoryFn>>>>,
+    transient_factories: Arc<RwLock<HashMap<TypeId, Arc<TransientFactoryFn>>>>,
     names: Arc<RwLock<HashSet<&'static str>>>,
 }
 
@@ -278,9 +274,11 @@ impl Container {
             return Ok(None);
         };
 
-        let value = value.downcast::<T>().map_err(|_| ContainerError::DowncastFailed {
-            type_name: std::any::type_name::<T>(),
-        })?;
+        let value = value
+            .downcast::<T>()
+            .map_err(|_| ContainerError::DowncastFailed {
+                type_name: std::any::type_name::<T>(),
+            })?;
 
         Ok(Some(value))
     }
@@ -305,9 +303,11 @@ impl Container {
             type_name: std::any::type_name::<T>(),
             message: err.to_string(),
         })?;
-        let typed = value.downcast::<T>().map_err(|_| ContainerError::DowncastFailed {
-            type_name: std::any::type_name::<T>(),
-        })?;
+        let typed = value
+            .downcast::<T>()
+            .map_err(|_| ContainerError::DowncastFailed {
+                type_name: std::any::type_name::<T>(),
+            })?;
 
         self.overrides
             .write()
@@ -337,9 +337,11 @@ impl Container {
             type_name: std::any::type_name::<T>(),
             message: err.to_string(),
         })?;
-        let typed = value.downcast::<T>().map_err(|_| ContainerError::DowncastFailed {
-            type_name: std::any::type_name::<T>(),
-        })?;
+        let typed = value
+            .downcast::<T>()
+            .map_err(|_| ContainerError::DowncastFailed {
+                type_name: std::any::type_name::<T>(),
+            })?;
 
         Ok(Some(typed))
     }

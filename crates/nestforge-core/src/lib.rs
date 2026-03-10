@@ -18,8 +18,8 @@ pub mod module;
 pub mod pipeline;
 pub mod provider;
 pub mod request;
-pub mod response;
 pub mod resource_service;
+pub mod response;
 pub mod route_builder;
 pub mod store;
 pub mod validation;
@@ -38,8 +38,8 @@ pub use module::{
     ModuleRef,
 };
 pub use pipeline::{
-    apply_exception_filters, execute_pipeline, ExceptionFilter, Guard, Interceptor, NextFn,
-    NextFuture, RequestContext, RequireAuthenticationGuard, RoleRequirementsGuard, run_guards,
+    apply_exception_filters, execute_pipeline, run_guards, ExceptionFilter, Guard, Interceptor,
+    NextFn, NextFuture, RequestContext, RequireAuthenticationGuard, RoleRequirementsGuard,
 };
 pub use provider::{register_provider, Provider, RegisterProvider};
 pub use request::ValidatedBody;
@@ -47,10 +47,10 @@ pub use request::{
     Body, Cookies, Decorated, Headers, Param, Pipe, PipedBody, PipedParam, PipedQuery, Query,
     RequestDecorator, RequestId,
 };
+pub use resource_service::{ResourceError, ResourceService};
 pub use response::{
     ApiEnvelopeResult, ApiSerializedResult, ResponseEnvelope, ResponseSerializer, Serialized,
 };
-pub use resource_service::{ResourceError, ResourceService};
 pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};
 pub use validation::{Validate, ValidationErrors, ValidationIssue};

@@ -27,11 +27,7 @@ struct RouteMatcher {
 
 impl RouteMatcher {
     fn matches(&self, method: &Method, path: &str) -> bool {
-        if self
-            .exclude
-            .iter()
-            .any(|route| route.matches(method, path))
-        {
+        if self.exclude.iter().any(|route| route.matches(method, path)) {
             return false;
         }
 
@@ -39,9 +35,7 @@ impl RouteMatcher {
             return true;
         }
 
-        self.include
-            .iter()
-            .any(|route| route.matches(method, path))
+        self.include.iter().any(|route| route.matches(method, path))
     }
 }
 
@@ -178,7 +172,10 @@ impl<'a> MiddlewareBindingBuilder<'a> {
     fn register(self, include: Vec<MiddlewareRoute>) -> &'a mut MiddlewareConsumer {
         framework_log_event(
             "middleware_register",
-            &[("include", format!("{include:?}")), ("exclude", format!("{:?}", self.exclude))],
+            &[
+                ("include", format!("{include:?}")),
+                ("exclude", format!("{:?}", self.exclude)),
+            ],
         );
         self.consumer.bindings.push(MiddlewareBinding {
             middleware: self.middleware,

@@ -47,6 +47,8 @@ It also validates env values using:
 - `services/users_service.rs`
 - `dto/*`
 
+For new projects, the CLI also supports a flat feature layout with `--flat`, which generates those files directly under `src/users/` instead of nested `controllers/`, `services/`, and `dto/` folders.
+
 The controller demonstrates:
 
 - full CRUD routes

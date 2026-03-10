@@ -46,7 +46,9 @@ impl Deref for RequestId {
 }
 
 pub fn request_id_from_extensions(extensions: &Extensions) -> Option<String> {
-    extensions.get::<RequestId>().map(|request_id| request_id.value().to_string())
+    extensions
+        .get::<RequestId>()
+        .map(|request_id| request_id.value().to_string())
 }
 
 impl<S> FromRequestParts<S> for RequestId
@@ -473,10 +475,7 @@ where
 {
     type Rejection = HttpException;
 
-    async fn from_request(
-        req: axum::extract::Request,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: axum::extract::Request, state: &S) -> Result<Self, Self::Rejection> {
         let ctx = RequestContext::from_request(&req);
         let axum::Json(value) = axum::Json::<T>::from_request(req, state)
             .await
@@ -529,12 +528,9 @@ where
                     .with_optional_request_id(request_id.clone())
             })?;
 
-        value
-            .validate()
-            .map_err(|errors| {
-                HttpException::bad_request_validation(errors)
-                    .with_optional_request_id(request_id)
-            })?;
+        value.validate().map_err(|errors| {
+            HttpException::bad_request_validation(errors).with_optional_request_id(request_id)
+        })?;
 
         Ok(Self(value))
     }

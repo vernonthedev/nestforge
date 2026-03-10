@@ -1,6 +1,5 @@
 use nestforge::{
-    handle_websocket_microservice_message, Message, WebSocket, WebSocketContext,
-    WebSocketGateway,
+    handle_websocket_microservice_message, Message, WebSocket, WebSocketContext, WebSocketGateway,
 };
 
 use crate::app_config::AppConfig;
@@ -36,7 +35,8 @@ impl WebSocketGateway for EventsGateway {
                 }
 
                 if let Some(patterns) = patterns.as_ref() {
-                    match handle_websocket_microservice_message(&ctx, patterns.registry(), message).await
+                    match handle_websocket_microservice_message(&ctx, patterns.registry(), message)
+                        .await
                     {
                         Ok(Some(response)) => {
                             let _ = socket.send(response).await;

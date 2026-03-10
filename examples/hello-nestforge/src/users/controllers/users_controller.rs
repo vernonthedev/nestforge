@@ -6,8 +6,8 @@ use nestforge::{
 use crate::users::{
     dto::{CreateUserDto, UpdateUserDto, UserDto, UserExistsDto, UsersCountDto},
     services::{
-        UsersService, create_user, delete_user, get_user, list_users, replace_user, update_user,
-        user_exists, users_count,
+        create_user, delete_user, get_user, list_users, replace_user, update_user, user_exists,
+        users_count, UsersService,
     },
 };
 

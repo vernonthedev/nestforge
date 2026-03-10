@@ -5,7 +5,7 @@ pub mod services;
 use nestforge::module;
 
 use self::controllers::UsersController;
-use self::services::{UsersService, users_service_seed};
+use self::services::{users_service_seed, UsersService};
 
 #[module(
     imports = [],

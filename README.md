@@ -38,7 +38,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - Config module with env loading and schema validation
 - Data layer crates (`nestforge-db`, `nestforge-orm`, `nestforge-data`)
 - Testing helpers with module overrides plus HTTP and GraphQL test routers
-- CLI for scaffolding, generators, DB migrations, docs skeleton, formatting
+- CLI for scaffolding, generators, flat or nested feature layouts, DB migrations, docs skeleton, formatting
 
 ## Workspace Layout
 
@@ -156,6 +156,7 @@ Generate code:
 ```bash
 nestforge g module users
 nestforge g resource users --module users
+nestforge g resource users --module users --flat
 nestforge g guard auth
 nestforge g filter rewrite_bad_request
 nestforge g middleware audit
@@ -201,6 +202,7 @@ NestForgeFactory::<AppModule>::create()?
 
 - Root controllers (`AppController`, `HealthController`) at app root
 - Feature modules (`users`, `settings`, `versioning`) in Nest-style folders
+- CLI generators also support flat feature folders with `--flat` when you want controllers, services, and DTOs side-by-side in the module root
 - CRUD controllers + services with `ResourceService<T>`
 - Validation via `ValidatedBody<T>`
 - Guard/interceptor usage at route level

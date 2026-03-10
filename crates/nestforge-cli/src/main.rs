@@ -18,6 +18,18 @@ enum AppTransport {
     Websockets,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum GeneratorLayout {
+    Nested,
+    Flat,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct GeneratorOptions {
+    target_module: Option<String>,
+    layout: GeneratorLayout,
+}
+
 impl AppTransport {
     fn parse(value: &str) -> Result<Self> {
         match value {
@@ -64,13 +76,19 @@ fn main() -> Result<()> {
             let name = args
                 .get(3)
                 .context("Missing generator name. Example: nestforge g resource users")?;
-            let target_module = parse_target_module_arg(&args[4..])?;
+            let options = parse_generator_options(&args[4..])?;
 
             match kind.as_str() {
-                "resource" => generate_resource(name, target_module.as_deref())?,
-                "controller" => generate_controller_only(name, target_module.as_deref())?,
-                "service" => generate_service_only(name, target_module.as_deref())?,
-                "module" => generate_module(name)?,
+                "resource" => {
+                    generate_resource(name, options.target_module.as_deref(), options.layout)?
+                }
+                "controller" => {
+                    generate_controller_only(name, options.target_module.as_deref(), options.layout)?
+                }
+                "service" => {
+                    generate_service_only(name, options.target_module.as_deref(), options.layout)?
+                }
+                "module" => generate_module(name, options.layout)?,
                 "guard" => generate_guard_only(name)?,
                 "decorator" => generate_request_decorator_only(name)?,
                 "filter" => generate_exception_filter_only(name)?,
@@ -108,6 +126,7 @@ fn print_help() {
     println!("  nestforge g controller <name>");
     println!("  nestforge g service <name>");
     println!("  nestforge g resource <name> --module <feature>");
+    println!("  nestforge g resource <name> --module <feature> --flat");
     println!("  nestforge g module <name>");
     println!("  nestforge g guard <name>");
     println!("  nestforge g decorator <name>");
@@ -136,6 +155,7 @@ fn print_help() {
     println!("  nestforge new app-bus --transport microservices");
     println!("  nestforge new realtime-events --transport websockets");
     println!("  nestforge g resource users");
+    println!("  nestforge g resource users --module users --flat");
     println!("  nestforge g decorator correlation_id");
     println!("  nestforge g filter rewrite_bad_request");
     println!("  nestforge g middleware audit");
@@ -164,7 +184,11 @@ fn create_new_app(app_name: &str, transport: AppTransport) -> Result<()> {
     /* Cargo.toml */
     write_file(
         &app_dir.join("Cargo.toml"),
-        &template_app_cargo_toml(app_name, resolve_nestforge_dependency_line(transport), transport),
+        &template_app_cargo_toml(
+            app_name,
+            resolve_nestforge_dependency_line(transport),
+            transport,
+        ),
     )?;
 
     /* main.rs */
@@ -262,10 +286,7 @@ fn scaffold_transport_files(app_dir: &Path, transport: AppTransport) -> Result<(
             fs::create_dir_all(app_dir.join("src/grpc"))?;
             fs::create_dir_all(app_dir.join("proto"))?;
             write_file(&app_dir.join("build.rs"), &template_grpc_build_rs())?;
-            write_file(
-                &app_dir.join("proto/greeter.proto"),
-                &template_grpc_proto(),
-            )?;
+            write_file(&app_dir.join("proto/greeter.proto"), &template_grpc_proto())?;
             write_file(&app_dir.join("src/grpc/mod.rs"), &template_grpc_mod_rs())?;
             write_file(
                 &app_dir.join("src/grpc/service.rs"),
@@ -457,9 +478,9 @@ fn db_migrate(app_root: &Path) -> Result<()> {
                 .await
                 .with_context(|| format!("Migration {} failed to start transaction", file_name))?;
 
-            tx.execute_script(&sql)
-                .await
-                .with_context(|| format!("Migration {} failed while executing SQL script", file_name))?;
+            tx.execute_script(&sql).await.with_context(|| {
+                format!("Migration {} failed while executing SQL script", file_name)
+            })?;
 
             tx.commit()
                 .await
@@ -523,7 +544,11 @@ fn db_status(app_root: &Path) -> Result<()> {
    GENERATORS
 ------------------------------ */
 
-fn generate_resource(name: &str, target_module: Option<&str>) -> Result<()> {
+fn generate_resource(
+    name: &str,
+    target_module: Option<&str>,
+    layout: GeneratorLayout,
+) -> Result<()> {
     let app_root = detect_app_root()?;
     let resource = normalize_resource_name(name);
     let singular = singular_name(&resource);
@@ -531,97 +556,122 @@ fn generate_resource(name: &str, target_module: Option<&str>) -> Result<()> {
     let pascal_singular = to_pascal_case(&singular);
 
     let target_root = generator_target_root(&app_root, target_module)?;
-    let namespace = generator_namespace(target_module);
+    let imports = resource_import_paths(target_module, layout, &resource, &singular);
 
-    generate_dto_files(&target_root, &resource, &singular, &pascal_singular)?;
+    generate_dto_files(&target_root, layout, &resource, &singular, &pascal_singular)?;
     generate_service_file(
         &target_root,
+        layout,
         &resource,
         &singular,
         &pascal_plural,
         &pascal_singular,
-        &namespace,
+        &imports,
     )?;
     generate_controller_file(
         &target_root,
+        layout,
         &resource,
         &singular,
         &pascal_plural,
         &pascal_singular,
-        &namespace,
+        &imports,
     )?;
 
-    patch_dto_mod(&target_root, &singular, &pascal_singular)?;
-    patch_services_mod(&target_root, &resource, &pascal_plural)?;
-    patch_controllers_mod(&target_root, &resource, &pascal_plural)?;
+    patch_dto_mod(&target_root, layout, &singular, &pascal_singular)?;
+    patch_services_mod(&target_root, layout, &resource, &pascal_plural)?;
+    patch_controllers_mod(&target_root, layout, &resource, &pascal_plural)?;
 
     if let Some(module_name) = target_module {
-        patch_feature_module(&app_root, module_name, &pascal_plural)?;
+        patch_feature_module(&app_root, module_name, layout, &pascal_plural, true, true)?;
     } else {
-        patch_app_module(&app_root, &resource, &pascal_plural)?;
+        if layout == GeneratorLayout::Flat {
+            patch_main_mod_decl(&app_root, &format!("{}_controller", resource))?;
+            patch_main_mod_decl(&app_root, &format!("{}_service", resource))?;
+            patch_main_mod_decl(&app_root, &format!("{}_dto", singular))?;
+            patch_main_mod_decl(&app_root, &format!("create_{}_dto", singular))?;
+            patch_main_mod_decl(&app_root, &format!("update_{}_dto", singular))?;
+        }
+        patch_app_module(&app_root, layout, &resource, &pascal_plural)?;
     }
 
     println!("Generated resource `{}`", resource);
     Ok(())
 }
 
-fn generate_controller_only(name: &str, target_module: Option<&str>) -> Result<()> {
+fn generate_controller_only(
+    name: &str,
+    target_module: Option<&str>,
+    layout: GeneratorLayout,
+) -> Result<()> {
     let app_root = detect_app_root()?;
     let resource = normalize_resource_name(name);
     let singular = singular_name(&resource);
     let pascal_plural = to_pascal_case(&resource);
     let pascal_singular = to_pascal_case(&singular);
     let target_root = generator_target_root(&app_root, target_module)?;
-    let namespace = generator_namespace(target_module);
+    let imports = resource_import_paths(target_module, layout, &resource, &singular);
 
     generate_controller_file(
         &target_root,
+        layout,
         &resource,
         &singular,
         &pascal_plural,
         &pascal_singular,
-        &namespace,
+        &imports,
     )?;
-    patch_controllers_mod(&target_root, &resource, &pascal_plural)?;
+    patch_controllers_mod(&target_root, layout, &resource, &pascal_plural)?;
     if let Some(module_name) = target_module {
-        patch_feature_module(&app_root, module_name, &pascal_plural)?;
+        patch_feature_module(&app_root, module_name, layout, &pascal_plural, true, false)?;
     } else {
-        patch_app_module_controllers_only(&app_root, &pascal_plural)?;
+        if layout == GeneratorLayout::Flat {
+            patch_main_mod_decl(&app_root, &format!("{}_controller", resource))?;
+        }
+        patch_app_module_controllers_only(&app_root, layout, &resource, &pascal_plural)?;
     }
 
     println!("Generated controller `{}`", resource);
     Ok(())
 }
 
-fn generate_service_only(name: &str, target_module: Option<&str>) -> Result<()> {
+fn generate_service_only(
+    name: &str,
+    target_module: Option<&str>,
+    layout: GeneratorLayout,
+) -> Result<()> {
     let app_root = detect_app_root()?;
     let resource = normalize_resource_name(name);
     let singular = singular_name(&resource);
     let pascal_plural = to_pascal_case(&resource);
     let pascal_singular = to_pascal_case(&singular);
     let target_root = generator_target_root(&app_root, target_module)?;
-    let namespace = generator_namespace(target_module);
+    let imports = resource_import_paths(target_module, layout, &resource, &singular);
 
     generate_service_file(
         &target_root,
+        layout,
         &resource,
         &singular,
         &pascal_plural,
         &pascal_singular,
-        &namespace,
+        &imports,
     )?;
-    patch_services_mod(&target_root, &resource, &pascal_plural)?;
+    patch_services_mod(&target_root, layout, &resource, &pascal_plural)?;
     if let Some(module_name) = target_module {
-        patch_feature_module(&app_root, module_name, &pascal_plural)?;
+        patch_feature_module(&app_root, module_name, layout, &pascal_plural, false, true)?;
     } else {
-        patch_app_module_providers_only(&app_root, &pascal_plural)?;
+        if layout == GeneratorLayout::Flat {
+            patch_main_mod_decl(&app_root, &format!("{}_service", resource))?;
+        }
+        patch_app_module_providers_only(&app_root, layout, &resource, &pascal_plural)?;
     }
 
     println!("Generated service `{}`", resource);
     Ok(())
 }
 
-fn generate_module(name: &str) -> Result<()> {
+fn generate_module(name: &str, layout: GeneratorLayout) -> Result<()> {
     let app_root = detect_app_root()?;
     let module_name = normalize_resource_name(name);
     let pascal_module = format!("{}Module", to_pascal_case(&module_name));
@@ -634,28 +684,39 @@ fn generate_module(name: &str) -> Result<()> {
 
     write_file(
         &module_dir.join("mod.rs"),
-        &template_feature_mod_rs(&module_name, &pascal_module),
+        &template_feature_mod_rs(&module_name, &pascal_module, layout),
     )?;
-    write_file(
-        &module_dir.join("controllers/mod.rs"),
-        &template_feature_controllers_mod_rs(&module_name, &pascal_module),
-    )?;
-    write_file(
-        &module_dir.join("controllers/controller.rs"),
-        &template_feature_controller_rs(&module_name, &pascal_module),
-    )?;
-    write_file(
-        &module_dir.join("services/mod.rs"),
-        &template_feature_services_mod_rs(&module_name, &pascal_module),
-    )?;
-    write_file(
-        &module_dir.join("services/service.rs"),
-        &template_feature_service_rs(&module_name, &pascal_module),
-    )?;
-    write_file(
-        &module_dir.join("dto/mod.rs"),
-        &template_feature_dto_mod_rs(),
-    )?;
+    if layout == GeneratorLayout::Flat {
+        write_file(
+            &module_dir.join("controller.rs"),
+            &template_feature_controller_rs(&module_name, &pascal_module, layout),
+        )?;
+        write_file(
+            &module_dir.join("service.rs"),
+            &template_feature_service_rs(&module_name, &pascal_module, layout),
+        )?;
+    } else {
+        write_file(
+            &module_dir.join("controllers/mod.rs"),
+            &template_feature_controllers_mod_rs(&module_name, &pascal_module),
+        )?;
+        write_file(
+            &module_dir.join("controllers/controller.rs"),
+            &template_feature_controller_rs(&module_name, &pascal_module, layout),
+        )?;
+        write_file(
+            &module_dir.join("services/mod.rs"),
+            &template_feature_services_mod_rs(&module_name, &pascal_module),
+        )?;
+        write_file(
+            &module_dir.join("services/service.rs"),
+            &template_feature_service_rs(&module_name, &pascal_module, layout),
+        )?;
+        write_file(
+            &module_dir.join("dto/mod.rs"),
+            &template_feature_dto_mod_rs(),
+        )?;
+    }
 
     patch_main_mod_decl(&app_root, &module_name)?;
     patch_root_app_module_import(&app_root, &module_name, &pascal_module)?;
@@ -696,7 +757,10 @@ fn generate_request_decorator_only(name: &str) -> Result<()> {
         .join(format!("{}_decorator.rs", decorator_name));
 
     if decorator_file.exists() {
-        println!("Request decorator already exists: {}", decorator_file.display());
+        println!(
+            "Request decorator already exists: {}",
+            decorator_file.display()
+        );
         return Ok(());
     }
 
@@ -828,7 +892,10 @@ fn generate_websocket_gateway_only(name: &str) -> Result<()> {
             &template_named_ws_gateway_rs(&pascal_gateway),
         )?;
     } else {
-        println!("WebSocket gateway already exists: {}", gateway_file.display());
+        println!(
+            "WebSocket gateway already exists: {}",
+            gateway_file.display()
+        );
     }
 
     patch_ws_mod(&app_root, &gateway_name, &pascal_gateway)?;
@@ -854,7 +921,10 @@ fn generate_graphql_resolver_only(name: &str) -> Result<()> {
             &template_graphql_resolver_rs(&resolver_name, &pascal_name),
         )?;
     } else {
-        println!("GraphQL resolver already exists: {}", resolver_file.display());
+        println!(
+            "GraphQL resolver already exists: {}",
+            resolver_file.display()
+        );
     }
 
     patch_graphql_mod(&app_root, &resolver_name, &pascal_name)?;
@@ -879,7 +949,10 @@ fn generate_grpc_service_only(name: &str) -> Result<()> {
     ensure_grpc_mod(&app_root)?;
 
     if !proto_path.exists() {
-        write_file(&proto_path, &template_named_grpc_proto(&service_name, &pascal_name))?;
+        write_file(
+            &proto_path,
+            &template_named_grpc_proto(&service_name, &pascal_name),
+        )?;
     }
 
     if !service_path.exists() {
@@ -940,11 +1013,12 @@ fn generate_microservice_patterns_only(name: &str) -> Result<()> {
 
 fn generate_dto_files(
     target_root: &Path,
+    layout: GeneratorLayout,
     resource: &str,
     singular: &str,
     pascal_singular: &str,
 ) -> Result<()> {
-    let dto_dir = target_root.join("dto");
+    let dto_dir = dto_dir(target_root, layout);
 
     let entity_file = dto_dir.join(format!("{}_dto.rs", singular));
     let create_file = dto_dir.join(format!("create_{}_dto.rs", singular));
@@ -966,15 +1040,14 @@ fn generate_dto_files(
 
 fn generate_service_file(
     target_root: &Path,
+    layout: GeneratorLayout,
     resource: &str,
     singular: &str,
     pascal_plural: &str,
     pascal_singular: &str,
-    namespace: &str,
+    imports: &ResourceImportPaths,
 ) -> Result<()> {
-    let service_path = target_root
-        .join("services")
-        .join(format!("{}_service.rs", resource));
+    let service_path = services_dir(target_root, layout).join(format!("{}_service.rs", resource));
     if service_path.exists() {
         println!("Service already exists: {}", service_path.display());
         return Ok(());
@@ -982,28 +1055,22 @@ fn generate_service_file(
 
     write_file(
         &service_path,
-        &template_resource_service_rs(
-            resource,
-            singular,
-            pascal_plural,
-            pascal_singular,
-            namespace,
-        ),
+        &template_resource_service_rs(resource, singular, pascal_plural, pascal_singular, imports),
     )?;
     Ok(())
 }
 
 fn generate_controller_file(
     target_root: &Path,
+    layout: GeneratorLayout,
     resource: &str,
     singular: &str,
     pascal_plural: &str,
     pascal_singular: &str,
-    namespace: &str,
+    imports: &ResourceImportPaths,
 ) -> Result<()> {
-    let controller_path = target_root
-        .join("controllers")
-        .join(format!("{}_controller.rs", resource));
+    let controller_path =
+        controllers_dir(target_root, layout).join(format!("{}_controller.rs", resource));
 
     if controller_path.exists() {
         println!("Controller already exists: {}", controller_path.display());
@@ -1017,7 +1084,7 @@ fn generate_controller_file(
             singular,
             pascal_plural,
             pascal_singular,
-            namespace,
+            imports,
         ),
     )?;
     Ok(())
@@ -1027,7 +1094,56 @@ fn generate_controller_file(
    PATCHERS
 ------------------------------ */
 
-fn patch_dto_mod(target_root: &Path, singular: &str, pascal_singular: &str) -> Result<()> {
+fn patch_dto_mod(
+    target_root: &Path,
+    layout: GeneratorLayout,
+    singular: &str,
+    pascal_singular: &str,
+) -> Result<()> {
+    if layout == GeneratorLayout::Flat {
+        let Some(path) = target_mod_file(target_root) else {
+            return Ok(());
+        };
+        let mut content = fs::read_to_string(&path)?;
+
+        for line in [
+            format!("pub mod {}_dto;", singular),
+            format!("pub mod create_{}_dto;", singular),
+            format!("pub mod update_{}_dto;", singular),
+        ] {
+            if !content.contains(&line) {
+                content = content.replacen(
+                    "/* nestforge:feature_modules */",
+                    &format!("/* nestforge:feature_modules */\n{line}"),
+                    1,
+                );
+            }
+        }
+
+        for line in [
+            format!("pub use {}_dto::{}Dto;", singular, pascal_singular),
+            format!(
+                "pub use create_{}_dto::Create{}Dto;",
+                singular, pascal_singular
+            ),
+            format!(
+                "pub use update_{}_dto::Update{}Dto;",
+                singular, pascal_singular
+            ),
+        ] {
+            if !content.contains(&line) {
+                content = content.replacen(
+                    "/* nestforge:feature_reexports */",
+                    &format!("/* nestforge:feature_reexports */\n{line}"),
+                    1,
+                );
+            }
+        }
+
+        fs::write(path, content)?;
+        return Ok(());
+    }
+
     let path = target_root.join("dto/mod.rs");
     let mut content = fs::read_to_string(&path)?;
 
@@ -1065,7 +1181,36 @@ fn patch_dto_mod(target_root: &Path, singular: &str, pascal_singular: &str) -> R
     Ok(())
 }
 
-fn patch_services_mod(target_root: &Path, resource: &str, pascal_plural: &str) -> Result<()> {
+fn patch_services_mod(
+    target_root: &Path,
+    layout: GeneratorLayout,
+    resource: &str,
+    pascal_plural: &str,
+) -> Result<()> {
+    if layout == GeneratorLayout::Flat {
+        let Some(path) = target_mod_file(target_root) else {
+            return Ok(());
+        };
+        let mut content = fs::read_to_string(&path)?;
+
+        for line in [
+            format!("pub mod {}_service;", resource),
+            format!("pub use {}_service::{}Service;", resource, pascal_plural),
+        ] {
+            let marker = if line.starts_with("pub mod ") {
+                "/* nestforge:feature_modules */"
+            } else {
+                "/* nestforge:feature_reexports */"
+            };
+            if !content.contains(&line) {
+                content = content.replacen(marker, &format!("{marker}\n{line}"), 1);
+            }
+        }
+
+        fs::write(path, content)?;
+        return Ok(());
+    }
+
     let path = target_root.join("services/mod.rs");
     let mut content = fs::read_to_string(&path)?;
 
@@ -1083,7 +1228,39 @@ fn patch_services_mod(target_root: &Path, resource: &str, pascal_plural: &str) -
     Ok(())
 }
 
-fn patch_controllers_mod(target_root: &Path, resource: &str, pascal_plural: &str) -> Result<()> {
+fn patch_controllers_mod(
+    target_root: &Path,
+    layout: GeneratorLayout,
+    resource: &str,
+    pascal_plural: &str,
+) -> Result<()> {
+    if layout == GeneratorLayout::Flat {
+        let Some(path) = target_mod_file(target_root) else {
+            return Ok(());
+        };
+        let mut content = fs::read_to_string(&path)?;
+
+        for line in [
+            format!("pub mod {}_controller;", resource),
+            format!(
+                "pub use {}_controller::{}Controller;",
+                resource, pascal_plural
+            ),
+        ] {
+            let marker = if line.starts_with("pub mod ") {
+                "/* nestforge:feature_modules */"
+            } else {
+                "/* nestforge:feature_reexports */"
+            };
+            if !content.contains(&line) {
+                content = content.replacen(marker, &format!("{marker}\n{line}"), 1);
+            }
+        }
+
+        fs::write(path, content)?;
+        return Ok(());
+    }
+
     let path = target_root.join("controllers/mod.rs");
     let mut content = fs::read_to_string(&path)?;
 
@@ -1297,7 +1474,10 @@ fn patch_graphql_mod(app_root: &Path, resolver_name: &str, pascal_name: &str) ->
     };
 
     let mod_line = format!("pub mod {}_resolver;", resolver_name);
-    let use_line = format!("pub use {}_resolver::{}Resolver;", resolver_name, pascal_name);
+    let use_line = format!(
+        "pub use {}_resolver::{}Resolver;",
+        resolver_name, pascal_name
+    );
 
     if !content.contains(&mod_line) {
         content.push_str(&format!("\n{}", mod_line));
@@ -1377,7 +1557,8 @@ fn patch_grpc_build_rs(app_root: &Path, service_name: &str) -> Result<()> {
     let path = app_root.join("build.rs");
     let mut content = fs::read_to_string(&path)?;
     let proto_entry = format!("\"proto/{service_name}.proto\"");
-    let rerun_line = format!("    println!(\"cargo:rerun-if-changed=proto/{service_name}.proto\");\n");
+    let rerun_line =
+        format!("    println!(\"cargo:rerun-if-changed=proto/{service_name}.proto\");\n");
 
     if !content.contains(&proto_entry) {
         let target = ".compile_protos(&[\"proto/greeter.proto\"], &[\"proto\"])?;";
@@ -1396,7 +1577,9 @@ fn patch_grpc_build_rs(app_root: &Path, service_name: &str) -> Result<()> {
         }
     }
 
-    if !content.contains(&format!("cargo:rerun-if-changed=proto/{service_name}.proto")) {
+    if !content.contains(&format!(
+        "cargo:rerun-if-changed=proto/{service_name}.proto"
+    )) {
         if let Some(insert_at) = content.rfind("    Ok(())") {
             content.insert_str(insert_at, &rerun_line);
         }
@@ -1444,9 +1627,18 @@ fn patch_grpc_mod_rs(app_root: &Path, service_name: &str, pascal_name: &str) -> 
     Ok(())
 }
 
-fn patch_app_module(app_root: &Path, resource: &str, pascal_plural: &str) -> Result<()> {
-    patch_app_module_controllers_only(app_root, pascal_plural)?;
-    patch_app_module_providers_only(app_root, pascal_plural)?;
+fn patch_app_module(
+    app_root: &Path,
+    layout: GeneratorLayout,
+    resource: &str,
+    pascal_plural: &str,
+) -> Result<()> {
+    patch_app_module_controllers_only(app_root, layout, resource, pascal_plural)?;
+    patch_app_module_providers_only(app_root, layout, resource, pascal_plural)?;
+
+    if layout == GeneratorLayout::Flat {
+        return Ok(());
+    }
 
     /* Also patch imports */
     let path = app_root.join("src/app_module.rs");
@@ -1467,7 +1659,24 @@ fn patch_app_module(app_root: &Path, resource: &str, pascal_plural: &str) -> Res
     Ok(())
 }
 
-fn patch_feature_module(app_root: &Path, module_name: &str, pascal_plural: &str) -> Result<()> {
+fn patch_feature_module(
+    app_root: &Path,
+    module_name: &str,
+    layout: GeneratorLayout,
+    pascal_plural: &str,
+    include_controller: bool,
+    include_service: bool,
+) -> Result<()> {
+    if layout == GeneratorLayout::Flat {
+        return patch_feature_module_flat(
+            app_root,
+            module_name,
+            pascal_plural,
+            include_controller,
+            include_service,
+        );
+    }
+
     let path = app_root.join("src").join(module_name).join("mod.rs");
     let mut content = fs::read_to_string(&path)?;
 
@@ -1524,7 +1733,57 @@ fn patch_feature_module(app_root: &Path, module_name: &str, pascal_plural: &str)
     Ok(())
 }
 
-fn patch_app_module_controllers_only(app_root: &Path, pascal_plural: &str) -> Result<()> {
+fn patch_feature_module_flat(
+    app_root: &Path,
+    module_name: &str,
+    pascal_plural: &str,
+    include_controller: bool,
+    include_service: bool,
+) -> Result<()> {
+    let path = app_root.join("src").join(module_name).join("mod.rs");
+    let mut content = fs::read_to_string(&path)?;
+
+    if include_controller {
+        let controller_entry = format!("{pascal_plural}Controller,");
+        if !content.contains(&controller_entry) {
+            content = content.replacen(
+                "/* nestforge:feature_controllers */",
+                &format!("/* nestforge:feature_controllers */\n        {controller_entry}"),
+                1,
+            );
+        }
+    }
+
+    if include_service {
+        let provider_entry = format!("{pascal_plural}Service::new(),");
+        if !content.contains(&provider_entry) {
+            content = content.replacen(
+                "/* nestforge:feature_providers */",
+                &format!("/* nestforge:feature_providers */\n        {provider_entry}"),
+                1,
+            );
+        }
+
+        let export_entry = format!("{pascal_plural}Service,");
+        if !content.contains(&export_entry) {
+            content = content.replacen(
+                "/* nestforge:feature_exports */",
+                &format!("/* nestforge:feature_exports */\n        {export_entry}"),
+                1,
+            );
+        }
+    }
+
+    fs::write(path, content)?;
+    Ok(())
+}
+
+fn patch_app_module_controllers_only(
+    app_root: &Path,
+    layout: GeneratorLayout,
+    resource: &str,
+    pascal_plural: &str,
+) -> Result<()> {
     let path = app_root.join("src/app_module.rs");
     let mut content = fs::read_to_string(&path)?;
 
@@ -1536,11 +1795,25 @@ fn patch_app_module_controllers_only(app_root: &Path, pascal_plural: &str) -> Re
     }
 
     content = content.replace(marker, &format!("{}\n        {}", marker, entry));
+    if layout == GeneratorLayout::Flat {
+        let import_line = format!(
+            "use crate::{}_controller::{}Controller;\n",
+            resource, pascal_plural
+        );
+        if !content.contains(&import_line) {
+            content = format!("{import_line}{content}");
+        }
+    }
     fs::write(path, content)?;
     Ok(())
 }
 
-fn patch_app_module_providers_only(app_root: &Path, pascal_plural: &str) -> Result<()> {
+fn patch_app_module_providers_only(
+    app_root: &Path,
+    layout: GeneratorLayout,
+    resource: &str,
+    pascal_plural: &str,
+) -> Result<()> {
     let path = app_root.join("src/app_module.rs");
     let mut content = fs::read_to_string(&path)?;
 
@@ -1552,6 +1825,15 @@ fn patch_app_module_providers_only(app_root: &Path, pascal_plural: &str) -> Resu
     }
 
     content = content.replace(marker, &format!("{}\n        {}", marker, entry));
+    if layout == GeneratorLayout::Flat {
+        let import_line = format!(
+            "use crate::{}_service::{}Service;\n",
+            resource, pascal_plural
+        );
+        if !content.contains(&import_line) {
+            content = format!("{import_line}{content}");
+        }
+    }
     fs::write(path, content)?;
     Ok(())
 }
@@ -1738,7 +2020,7 @@ async fn main() -> anyhow::Result<()> {
     bootstrap().await
 }
 "#
-          .to_string(),
+        .to_string(),
         AppTransport::Microservices => r#"mod app_module;
 mod microservices;
 mod services;
@@ -1795,8 +2077,8 @@ async fn main() -> anyhow::Result<()> {
 }
 "#
         .to_string(),
-      }
-  }
+    }
+}
 
 fn template_app_module_rs(transport: AppTransport) -> String {
     match transport {
@@ -1829,7 +2111,8 @@ fn load_app_config() -> anyhow::Result<AppConfig> {
 pub struct AppModule;
 "#
         .to_string(),
-        AppTransport::Graphql | AppTransport::Grpc | AppTransport::Websockets => r#"use nestforge::{module, ConfigModule, ConfigOptions};
+        AppTransport::Graphql | AppTransport::Grpc | AppTransport::Websockets => {
+            r#"use nestforge::{module, ConfigModule, ConfigOptions};
 
 use crate::services::AppConfig;
 
@@ -1845,7 +2128,8 @@ fn load_app_config() -> anyhow::Result<AppConfig> {
 )]
 pub struct AppModule;
 "#
-        .to_string(),
+            .to_string()
+        }
         AppTransport::Microservices => r#"use nestforge::{module, ConfigModule, ConfigOptions};
 
 use crate::{
@@ -2328,15 +2612,16 @@ fn template_resource_service_rs(
     _singular: &str,
     pascal_plural: &str,
     pascal_singular: &str,
-    namespace: &str,
+    imports: &ResourceImportPaths,
 ) -> String {
     format!(
         r#"use nestforge::ResourceService;
 
-use {namespace}dto::{pascal_singular}Dto;
+ use {dto_import}::{pascal_singular}Dto;
 
 pub type {pascal_plural}Service = ResourceService<{pascal_singular}Dto>;
-"#
+ "#,
+        dto_import = imports.dto_import
     )
 }
 
@@ -2345,14 +2630,14 @@ fn template_resource_controller_rs(
     _singular: &str,
     pascal_plural: &str,
     pascal_singular: &str,
-    namespace: &str,
+    imports: &ResourceImportPaths,
 ) -> String {
     format!(
         r#"use axum::Json;
 use nestforge::{{controller, routes, ApiResult, Inject, List, OptionHttpExt, Param, ResultHttpExt, ValidatedBody}};
 
-use {namespace}dto::{{Create{pascal_singular}Dto, Update{pascal_singular}Dto, {pascal_singular}Dto}};
-use {namespace}services::{pascal_plural}Service;
+ use {dto_import}::{{Create{pascal_singular}Dto, Update{pascal_singular}Dto, {pascal_singular}Dto}};
+ use {service_import}::{pascal_plural}Service;
 
 #[controller("/{resource}")]
 pub struct {pascal_plural}Controller;
@@ -2405,10 +2690,12 @@ impl {pascal_plural}Controller {{
         Ok(Json(item))
     }}
 }}
-"#,
+ "#,
         resource = resource,
         pascal_plural = pascal_plural,
-        pascal_singular = pascal_singular
+        pascal_singular = pascal_singular,
+        dto_import = imports.dto_import,
+        service_import = imports.service_import
     )
 }
 
@@ -2587,20 +2874,36 @@ fn normalize_resource_name(name: &str) -> String {
     to_snake_case(name).replace(' ', "_")
 }
 
-fn parse_target_module_arg(args: &[String]) -> Result<Option<String>> {
-    if args.is_empty() {
-        return Ok(None);
-    }
+fn parse_generator_options(args: &[String]) -> Result<GeneratorOptions> {
+    let mut target_module = None;
+    let mut layout = GeneratorLayout::Nested;
+    let mut index = 0usize;
 
-    if args.len() == 2 && args[0] == "--module" {
-        let module = normalize_resource_name(&args[1]);
-        if module.is_empty() {
-            bail!("Module name cannot be empty.");
+    while index < args.len() {
+        match args[index].as_str() {
+            "--module" => {
+                let Some(value) = args.get(index + 1) else {
+                    bail!("Invalid generator options. Use: --module <feature> [--flat]");
+                };
+                let module = normalize_resource_name(value);
+                if module.is_empty() {
+                    bail!("Module name cannot be empty.");
+                }
+                target_module = Some(module);
+                index += 2;
+            }
+            "--flat" => {
+                layout = GeneratorLayout::Flat;
+                index += 1;
+            }
+            _ => bail!("Invalid generator options. Use: --module <feature> [--flat]"),
         }
-        return Ok(Some(module));
     }
 
-    bail!("Invalid generator options. Use: --module <feature>");
+    Ok(GeneratorOptions {
+        target_module,
+        layout,
+    })
 }
 
 fn generator_target_root(app_root: &Path, target_module: Option<&str>) -> Result<PathBuf> {
@@ -2619,11 +2922,62 @@ fn generator_target_root(app_root: &Path, target_module: Option<&str>) -> Result
     Ok(app_root.join("src"))
 }
 
-fn generator_namespace(target_module: Option<&str>) -> String {
-    if let Some(module_name) = target_module {
-        return format!("crate::{}::", module_name);
+fn dto_dir(target_root: &Path, layout: GeneratorLayout) -> PathBuf {
+    match layout {
+        GeneratorLayout::Nested => target_root.join("dto"),
+        GeneratorLayout::Flat => target_root.to_path_buf(),
     }
-    "crate::".to_string()
+}
+
+fn services_dir(target_root: &Path, layout: GeneratorLayout) -> PathBuf {
+    match layout {
+        GeneratorLayout::Nested => target_root.join("services"),
+        GeneratorLayout::Flat => target_root.to_path_buf(),
+    }
+}
+
+fn controllers_dir(target_root: &Path, layout: GeneratorLayout) -> PathBuf {
+    match layout {
+        GeneratorLayout::Nested => target_root.join("controllers"),
+        GeneratorLayout::Flat => target_root.to_path_buf(),
+    }
+}
+
+fn target_mod_file(target_root: &Path) -> Option<PathBuf> {
+    let path = target_root.join("mod.rs");
+    path.exists().then_some(path)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ResourceImportPaths {
+    dto_import: String,
+    service_import: String,
+}
+
+fn resource_import_paths(
+    target_module: Option<&str>,
+    layout: GeneratorLayout,
+    resource: &str,
+    singular: &str,
+) -> ResourceImportPaths {
+    match (target_module, layout) {
+        (Some(module_name), GeneratorLayout::Nested) => ResourceImportPaths {
+            dto_import: format!("crate::{module_name}::dto"),
+            service_import: format!("crate::{module_name}::services"),
+        },
+        (Some(module_name), GeneratorLayout::Flat) => ResourceImportPaths {
+            dto_import: format!("crate::{module_name}"),
+            service_import: format!("crate::{module_name}"),
+        },
+        (None, GeneratorLayout::Nested) => ResourceImportPaths {
+            dto_import: "crate::dto".to_string(),
+            service_import: "crate::services".to_string(),
+        },
+        (None, GeneratorLayout::Flat) => ResourceImportPaths {
+            dto_import: format!("crate::{}_dto", singular),
+            service_import: format!("crate::{}_service", resource),
+        },
+    }
 }
 
 fn singular_name(resource: &str) -> String {
@@ -2691,9 +3045,14 @@ fn patch_brace_import_list(content: &str, module_name: &str, item: &str) -> Stri
     content.to_string()
 }
 
-fn template_feature_mod_rs(module_name: &str, pascal_module: &str) -> String {
-    format!(
-        r#"pub mod controllers;
+fn template_feature_mod_rs(
+    module_name: &str,
+    pascal_module: &str,
+    layout: GeneratorLayout,
+) -> String {
+    match layout {
+        GeneratorLayout::Nested => format!(
+            r#"pub mod controllers;
 pub mod dto;
 pub mod services;
 
@@ -2727,18 +3086,58 @@ pub struct {pascal_module};
 
 // Feature module: {module_name}
 "#
-    )
+        ),
+        GeneratorLayout::Flat => format!(
+            r#"pub mod controller;
+pub mod service;
+/* nestforge:feature_modules */
+
+pub use controller::Controller;
+pub use service::Service;
+/* nestforge:feature_reexports */
+
+use nestforge::module;
+
+#[module(
+    imports = [],
+    controllers = [
+        Controller,
+        /* nestforge:feature_controllers */
+    ],
+    providers = [
+        Service::new(),
+        /* nestforge:feature_providers */
+    ],
+    exports = [
+        Service,
+        /* nestforge:feature_exports */
+    ]
+)]
+pub struct {pascal_module};
+
+// Feature module: {module_name}
+"#
+        ),
+    }
 }
 
 fn template_feature_controllers_mod_rs(_module_name: &str, _pascal_module: &str) -> String {
     "pub mod controller;\n\npub use controller::Controller;\n".to_string()
 }
 
-fn template_feature_controller_rs(module_name: &str, _pascal_module: &str) -> String {
+fn template_feature_controller_rs(
+    module_name: &str,
+    _pascal_module: &str,
+    layout: GeneratorLayout,
+) -> String {
+    let service_import = match layout {
+        GeneratorLayout::Nested => format!("crate::{module_name}::services::Service"),
+        GeneratorLayout::Flat => format!("crate::{module_name}::Service"),
+    };
     format!(
         r#"use nestforge::{{controller, routes, Inject}};
 
-use crate::{module_name}::services::Service;
+use {service_import};
 
 #[controller("/{module_name}")]
 pub struct Controller;
@@ -2750,7 +3149,8 @@ impl Controller {{
         service.hello()
     }}
 }}
-"#
+ "#,
+        service_import = service_import
     )
 }
 
@@ -2758,7 +3158,11 @@ fn template_feature_services_mod_rs(_module_name: &str, _pascal_module: &str) ->
     "pub mod service;\n\npub use service::Service;\n".to_string()
 }
 
-fn template_feature_service_rs(module_name: &str, _pascal_module: &str) -> String {
+fn template_feature_service_rs(
+    module_name: &str,
+    _pascal_module: &str,
+    _layout: GeneratorLayout,
+) -> String {
     format!(
         r#"#[derive(Clone)]
 pub struct Service;
@@ -3007,9 +3411,11 @@ fn contains_sql_content(sql: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        compute_content_hash, contains_sql_content, parse_new_transport_arg,
-        template_microservice_patterns_rs, template_request_decorator_rs, template_serializer_rs,
-        template_named_ws_gateway_rs, template_exception_filter_rs, AppTransport,
+        compute_content_hash, contains_sql_content, parse_generator_options,
+        parse_new_transport_arg, template_exception_filter_rs, template_feature_mod_rs,
+        template_microservice_patterns_rs, template_named_ws_gateway_rs,
+        template_request_decorator_rs, template_serializer_rs, AppTransport, GeneratorLayout,
+        GeneratorOptions,
     };
 
     #[test]
@@ -3087,6 +3493,35 @@ mod tests {
     }
 
     #[test]
+    fn parse_generator_options_supports_flat_module_generation() {
+        let options = parse_generator_options(&[
+            "--module".to_string(),
+            "users".to_string(),
+            "--flat".to_string(),
+        ])
+        .expect("generator options should parse");
+
+        assert_eq!(
+            options,
+            GeneratorOptions {
+                target_module: Some("users".to_string()),
+                layout: GeneratorLayout::Flat,
+            }
+        );
+    }
+
+    #[test]
+    fn flat_feature_module_template_exposes_root_level_exports() {
+        let template = template_feature_mod_rs("users", "UsersModule", GeneratorLayout::Flat);
+
+        assert!(template.contains("pub mod controller;"));
+        assert!(template.contains("pub mod service;"));
+        assert!(template.contains("/* nestforge:feature_modules */"));
+        assert!(template.contains("/* nestforge:feature_reexports */"));
+        assert!(!template.contains("pub mod controllers;"));
+    }
+
+    #[test]
     fn template_microservice_patterns_uses_requested_type_name() {
         let template = template_microservice_patterns_rs("users", "Users");
 
@@ -3110,7 +3545,8 @@ mod tests {
 
         assert!(template.contains("pub struct UserSerializerDto"));
         assert!(template.contains("pub struct UserSerializer;"));
-        assert!(template.contains("impl nestforge::ResponseSerializer<serde_json::Value> for UserSerializer"));
+        assert!(template
+            .contains("impl nestforge::ResponseSerializer<serde_json::Value> for UserSerializer"));
     }
 
     #[test]

@@ -19,11 +19,13 @@ use axum::{
 };
 use nestforge_core::{
     apply_exception_filters, execute_pipeline, framework_log_event, initialize_module_runtime,
-    AuthIdentity, Container, ExceptionFilter, Guard, HttpException, InitializedModule, NextFn,
-    Interceptor, ModuleDefinition, RequestContext, RequestId,
+    AuthIdentity, Container, ExceptionFilter, Guard, HttpException, InitializedModule, Interceptor,
+    ModuleDefinition, NextFn, RequestContext, RequestId,
 };
 
-use crate::middleware::{run_middleware_chain, MiddlewareBinding, MiddlewareConsumer, NestMiddleware};
+use crate::middleware::{
+    run_middleware_chain, MiddlewareBinding, MiddlewareConsumer, NestMiddleware,
+};
 
 /*
 NestForgeFactory = app bootstrapper.
@@ -81,10 +83,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
     pub fn with_global_prefix(mut self, prefix: impl Into<String>) -> Self {
         let prefix = prefix.into().trim().trim_matches('/').to_string();
         if !prefix.is_empty() {
-            framework_log_event(
-                "global_prefix_configured",
-                &[("prefix", prefix.clone())],
-            );
+            framework_log_event("global_prefix_configured", &[("prefix", prefix.clone())]);
             self.global_prefix = Some(prefix);
         }
         self
@@ -93,10 +92,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
     pub fn with_version(mut self, version: impl Into<String>) -> Self {
         let version = version.into().trim().trim_matches('/').to_string();
         if !version.is_empty() {
-            framework_log_event(
-                "api_version_configured",
-                &[("version", version.clone())],
-            );
+            framework_log_event("api_version_configured", &[("version", version.clone())]);
             self.version = Some(version);
         }
         self
@@ -218,17 +214,19 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
             async move { execute_pipeline(req, next, guards, interceptors, filters).await }
         }));
 
-        let app = app.layer(from_fn(move |req: axum::extract::Request, next: axum::middleware::Next| {
-            let middlewares = Arc::clone(&middleware_bindings);
-            async move {
-                if middlewares.is_empty() {
-                    return next.run(req).await;
-                }
+        let app = app.layer(from_fn(
+            move |req: axum::extract::Request, next: axum::middleware::Next| {
+                let middlewares = Arc::clone(&middleware_bindings);
+                async move {
+                    if middlewares.is_empty() {
+                        return next.run(req).await;
+                    }
 
-                let terminal = next_to_fn(next);
-                run_middleware_chain(middlewares, 0, req, terminal).await
-            }
-        }));
+                    let terminal = next_to_fn(next);
+                    run_middleware_chain(middlewares, 0, req, terminal).await
+                }
+            },
+        ));
 
         Router::new()
             .merge(app)
@@ -289,8 +287,10 @@ fn next_to_fn(next: axum::middleware::Next) -> NextFn {
 
             match next {
                 Some(next) => next.run(req).await,
-                None => HttpException::internal_server_error("Middleware next called multiple times")
-                    .into_response(),
+                None => {
+                    HttpException::internal_server_error("Middleware next called multiple times")
+                        .into_response()
+                }
             }
         })
     })
@@ -400,10 +400,9 @@ fn generate_request_id() -> String {
 
 fn attach_request_id_header(response: &mut Response, request_id: &str) {
     if let Ok(value) = HeaderValue::from_str(request_id) {
-        response.headers_mut().insert(
-            HeaderName::from_static(REQUEST_ID_HEADER),
-            value,
-        );
+        response
+            .headers_mut()
+            .insert(HeaderName::from_static(REQUEST_ID_HEADER), value);
     }
 }
 
@@ -414,8 +413,8 @@ mod tests {
     use anyhow::Result;
     use axum::Json;
     use nestforge_core::{
-        register_provider, ApiResult, AuthUser, Container, ControllerBasePath, ControllerDefinition,
-        ExceptionFilter, HttpException, Inject, ModuleDefinition, Provider,
+        register_provider, ApiResult, AuthUser, Container, ControllerBasePath,
+        ControllerDefinition, ExceptionFilter, HttpException, Inject, ModuleDefinition, Provider,
         RequestContext as FrameworkRequestContext, RouteBuilder,
     };
     use tower::ServiceExt;

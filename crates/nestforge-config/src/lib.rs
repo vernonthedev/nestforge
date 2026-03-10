@@ -13,9 +13,7 @@ pub enum ConfigError {
     #[error("Missing required config key: {key}")]
     MissingKey { key: String },
     #[error("Environment validation failed")]
-    Validation {
-        issues: Vec<EnvValidationIssue>,
-    },
+    Validation { issues: Vec<EnvValidationIssue> },
 }
 
 #[derive(Clone, Debug)]
@@ -96,9 +94,12 @@ impl EnvSchema {
     }
 
     pub fn one_of(mut self, key: impl Into<String>, values: &[&str]) -> Self {
-        self.rules.entry(key.into()).or_default().push(EnvRule::OneOf(
-            values.iter().map(|v| (*v).to_string()).collect(),
-        ));
+        self.rules
+            .entry(key.into())
+            .or_default()
+            .push(EnvRule::OneOf(
+                values.iter().map(|v| (*v).to_string()).collect(),
+            ));
         self
     }
 

@@ -1,15 +1,13 @@
 use axum::Json;
 use nestforge::{
-    ApiResult, Inject, List, OptionHttpExt, Param, ResultHttpExt, ValidatedBody, controller,
-    routes,
+    controller, routes, ApiResult, Inject, List, OptionHttpExt, Param, ResultHttpExt, ValidatedBody,
 };
 
 use crate::app_config::AppConfig;
 use crate::settings::{
     dto::{CreateSettingDto, SettingDto, UpdateSettingDto},
     services::{
-        SettingsService, create_setting, delete_setting, get_setting, list_settings,
-        update_setting,
+        create_setting, delete_setting, get_setting, list_settings, update_setting, SettingsService,
     },
 };
 

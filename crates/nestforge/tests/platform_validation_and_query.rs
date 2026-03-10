@@ -33,9 +33,15 @@ async fn validate_supports_length_and_numeric_rules() {
         .map(|error| error.message.clone())
         .collect::<Vec<_>>();
 
-    assert!(messages.iter().any(|message| message.contains("valid email")));
-    assert!(messages.iter().any(|message| message.contains("at least 3 characters")));
-    assert!(messages.iter().any(|message| message.contains("at least 18")));
+    assert!(messages
+        .iter()
+        .any(|message| message.contains("valid email")));
+    assert!(messages
+        .iter()
+        .any(|message| message.contains("at least 3 characters")));
+    assert!(messages
+        .iter()
+        .any(|message| message.contains("at least 18")));
 }
 
 #[tokio::test]

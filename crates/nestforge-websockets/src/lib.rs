@@ -1,16 +1,7 @@
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::Arc,
-};
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use anyhow::Result;
-use axum::{
-    extract::Extension,
-    http::HeaderMap,
-    routing::get,
-    Router,
-};
+use axum::{extract::Extension, http::HeaderMap, routing::get, Router};
 use nestforge_core::{AuthIdentity, Container, RequestId};
 use nestforge_microservices::{
     EventEnvelope, MessageEnvelope, MicroserviceContext, MicroserviceRegistry, TransportMetadata,
@@ -161,7 +152,9 @@ pub async fn handle_websocket_microservice_message(
                 payload,
                 metadata: frame.metadata,
             };
-            Ok(Some(Message::Text(serde_json::to_string(&response)?.into())))
+            Ok(Some(Message::Text(
+                serde_json::to_string(&response)?.into(),
+            )))
         }
         WebSocketMicroserviceKind::Event => {
             registry
@@ -204,7 +197,8 @@ where
     let gateway = Arc::new(gateway);
     Router::new().route(
         &config.endpoint,
-        get(move |ws: WebSocketUpgrade,
+        get(
+            move |ws: WebSocketUpgrade,
                   Extension(container): Extension<Container>,
                   headers: HeaderMap,
                   Extension(request_id): Extension<RequestId>| {
@@ -243,7 +237,8 @@ where
 {
     Router::new().route(
         &config.endpoint,
-        get(move |ws: WebSocketUpgrade,
+        get(
+            move |ws: WebSocketUpgrade,
                   Extension(container): Extension<Container>,
                   headers: HeaderMap,
                   Extension(request_id): Extension<RequestId>| {
@@ -257,7 +252,8 @@ where
                         WebSocketContext::new(container, Some(request_id), auth_identity, headers);
                     ws.on_upgrade(move |socket| handler(context, socket))
                 }
-            }),
+            },
+        ),
     )
 }
 
@@ -337,7 +333,12 @@ mod tests {
     #[tokio::test]
     async fn websocket_microservice_adapter_dispatches_events_without_response() {
         let counter = Arc::new(AtomicUsize::new(0));
-        let ctx = WebSocketContext::new(nestforge_core::Container::new(), None, None, HeaderMap::new());
+        let ctx = WebSocketContext::new(
+            nestforge_core::Container::new(),
+            None,
+            None,
+            HeaderMap::new(),
+        );
         let registry = MicroserviceRegistry::builder()
             .event("counter.bump", {
                 let counter = Arc::clone(&counter);

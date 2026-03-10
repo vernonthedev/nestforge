@@ -5,7 +5,7 @@ pub mod services;
 use nestforge::module;
 
 use self::controllers::SettingsController;
-use self::services::{SettingsService, settings_service_seed};
+use self::services::{settings_service_seed, SettingsService};
 
 #[module(
     imports = [],

@@ -115,12 +115,7 @@ where
         .route(
             &config.endpoint,
             post(
-                move |container,
-                      scoped_container,
-                      request_id,
-                      auth_identity,
-                      schema,
-                      request| {
+                move |container, scoped_container, request_id, auth_identity, schema, request| {
                     graphql_handler::<Query, Mutation, Subscription>(
                         max_request_bytes,
                         container,
@@ -175,15 +170,16 @@ where
         return StatusCode::PAYLOAD_TOO_LARGE.into_response();
     }
 
-    let request = match GraphQLRequest::<async_graphql_axum::rejection::GraphQLRejection>::from_request(
-        request.with_limited_body(),
-        &(),
-    )
-    .await
-    {
-        Ok(request) => request,
-        Err(rejection) => return rejection.into_response(),
-    };
+    let request =
+        match GraphQLRequest::<async_graphql_axum::rejection::GraphQLRejection>::from_request(
+            request.with_limited_body(),
+            &(),
+        )
+        .await
+        {
+            Ok(request) => request,
+            Err(rejection) => return rejection.into_response(),
+        };
 
     let container = scoped_container.map(|value| value.0).unwrap_or(container);
     let mut request = request.into_inner().data(container);

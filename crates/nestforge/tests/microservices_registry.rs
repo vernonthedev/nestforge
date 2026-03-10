@@ -56,11 +56,8 @@ async fn dispatches_event_patterns_without_response_payloads() {
         })
         .build();
 
-    let envelope = nestforge::EventEnvelope::new(
-        "users.created",
-        serde_json::json!({ "id": 1 }),
-    )
-    .expect("event");
+    let envelope = nestforge::EventEnvelope::new("users.created", serde_json::json!({ "id": 1 }))
+        .expect("event");
     let ctx = nestforge::MicroserviceContext::new(
         nestforge::Container::new(),
         "test",
@@ -80,7 +77,10 @@ async fn dispatches_event_patterns_without_response_payloads() {
 async fn in_process_client_sends_and_deserializes_message_responses() {
     let container = nestforge::Container::new();
     let registry = nestforge::MicroserviceRegistry::builder()
-        .message("users.count", |_payload: (), _ctx| async move { Ok(42usize) })
+        .message(
+            "users.count",
+            |_payload: (), _ctx| async move { Ok(42usize) },
+        )
         .build();
     let client = nestforge::InProcessMicroserviceClient::new(container, registry)
         .with_transport("test-client");
@@ -108,10 +108,7 @@ async fn in_process_client_emits_events() {
             }
         })
         .build();
-    let client = nestforge::InProcessMicroserviceClient::new(
-        nestforge::Container::new(),
-        registry,
-    );
+    let client = nestforge::InProcessMicroserviceClient::new(nestforge::Container::new(), registry);
 
     client
         .emit("users.created", ())

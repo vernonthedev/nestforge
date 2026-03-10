@@ -85,7 +85,8 @@ where
     Payload: Serialize,
 {
     let pattern = pattern.into();
-    let envelope = MessageEnvelope::new(pattern.clone(), payload).map_err(map_microservice_error)?;
+    let envelope =
+        MessageEnvelope::new(pattern.clone(), payload).map_err(map_microservice_error)?;
     let envelope = envelope.with_metadata(metadata.clone());
     let context = ctx.microservice_context(pattern, metadata);
 

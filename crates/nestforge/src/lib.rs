@@ -4,20 +4,24 @@
 * use nestforge::{NestForgeFactory, ModuleDefinition, Container};
 */
 pub use nestforge_core::{
-    collect_module_graph, collect_module_route_docs, initialize_module_graph, register_provider,
-    ApiEnvelopeResult, ApiResult, AuthIdentity, AuthUser, BearerToken, Body, Container,
-    ContainerError, ControllerBasePath, ControllerDefinition, Cookies, Decorated,
-    DocumentedController, DynamicModuleBuilder, ExceptionFilter, Guard, Headers, HttpException,
-    Identifiable, InMemoryStore, Inject, InitializedModule, Interceptor, LifecycleHook, List,
-    ModuleDefinition, ModuleGraphEntry, ModuleGraphReport, ModuleRef, NextFn, NextFuture,
-    OptionHttpExt, OptionalAuthUser, Param, Provider, Query, RegisterProvider, RequestContext,
+    collect_module_graph, collect_module_route_docs, framework_log, framework_log_event,
+    initialize_module_graph, register_provider, ApiEnvelopeResult, ApiResult, ApiSerializedResult,
+    AuthIdentity, AuthUser, BearerToken, Body, Container, ContainerError, ControllerBasePath,
+    ControllerDefinition, Cookies, Decorated, DocumentedController, DynamicModuleBuilder,
+    ExceptionFilter, Guard, Headers, HttpException, Identifiable, InMemoryStore, InitializedModule,
+    Inject, Interceptor, LifecycleHook, List, ModuleDefinition, ModuleGraphEntry,
+    ModuleGraphReport, ModuleRef, NextFn, NextFuture, OptionHttpExt, OptionalAuthUser, Param, Pipe,
+    PipedBody, PipedParam, PipedQuery, Provider, Query, RegisterProvider, RequestContext,
     RequestDecorator, RequestId, RequireAuthenticationGuard, ResourceError, ResourceService,
     ResponseEnvelope, ResponseSerializer, ResultHttpExt, RoleRequirementsGuard, RouteBuilder,
     RouteDocumentation, RouteResponseDocumentation, Serialized, Validate, ValidatedBody,
-    ValidationErrors, ValidationIssue, ApiSerializedResult,
-    framework_log, framework_log_event, Pipe, PipedBody, PipedParam, PipedQuery,
+    ValidationErrors, ValidationIssue,
 };
 
+#[cfg(feature = "cache")]
+pub use nestforge_cache::{
+    cached_response_interceptor, CacheInterceptor, CachePolicy, DefaultCachePolicy,
+};
 #[cfg(feature = "config")]
 pub use nestforge_config::{
     load_config, ConfigError, ConfigModule, ConfigOptions, EnvSchema, EnvStore, EnvValidationIssue,
@@ -25,21 +29,19 @@ pub use nestforge_config::{
 };
 #[cfg(feature = "data")]
 pub use nestforge_data::{CacheStore, DataError, DataFuture, DocumentRepo};
-#[cfg(feature = "cache")]
-pub use nestforge_cache::{cached_response_interceptor, CacheInterceptor, CachePolicy, DefaultCachePolicy};
-#[cfg(feature = "microservices")]
-pub use nestforge_microservices::{
-    EventEnvelope, InProcessMicroserviceClient, MessageEnvelope, MicroserviceClient,
-    MicroserviceContext, MicroserviceRegistry, MicroserviceRegistryBuilder, TransportMetadata,
-};
 #[cfg(feature = "db")]
 pub use nestforge_db::{Db, DbConfig, DbError, DbTransaction};
 pub use nestforge_http::NestForgeFactory;
 pub use nestforge_http::{MiddlewareConsumer, MiddlewareRoute, NestMiddleware};
 pub use nestforge_macros::{
-    authenticated, controller, delete, description, dto, entity, entity_dto, get, id,
-    identifiable, module, post, put, response, response_dto, roles, routes, summary, tag,
-    use_exception_filter, use_guard, use_interceptor, version, Identifiable, Validate,
+    authenticated, controller, delete, description, dto, entity, entity_dto, get, id, identifiable,
+    module, post, put, response, response_dto, roles, routes, summary, tag, use_exception_filter,
+    use_guard, use_interceptor, version, Identifiable, Validate,
+};
+#[cfg(feature = "microservices")]
+pub use nestforge_microservices::{
+    EventEnvelope, InProcessMicroserviceClient, MessageEnvelope, MicroserviceClient,
+    MicroserviceContext, MicroserviceRegistry, MicroserviceRegistryBuilder, TransportMetadata,
 };
 
 #[macro_export]
@@ -101,7 +103,9 @@ macro_rules! auth_guard {
                 if ctx.is_authenticated() {
                     Ok(())
                 } else {
-                    Err($crate::HttpException::unauthorized("Authentication required"))
+                    Err($crate::HttpException::unauthorized(
+                        "Authentication required",
+                    ))
                 }
             }
         }
@@ -120,7 +124,9 @@ macro_rules! role_guard {
                 ctx: &$crate::RequestContext,
             ) -> Result<(), $crate::HttpException> {
                 if !ctx.is_authenticated() {
-                    return Err($crate::HttpException::unauthorized("Authentication required"));
+                    return Err($crate::HttpException::unauthorized(
+                        "Authentication required",
+                    ));
                 }
 
                 if ctx.has_role($role) {
@@ -219,23 +225,34 @@ macro_rules! request_decorator {
         }
     };
 }
-#[cfg(feature = "mongo")]
-pub use nestforge_mongo::{InMemoryMongoRepo, MongoConfig};
-#[cfg(feature = "openapi")]
-pub use nestforge_openapi::{docs_router, OpenApiDoc, OpenApiRoute};
 #[cfg(feature = "graphql")]
 pub use nestforge_graphql::{
     async_graphql, graphql_auth_identity, graphql_container, graphql_request_id, graphql_router,
     graphql_router_with_config, resolve_graphql, GraphQlConfig, GraphQlSchema,
 };
-#[cfg(feature = "grpc")]
-pub use nestforge_grpc::{prost, tonic, GrpcContext, GrpcServerConfig, NestForgeGrpcFactory};
 #[cfg(all(feature = "grpc", feature = "microservices"))]
 pub use nestforge_grpc::{dispatch_grpc_event, dispatch_grpc_message};
+#[cfg(feature = "grpc")]
+pub use nestforge_grpc::{prost, tonic, GrpcContext, GrpcServerConfig, NestForgeGrpcFactory};
+#[cfg(feature = "mongo")]
+pub use nestforge_mongo::{InMemoryMongoRepo, MongoConfig};
+#[cfg(feature = "openapi")]
+pub use nestforge_openapi::{docs_router, OpenApiDoc, OpenApiRoute};
+#[cfg(feature = "orm")]
+pub use nestforge_orm::{EntityMeta, OrmError, Repo, RepoFuture, SqlRepo, SqlRepoBuilder};
+#[cfg(feature = "redis")]
+pub use nestforge_redis::{InMemoryRedisStore, RedisConfig};
 #[cfg(feature = "schedule")]
 pub use nestforge_schedule::{
-    shutdown_schedules, start_schedules, ScheduleRegistry, ScheduleRegistryBuilder,
-    ScheduledJob, ScheduledJobKind,
+    shutdown_schedules, start_schedules, ScheduleRegistry, ScheduleRegistryBuilder, ScheduledJob,
+    ScheduledJobKind,
+};
+#[cfg(feature = "testing")]
+pub use nestforge_testing::{TestFactory, TestingModule};
+#[cfg(all(feature = "websockets", feature = "microservices"))]
+pub use nestforge_websockets::{
+    handle_websocket_microservice_message, WebSocketMicroserviceFrame, WebSocketMicroserviceKind,
+    WebSocketMicroserviceResponse,
 };
 #[cfg(feature = "websockets")]
 pub use nestforge_websockets::{
@@ -243,17 +260,6 @@ pub use nestforge_websockets::{
     websocket_router_with_config, CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketConfig,
     WebSocketContext, WebSocketGateway,
 };
-#[cfg(all(feature = "websockets", feature = "microservices"))]
-pub use nestforge_websockets::{
-    handle_websocket_microservice_message, WebSocketMicroserviceFrame,
-    WebSocketMicroserviceKind, WebSocketMicroserviceResponse,
-};
-#[cfg(feature = "orm")]
-pub use nestforge_orm::{EntityMeta, OrmError, Repo, RepoFuture, SqlRepo, SqlRepoBuilder};
-#[cfg(feature = "redis")]
-pub use nestforge_redis::{InMemoryRedisStore, RedisConfig};
-#[cfg(feature = "testing")]
-pub use nestforge_testing::{TestFactory, TestingModule};
 
 #[cfg(feature = "openapi")]
 pub fn openapi_doc_for_module<M: ModuleDefinition>(

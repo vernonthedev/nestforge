@@ -143,7 +143,10 @@ where
         .routes
         .iter()
         .map(|route| {
-            let summary = route.summary.clone().unwrap_or_else(|| "No summary".to_string());
+            let summary = route
+                .summary
+                .clone()
+                .unwrap_or_else(|| "No summary".to_string());
             format!(
                 "<li><strong>{}</strong> <code>{}</code> - {}</li>",
                 route.method, route.path, summary

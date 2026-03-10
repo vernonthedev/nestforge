@@ -15,10 +15,7 @@ async fn bootstrap() -> anyhow::Result<()> {
     let schema = build_schema(config.app_name.clone());
 
     factory
-        .with_graphql_config(
-            schema,
-            GraphQlConfig::new("/graphql").with_graphiql("/"),
-        )
+        .with_graphql_config(schema, GraphQlConfig::new("/graphql").with_graphiql("/"))
         .listen(PORT)
         .await
 }

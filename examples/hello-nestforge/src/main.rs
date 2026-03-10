@@ -4,9 +4,9 @@ Its job:
 - boot the framework
 */
 
-mod app_module;
 mod app_config;
 mod app_controller;
+mod app_module;
 mod guards;
 mod health_controller;
 mod interceptors;

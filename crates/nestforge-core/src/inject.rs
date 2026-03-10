@@ -63,9 +63,8 @@ where
     ) -> Result<Self, Self::Rejection> {
         let request_id = crate::request::request_id_from_extensions(&parts.extensions);
         let scoped_container = parts.extensions.get::<Container>().cloned();
-        let State(root_container): State<Container> = State::from_request_parts(parts, state)
-            .await
-            .map_err(|_| {
+        let State(root_container): State<Container> =
+            State::from_request_parts(parts, state).await.map_err(|_| {
                 HttpException::internal_server_error("Container state not available")
                     .with_optional_request_id(request_id.clone())
             })?;

@@ -1,12 +1,8 @@
 use nestforge::{module, ConfigModule, ConfigOptions, Db, DbConfig};
 
 use crate::{
-    app_config::AppConfig,
-    app_controller::AppController,
-    health_controller::HealthController,
-    settings::SettingsModule,
-    users::UsersModule,
-    versioning::VersioningModule,
+    app_config::AppConfig, app_controller::AppController, health_controller::HealthController,
+    settings::SettingsModule, users::UsersModule, versioning::VersioningModule,
 };
 
 fn load_app_config() -> anyhow::Result<AppConfig> {

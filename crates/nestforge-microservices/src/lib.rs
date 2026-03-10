@@ -60,7 +60,8 @@ impl MessageEnvelope {
     pub fn new(pattern: impl Into<String>, payload: impl Serialize) -> Result<Self> {
         Ok(Self {
             pattern: pattern.into(),
-            payload: serde_json::to_value(payload).context("Failed to serialize message payload")?,
+            payload: serde_json::to_value(payload)
+                .context("Failed to serialize message payload")?,
             metadata: TransportMetadata::default(),
         })
     }
@@ -111,7 +112,10 @@ impl MicroserviceContext {
         pattern: impl Into<String>,
         metadata: TransportMetadata,
     ) -> Self {
-        let request_id = container.resolve::<RequestId>().ok().map(|value| (*value).clone());
+        let request_id = container
+            .resolve::<RequestId>()
+            .ok()
+            .map(|value| (*value).clone());
         let auth_identity = container
             .resolve::<AuthIdentity>()
             .ok()
@@ -367,9 +371,7 @@ impl MicroserviceClient for InProcessMicroserviceClient {
         let context = self.context(pattern);
 
         Box::pin(async move {
-            let response = registry
-                .dispatch_message(envelope?, context)
-                .await?;
+            let response = registry.dispatch_message(envelope?, context).await?;
             serde_json::from_value(response).context("Failed to deserialize microservice response")
         })
     }

@@ -21,7 +21,11 @@ impl AdminController {
 }
 
 impl ExceptionFilter for RewriteForbiddenFilter {
-    fn catch(&self, exception: nestforge::HttpException, _ctx: &RequestContext) -> nestforge::HttpException {
+    fn catch(
+        &self,
+        exception: nestforge::HttpException,
+        _ctx: &RequestContext,
+    ) -> nestforge::HttpException {
         if exception.status == axum::http::StatusCode::FORBIDDEN {
             nestforge::HttpException::forbidden("filtered forbidden")
                 .with_optional_request_id(exception.request_id)

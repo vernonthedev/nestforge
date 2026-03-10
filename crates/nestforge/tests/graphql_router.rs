@@ -3,8 +3,8 @@
 use nestforge::{
     async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema},
     graphql_auth_identity, graphql_request_id, graphql_router_with_config, resolve_graphql,
-    AuthIdentity, Container, GraphQlConfig, NestForgeFactory, NestForgeFactoryGraphQlExt,
-    Provider, RequestContext,
+    AuthIdentity, Container, GraphQlConfig, NestForgeFactory, NestForgeFactoryGraphQlExt, Provider,
+    RequestContext,
 };
 use tower::ServiceExt;
 
@@ -29,9 +29,7 @@ async fn graphql_router_accepts_post_requests() {
     let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish();
     let container = Container::new();
     container
-        .register(AppConfig {
-            app_name: "ok",
-        })
+        .register(AppConfig { app_name: "ok" })
         .expect("app config should register");
     let app = graphql_router_with_config(schema, GraphQlConfig::new("/graphql").without_graphiql())
         .with_state(container);
@@ -58,9 +56,7 @@ async fn graphql_router_rejects_requests_above_max_body_size() {
     let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish();
     let container = Container::new();
     container
-        .register(AppConfig {
-            app_name: "ok",
-        })
+        .register(AppConfig { app_name: "ok" })
         .expect("app config should register");
     let app = graphql_router_with_config(
         schema,

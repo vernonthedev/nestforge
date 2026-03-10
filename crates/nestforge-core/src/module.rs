@@ -420,7 +420,9 @@ impl InitializedModule {
     }
 }
 
-pub fn initialize_module_runtime<M: ModuleDefinition>(container: &Container) -> Result<InitializedModule> {
+pub fn initialize_module_runtime<M: ModuleDefinition>(
+    container: &Container,
+) -> Result<InitializedModule> {
     let mut state = ModuleGraphState::default();
     visit_module(ModuleRef::of::<M>(), container, &mut state)?;
     state.module_destroy_hooks.reverse();
@@ -500,10 +502,7 @@ fn visit_module(
 
     state.visiting.insert(module.name);
     state.stack.push(module.name);
-    framework_log_event(
-        "module_register",
-        &[("module", module.name.to_string())],
-    );
+    framework_log_event("module_register", &[("module", module.name.to_string())]);
 
     for imported in (module.imports)() {
         visit_module(imported, container, state)?;
@@ -514,7 +513,9 @@ fn visit_module(
 
     state.controllers.extend((module.controllers)());
     state.module_init_hooks.extend((module.on_module_init)());
-    state.module_destroy_hooks.extend((module.on_module_destroy)());
+    state
+        .module_destroy_hooks
+        .extend((module.on_module_destroy)());
     state
         .application_bootstrap_hooks
         .extend((module.on_application_bootstrap)());
@@ -816,7 +817,10 @@ mod tests {
 
     fn push_hook(container: &Container, label: &'static str) -> Result<()> {
         let log = container.resolve::<HookLog>()?;
-        log.0.lock().expect("hook log should be writable").push(label);
+        log.0
+            .lock()
+            .expect("hook log should be writable")
+            .push(label);
         Ok(())
     }
 
@@ -880,7 +884,9 @@ mod tests {
             .run_application_shutdown(&container)
             .expect("application shutdown hooks should run");
 
-        let log = container.resolve::<HookLog>().expect("hook log should resolve");
+        let log = container
+            .resolve::<HookLog>()
+            .expect("hook log should resolve");
         let entries = log.0.lock().expect("hook log should be readable").clone();
 
         assert_eq!(

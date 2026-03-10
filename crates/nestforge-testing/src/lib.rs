@@ -189,8 +189,8 @@ mod tests {
     use std::sync::{Arc as StdArc, Mutex};
 
     use async_graphql::{EmptyMutation, EmptySubscription};
-    use nestforge_microservices::MicroserviceClient;
     use nestforge_core::{register_provider, ControllerDefinition, LifecycleHook, Provider};
+    use nestforge_microservices::MicroserviceClient;
     use tower::ServiceExt;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -334,7 +334,9 @@ mod tests {
     #[tokio::test]
     async fn builds_graphql_router_from_testing_module_runtime() {
         let module = TestFactory::<AppModule>::create()
-            .override_provider(AppConfig { app_name: "graphql" })
+            .override_provider(AppConfig {
+                app_name: "graphql",
+            })
             .build()
             .expect("graphql testing module should build");
         let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish();
@@ -362,7 +364,10 @@ mod tests {
 
     fn record_destroy(container: &Container) -> Result<()> {
         let log = container.resolve::<HookLog>()?;
-        log.0.lock().expect("hook log should be writable").push("destroy");
+        log.0
+            .lock()
+            .expect("hook log should be writable")
+            .push("destroy");
         Ok(())
     }
 
@@ -400,7 +405,9 @@ mod tests {
 
         module.shutdown().expect("testing module should shut down");
 
-        let log = module.resolve::<HookLog>().expect("hook log should resolve");
+        let log = module
+            .resolve::<HookLog>()
+            .expect("hook log should resolve");
         let entries = log.0.lock().expect("hook log should be readable").clone();
         assert_eq!(entries, vec!["destroy", "shutdown"]);
     }
@@ -413,7 +420,9 @@ mod tests {
             .expect("grpc testing module should build");
 
         let ctx = module.grpc_context();
-        let config = ctx.resolve::<AppConfig>().expect("app config should resolve");
+        let config = ctx
+            .resolve::<AppConfig>()
+            .expect("app config should resolve");
 
         assert_eq!(config.app_name, "grpc");
     }

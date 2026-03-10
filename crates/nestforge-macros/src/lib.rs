@@ -59,10 +59,13 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         let version = extract_version_meta(method);
         let mut doc_meta = extract_route_doc_meta(method);
         doc_meta.tags = merge_string_lists(controller_meta.tags.clone(), doc_meta.tags);
-        doc_meta.required_roles =
-            merge_string_lists(controller_meta.required_roles.clone(), doc_meta.required_roles);
-        doc_meta.requires_auth =
-            controller_meta.requires_auth || doc_meta.requires_auth || !doc_meta.required_roles.is_empty();
+        doc_meta.required_roles = merge_string_lists(
+            controller_meta.required_roles.clone(),
+            doc_meta.required_roles,
+        );
+        doc_meta.requires_auth = controller_meta.requires_auth
+            || doc_meta.requires_auth
+            || !doc_meta.required_roles.is_empty();
         let guards = merge_type_lists(controller_meta.guards.clone(), guards);
         let interceptors = merge_type_lists(controller_meta.interceptors.clone(), interceptors);
         let exception_filters =
@@ -194,7 +197,10 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let tag_tokens = if doc_meta.tags.is_empty() {
                 quote! {}
             } else {
-                let tags = doc_meta.tags.iter().map(|tag| LitStr::new(tag, method.sig.ident.span()));
+                let tags = doc_meta
+                    .tags
+                    .iter()
+                    .map(|tag| LitStr::new(tag, method.sig.ident.span()));
                 quote! { doc = doc.with_tags([#(#tags),*]); }
             };
             let auth_tokens = if doc_meta.requires_auth {
@@ -1045,8 +1051,11 @@ fn extract_route_doc_meta(method: &mut ImplItemFn) -> RouteDocMeta {
                 meta.requires_auth = true;
             }
             "roles" => {
-                if let Ok(values) = attr.parse_args_with(Punctuated::<LitStr, Token![,]>::parse_terminated) {
-                    meta.required_roles.extend(values.into_iter().map(|value| value.value()));
+                if let Ok(values) =
+                    attr.parse_args_with(Punctuated::<LitStr, Token![,]>::parse_terminated)
+                {
+                    meta.required_roles
+                        .extend(values.into_iter().map(|value| value.value()));
                     meta.requires_auth = true;
                 }
             }

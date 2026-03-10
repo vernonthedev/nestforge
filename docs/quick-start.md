@@ -103,4 +103,5 @@ async fn main() -> anyhow::Result<()> {
 
 - **Add OpenAPI Documentation**: Learn how to [setup OpenAPI from scratch](./auth-openapi.md).
 - **Generate Features**: Use `nestforge g module <name>` to add new features.
+- **Use Flat Feature Layouts**: Pass `--flat` to keep generated controllers, services, and DTOs directly in the feature folder, for example `nestforge g resource users --module users --flat`.
 - **Dependency Injection**: Explore the [Module System](./module-system.md).

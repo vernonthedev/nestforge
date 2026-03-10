@@ -1,0 +1,64 @@
+name: Module Proposal
+description: Propose a new core or optional module and explain DI/runtime integration.
+title: "feat(module): "
+labels:
+  - triage-needed
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - modules
+        - core
+        - cli
+    validations:
+      required: true
+  - type: input
+    id: nestforge_version
+    attributes:
+      label: NestForge Version
+      placeholder: 1.2.1
+    validations:
+      required: true
+  - type: input
+    id: rust_version
+    attributes:
+      label: Rust Version
+      placeholder: rustc 1.87.0
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Module Proposal
+      description: What new module should exist and why?
+    validations:
+      required: true
+  - type: textarea
+    id: di_spec
+    attributes:
+      label: DI and Module Graph Spec
+      description: Explain providers, exports, imports, lifecycle hooks, and request-scoped behavior.
+      placeholder: |
+        Providers:
+        Exports:
+        Imports:
+        Request-scoped dependencies:
+        Lifecycle hooks:
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Modular Compatibility
+      description: Describe how this interacts with `nestforge-core`, HTTP, macros, and optional crates.
+    validations:
+      required: true
+  - type: textarea
+    id: performance
+    attributes:
+      label: Performance Considerations
+      description: Startup cost, runtime cost, allocations, concurrency model, or caching strategy.
+    validations:
+      required: true

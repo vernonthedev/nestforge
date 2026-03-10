@@ -1,0 +1,86 @@
+name: Core Feature Request
+description: Propose a core framework feature with technical and performance details.
+title: "feat(core): "
+labels:
+  - triage-needed
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for NestForge core framework features that affect public API, runtime behavior, or framework ergonomics.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which area of the framework does this primarily affect?
+      options:
+        - core
+        - modules
+        - cli
+    validations:
+      required: true
+  - type: input
+    id: nestforge_version
+    attributes:
+      label: NestForge Version
+      placeholder: 1.2.1
+    validations:
+      required: true
+  - type: input
+    id: rust_version
+    attributes:
+      label: Rust Version
+      placeholder: rustc 1.87.0
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Describe the feature and the user problem it solves.
+      placeholder: The framework should...
+    validations:
+      required: true
+  - type: textarea
+    id: technical_spec
+    attributes:
+      label: Technical Spec
+      description: Describe the API shape, crate boundaries, trait changes, and expected integration points.
+      placeholder: |
+        Proposed API:
+        - crate: nestforge-core
+        - new types/traits:
+        - macro/runtime implications:
+        - backward compatibility notes:
+    validations:
+      required: true
+  - type: textarea
+    id: breaking_change
+    attributes:
+      label: Breaking Change Analysis
+      description: Explain whether this changes public API, generated code, or behavior for existing users.
+      placeholder: |
+        Breaking change: yes/no
+        Affected crates:
+        Migration path:
+    validations:
+      required: true
+  - type: textarea
+    id: performance
+    attributes:
+      label: Performance Impact
+      description: Include expected runtime, memory, allocation, startup, or compile-time impact.
+      placeholder: |
+        Benchmark or estimate:
+        Hot path impact:
+        Allocation impact:
+        Compile-time impact:
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      placeholder: Alternative designs or existing workarounds.
+    validations:
+      required: true

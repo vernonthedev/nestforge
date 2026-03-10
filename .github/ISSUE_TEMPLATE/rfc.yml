@@ -1,0 +1,67 @@
+name: RFC
+description: Propose a major architectural change or public design shift for NestForge.
+title: "rfc: "
+labels:
+  - triage-needed
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for major architectural shifts, such as DI container changes, module graph semantics, or public API redesigns.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - core
+        - modules
+        - cli
+    validations:
+      required: true
+  - type: input
+    id: nestforge_version
+    attributes:
+      label: NestForge Version
+      placeholder: 1.2.1
+    validations:
+      required: true
+  - type: input
+    id: rust_version
+    attributes:
+      label: Rust Version
+      placeholder: rustc 1.87.0
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What architectural problem are we solving?
+    validations:
+      required: true
+  - type: textarea
+    id: design
+    attributes:
+      label: Proposed Design
+      description: Describe crate-level changes, types, traits, macros, migration path, and compatibility strategy.
+    validations:
+      required: true
+  - type: textarea
+    id: technical_spec
+    attributes:
+      label: Technical Spec
+      description: Include pseudo-code, API signatures, invariants, benchmarks, and rollout plan.
+    validations:
+      required: true
+  - type: textarea
+    id: drawbacks
+    attributes:
+      label: Drawbacks and Risks
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+    validations:
+      required: true

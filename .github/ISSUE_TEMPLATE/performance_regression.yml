@@ -1,0 +1,70 @@
+name: Performance Regression
+description: Report a measurable slowdown or resource regression in NestForge.
+title: "perf: "
+labels:
+  - triage-needed
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - core
+        - modules
+        - cli
+    validations:
+      required: true
+  - type: input
+    id: nestforge_version
+    attributes:
+      label: NestForge Version
+      placeholder: 1.2.1
+    validations:
+      required: true
+  - type: input
+    id: rust_version
+    attributes:
+      label: Rust Version
+      placeholder: rustc 1.87.0
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      placeholder: Ubuntu 24.04 x86_64
+    validations:
+      required: true
+  - type: textarea
+    id: benchmark
+    attributes:
+      label: Benchmark or Measurement
+      description: Include throughput, latency, startup time, allocations, or memory data.
+      placeholder: |
+        Baseline:
+        Current:
+        Tooling used:
+        Benchmark command:
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal benchmark harness, endpoint, module graph, or command sequence.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: hot_path
+    attributes:
+      label: Suspected Hot Path
+      description: Which crate, type, extractor, macro, or runtime path regressed?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Performance Envelope
+    validations:
+      required: true

@@ -33,6 +33,16 @@ Be respectful, constructive, and focused on technical outcomes.
 
 For large features or design shifts, open an issue first so we can align on scope.
 
+NestForge uses GitHub Issue Forms for framework work:
+
+- `Core Feature Request` for framework API and runtime changes
+- `Bug Report` for reproducible defects with `cargo` output
+- `Module Proposal` for new module ideas and DI integration
+- `Performance Regression` for measurable runtime or allocation slowdowns
+- `RFC` for architectural changes
+
+Expect issue forms to require technical metadata such as Rust version, NestForge version, and either a technical spec or a minimal reproducible example.
+
 ## Development Setup
 
 ### Prerequisites

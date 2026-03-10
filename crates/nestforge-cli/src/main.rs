@@ -2315,7 +2315,7 @@ fn template_app_cargo_toml(
             "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nserde = { version = \"1\", features = [\"derive\"] }\nanyhow = \"1\"\n"
         }
         AppTransport::Graphql => {
-            "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
+            "axum = \"0.8\"\nasync-graphql = \"7\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
         }
         AppTransport::Grpc => {
             "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\ntonic = { version = \"0.12\", features = [\"transport\"] }\nprost = \"0.13\"\n"
@@ -2707,7 +2707,7 @@ impl nestforge::FromEnv for AppConfig {{
 }
 
 fn template_graphql_schema_rs() -> String {
-    r#"use nestforge::async_graphql::{self, EmptyMutation, EmptySubscription, Object, Schema};
+    r#"use async_graphql::{EmptyMutation, EmptySubscription, Object, Schema};
 
 pub type AppSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
 
@@ -2736,7 +2736,7 @@ impl QueryRoot {
 fn template_graphql_resolver_rs(resolver_name: &str, pascal_name: &str) -> String {
     let field_name = format!("{}_status", resolver_name);
     format!(
-        r#"use nestforge::async_graphql::{{self, Object}};
+        r#"use async_graphql::Object;
 
 pub struct {pascal_name}Resolver;
 
@@ -4081,7 +4081,19 @@ mod tests {
     fn template_graphql_schema_imports_async_graphql_crate_path() {
         let schema = super::template_graphql_schema_rs();
 
-        assert!(schema.contains("use nestforge::async_graphql::{self, EmptyMutation, EmptySubscription, Object, Schema};"));
+        assert!(schema
+            .contains("use async_graphql::{EmptyMutation, EmptySubscription, Object, Schema};"));
+    }
+
+    #[test]
+    fn template_app_cargo_toml_includes_async_graphql_for_graphql_apps() {
+        let manifest = super::template_app_cargo_toml(
+            "demo-api",
+            super::resolve_nestforge_dependency_line(AppTransport::Graphql, false),
+            AppTransport::Graphql,
+        );
+
+        assert!(manifest.contains("async-graphql = \"7\""));
     }
 
     #[test]

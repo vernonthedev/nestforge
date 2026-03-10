@@ -13,6 +13,13 @@
 
 NestForge is a high-performance backend framework designed for developers who crave the modularity and **Dependency Injection (DI)** of NestJS but want the memory safety and blazing speed of the Rust ecosystem.
 
+[![crates.io](https://img.shields.io/crates/v/nestforge?label=crates.io)](https://crates.io/crates/nestforge)
+[![docs.rs](https://img.shields.io/docsrs/nestforge?label=docs.rs)](https://docs.rs/nestforge)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/actions/workflow/status/vernonthedev/nestforge/release.yml?branch=main&label=release)](https://github.com/vernonthedev/nestforge/actions/workflows/release.yml)
+[![VS Code Extension](https://img.shields.io/visual-studio-marketplace/v/vernonthedev.nestforge?label=VS%20Code%20Extension)](https://marketplace.visualstudio.com/items?itemName=vernonthedev.nestforge)
+[![Extension Downloads](https://img.shields.io/visual-studio-marketplace/d/vernonthedev.nestforge?label=extension%20downloads)](https://marketplace.visualstudio.com/items?itemName=vernonthedev.nestforge)
+
 > [!IMPORTANT]
 > **Stable Release**
 > NestForge **1.2.0** is now published on crates.io.
@@ -246,6 +253,23 @@ Utilities:
 nestforge docs
 nestforge fmt
 ```
+
+## VS Code Extension
+
+NestForge also ships with an official VS Code extension for driving the `nestforge` CLI directly from the editor.
+
+- Marketplace: [vernonthedev.nestforge](https://marketplace.visualstudio.com/items?itemName=vernonthedev.nestforge)
+- Repository: `vernonthedev/nestforge-extension`
+- Best for guided scaffolding, generator workflows, DB commands, OpenAPI docs access, Rust utilities, onboarding, and module-aware Explorer actions
+
+The extension currently provides:
+
+- New application and generator wizards
+- Explorer context menus for module-aware generation
+- DB dashboard commands and status polling
+- `.env` validation with quick fixes
+- OpenAPI docs shortcuts, format commands, run config generation, Git setup, logs, and module graph views
+- Rust snippets for common NestForge patterns
 
 ## Minimal App Bootstrap
 

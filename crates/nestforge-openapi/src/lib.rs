@@ -297,7 +297,8 @@ where
         );
 
     if let Some(path) = &config.swagger_ui_path {
-        let swagger_docs = render_swagger_ui(&doc.title, &relative_browser_path(path, &config.json_path));
+        let swagger_docs =
+            render_swagger_ui(&doc.title, &relative_browser_path(path, &config.json_path));
         router = router.route(
             path,
             get({
@@ -308,7 +309,8 @@ where
     }
 
     if let Some(path) = &config.redoc_path {
-        let redoc_docs = render_redoc_ui(&doc.title, &relative_browser_path(path, &config.json_path));
+        let redoc_docs =
+            render_redoc_ui(&doc.title, &relative_browser_path(path, &config.json_path));
         router = router.route(
             path,
             get({
@@ -608,7 +610,10 @@ mod tests {
 
     #[test]
     fn relative_browser_path_handles_prefixed_docs_routes() {
-        assert_eq!(super::relative_browser_path("/docs", "/openapi.json"), "openapi.json");
+        assert_eq!(
+            super::relative_browser_path("/docs", "/openapi.json"),
+            "openapi.json"
+        );
         assert_eq!(
             super::relative_browser_path("/api/docs", "/openapi.json"),
             "../openapi.json"

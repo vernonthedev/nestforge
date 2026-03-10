@@ -264,13 +264,16 @@ where
     let openapi_json = doc.to_openapi_json();
     let openapi_yaml = doc.to_openapi_yaml();
     let simple_docs = render_simple_docs(&doc, &config);
-    let swagger_docs = render_swagger_ui(&doc.title, &config.json_path);
-    let redoc_docs = render_redoc_ui(&doc.title, &config.json_path);
-
     let primary_docs = match config.default_ui {
         OpenApiUi::Simple => simple_docs.clone(),
-        OpenApiUi::SwaggerUi => swagger_docs.clone(),
-        OpenApiUi::Redoc => redoc_docs.clone(),
+        OpenApiUi::SwaggerUi => render_swagger_ui(
+            &doc.title,
+            &relative_browser_path(&config.docs_path, &config.json_path),
+        ),
+        OpenApiUi::Redoc => render_redoc_ui(
+            &doc.title,
+            &relative_browser_path(&config.docs_path, &config.json_path),
+        ),
     };
 
     let mut router = Router::<S>::new()
@@ -294,6 +297,7 @@ where
         );
 
     if let Some(path) = &config.swagger_ui_path {
+        let swagger_docs = render_swagger_ui(&doc.title, &relative_browser_path(path, &config.json_path));
         router = router.route(
             path,
             get({
@@ -304,6 +308,7 @@ where
     }
 
     if let Some(path) = &config.redoc_path {
+        let redoc_docs = render_redoc_ui(&doc.title, &relative_browser_path(path, &config.json_path));
         router = router.route(
             path,
             get({
@@ -336,12 +341,22 @@ fn render_simple_docs(doc: &OpenApiDoc, config: &OpenApiConfig) -> String {
     let swagger_link = config
         .swagger_ui_path
         .as_ref()
-        .map(|path| format!(r#"<li><a href="{path}">Swagger UI</a></li>"#))
+        .map(|path| {
+            format!(
+                r#"<li><a href="{}">Swagger UI</a></li>"#,
+                relative_browser_path(&config.docs_path, path)
+            )
+        })
         .unwrap_or_default();
     let redoc_link = config
         .redoc_path
         .as_ref()
-        .map(|path| format!(r#"<li><a href="{path}">Redoc</a></li>"#))
+        .map(|path| {
+            format!(
+                r#"<li><a href="{}">Redoc</a></li>"#,
+                relative_browser_path(&config.docs_path, path)
+            )
+        })
         .unwrap_or_default();
 
     format!(
@@ -360,8 +375,8 @@ fn render_simple_docs(doc: &OpenApiDoc, config: &OpenApiConfig) -> String {
 </body>
 </html>"#,
         title = doc.title,
-        json_path = config.json_path,
-        yaml_path = config.yaml_path,
+        json_path = relative_browser_path(&config.docs_path, &config.json_path),
+        yaml_path = relative_browser_path(&config.docs_path, &config.yaml_path),
     )
 }
 
@@ -442,6 +457,40 @@ fn normalize_path(path: String, default_path: &str) -> String {
     } else {
         format!("/{trimmed}")
     }
+}
+
+fn relative_browser_path(from_path: &str, to_path: &str) -> String {
+    let from_segments = path_segments(from_path);
+    let to_segments = path_segments(to_path);
+
+    let from_dir_len = from_segments.len().saturating_sub(1);
+    let common_len = from_segments[..from_dir_len]
+        .iter()
+        .zip(to_segments.iter())
+        .take_while(|(left, right)| left == right)
+        .count();
+
+    let mut parts = Vec::new();
+    for _ in common_len..from_dir_len {
+        parts.push("..".to_string());
+    }
+    for segment in &to_segments[common_len..] {
+        parts.push(segment.clone());
+    }
+
+    if parts.is_empty() {
+        ".".to_string()
+    } else {
+        parts.join("/")
+    }
+}
+
+fn path_segments(path: &str) -> Vec<String> {
+    path.trim_matches('/')
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .map(|segment| segment.to_string())
+        .collect()
 }
 
 fn json_value_to_yaml(value: &Value, indent: usize) -> String {
@@ -555,5 +604,18 @@ mod tests {
             .expect("yaml request should succeed");
 
         assert_eq!(yaml_response.status(), axum::http::StatusCode::OK);
+    }
+
+    #[test]
+    fn relative_browser_path_handles_prefixed_docs_routes() {
+        assert_eq!(super::relative_browser_path("/docs", "/openapi.json"), "openapi.json");
+        assert_eq!(
+            super::relative_browser_path("/api/docs", "/openapi.json"),
+            "../openapi.json"
+        );
+        assert_eq!(
+            super::relative_browser_path("/api/v1/docs", "/api/v1/openapi.json"),
+            "openapi.json"
+        );
     }
 }

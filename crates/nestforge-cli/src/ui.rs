@@ -1,7 +1,10 @@
 use anyhow::Result;
 use indicatif::{ProgressBar, ProgressStyle};
 use owo_colors::OwoColorize;
-use std::io::{self, IsTerminal};
+use std::{
+    env,
+    io::{self, IsTerminal},
+};
 
 use crate::cli::{AppTransport, GeneratorKindArg};
 
@@ -35,6 +38,16 @@ pub fn print_note(message: impl AsRef<str>) {
 
 pub fn interactive_enabled(enabled: bool) -> bool {
     enabled && io::stdin().is_terminal() && io::stdout().is_terminal()
+}
+
+pub fn full_tui_enabled(enabled: bool) -> bool {
+    interactive_enabled(enabled) && !running_in_git_bash()
+}
+
+fn running_in_git_bash() -> bool {
+    env::var_os("MSYSTEM").is_some()
+        || env::var_os("MINGW_PREFIX").is_some()
+        || env::var_os("CHERE_INVOKING").is_some()
 }
 
 pub fn prompt_transport() -> Result<AppTransport> {

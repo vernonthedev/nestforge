@@ -20,7 +20,10 @@ use crate::cli::{
     AppTransport, Cli, Commands, DbArgs, DbCommand, DocsFormatArg, GenerateArgs, GeneratorKindArg,
     GeneratorLayout, NewArgs,
 };
-use crate::diagnostics::render_cli_error;
+use crate::diagnostics::{
+    app_root_not_found, missing_app_module_declaration, module_file_not_found,
+    openapi_feature_missing, render_cli_error,
+};
 use crate::tui::{run_generate_wizard, run_new_wizard};
 use crate::ui::{
     interactive_enabled, print_brand_banner, print_note, print_success, prompt_generator_kind,
@@ -587,9 +590,7 @@ fn main() -> anyhow::Result<()> {{
 
     if !status.success() {
         spinner.finish_and_clear();
-        bail!(
-            "OpenAPI export failed. Ensure the app builds with `nestforge` feature `openapi` enabled."
-        );
+        return Err(openapi_feature_missing());
     }
 
     spinner.finish_and_clear();
@@ -3271,7 +3272,7 @@ fn detect_app_root() -> Result<PathBuf> {
         return Ok(cwd);
     }
 
-    bail!("Run generator inside an app folder (where Cargo.toml + src/ exist).")
+    Err(app_root_not_found())
 }
 
 fn collect_top_level_modules(main_rs: &Path) -> Result<Vec<String>> {
@@ -3293,10 +3294,10 @@ fn collect_top_level_modules(main_rs: &Path) -> Result<Vec<String>> {
         .iter()
         .any(|module_name| module_name == "app_module")
     {
-        bail!(
-            "Could not find `mod app_module;` in {}. Use `--module-type` or export from a standard NestForge app layout.",
-            main_rs.display()
-        );
+        return Err(missing_app_module_declaration(
+            &main_rs.display().to_string(),
+            content,
+        ));
     }
 
     Ok(modules)
@@ -3314,10 +3315,10 @@ fn resolve_top_level_module_path(app_root: &Path, module_name: &str) -> Result<P
         return Ok(directory_mod);
     }
 
-    bail!(
-        "Could not resolve module `{module_name}` under {}",
-        src_root.display()
-    )
+    Err(module_file_not_found(
+        module_name,
+        &src_root.display().to_string(),
+    ))
 }
 
 fn relative_path_from(from_file: &Path, to_file: &Path) -> Result<String> {

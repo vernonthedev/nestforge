@@ -1771,6 +1771,7 @@ dependencies = [
  "owo-colors",
  "ratatui",
  "sha2",
+ "thiserror",
  "tokio",
 ]
 

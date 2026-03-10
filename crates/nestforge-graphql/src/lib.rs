@@ -5,10 +5,11 @@ use async_graphql::{
 };
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::{
-    extract::{Extension, State},
-    response::Html,
+    extract::{DefaultBodyLimit, Extension, FromRequest, Request, State},
+    http::{header, StatusCode},
+    response::{Html, IntoResponse, Response},
     routing::{get, post},
-    Router,
+    RequestExt, Router,
 };
 use nestforge_core::{AuthIdentity, Container, RequestId};
 
@@ -52,6 +53,7 @@ where
 pub struct GraphQlConfig {
     pub endpoint: String,
     pub graphiql_endpoint: Option<String>,
+    pub max_request_bytes: usize,
 }
 
 impl Default for GraphQlConfig {
@@ -59,6 +61,7 @@ impl Default for GraphQlConfig {
         Self {
             endpoint: "/graphql".to_string(),
             graphiql_endpoint: Some("/graphiql".to_string()),
+            max_request_bytes: 1024 * 1024,
         }
     }
 }
@@ -78,6 +81,11 @@ impl GraphQlConfig {
 
     pub fn without_graphiql(mut self) -> Self {
         self.graphiql_endpoint = None;
+        self
+    }
+
+    pub fn with_max_request_bytes(mut self, bytes: usize) -> Self {
+        self.max_request_bytes = bytes;
         self
     }
 }
@@ -102,8 +110,30 @@ where
     Mutation: ObjectType + Send + Sync + 'static,
     Subscription: SubscriptionType + Send + Sync + 'static,
 {
+    let max_request_bytes = config.max_request_bytes;
     let mut router = Router::new()
-        .route(&config.endpoint, post(graphql_handler::<Query, Mutation, Subscription>))
+        .route(
+            &config.endpoint,
+            post(
+                move |container,
+                      scoped_container,
+                      request_id,
+                      auth_identity,
+                      schema,
+                      request| {
+                    graphql_handler::<Query, Mutation, Subscription>(
+                        max_request_bytes,
+                        container,
+                        scoped_container,
+                        request_id,
+                        auth_identity,
+                        schema,
+                        request,
+                    )
+                },
+            ),
+        )
+        .layer(DefaultBodyLimit::max(config.max_request_bytes))
         .layer(Extension(schema));
 
     if let Some(graphiql_endpoint) = &config.graphiql_endpoint {
@@ -122,26 +152,49 @@ where
 }
 
 async fn graphql_handler<Query, Mutation, Subscription>(
+    max_request_bytes: usize,
     State(container): State<Container>,
     scoped_container: Option<Extension<Container>>,
-    Extension(request_id): Extension<RequestId>,
+    request_id: Option<Extension<RequestId>>,
     auth_identity: Option<Extension<Arc<AuthIdentity>>>,
     Extension(schema): Extension<GraphQlSchema<Query, Mutation, Subscription>>,
-    request: GraphQLRequest,
-) -> GraphQLResponse
+    request: Request,
+) -> Response
 where
     Query: ObjectType + Send + Sync + 'static,
     Mutation: ObjectType + Send + Sync + 'static,
     Subscription: SubscriptionType + Send + Sync + 'static,
 {
+    if request
+        .headers()
+        .get(header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<usize>().ok())
+        .is_some_and(|length| length > max_request_bytes)
+    {
+        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+    }
+
+    let request = match GraphQLRequest::<async_graphql_axum::rejection::GraphQLRejection>::from_request(
+        request.with_limited_body(),
+        &(),
+    )
+    .await
+    {
+        Ok(request) => request,
+        Err(rejection) => return rejection.into_response(),
+    };
+
     let container = scoped_container.map(|value| value.0).unwrap_or(container);
     let mut request = request.into_inner().data(container);
-    request = request.data(request_id);
+    if let Some(Extension(request_id)) = request_id {
+        request = request.data(request_id);
+    }
     if let Some(Extension(auth_identity)) = auth_identity {
         request = request.data(auth_identity);
     }
 
-    schema.execute(request).await.into()
+    GraphQLResponse::from(schema.execute(request).await).into_response()
 }
 
 fn normalize_path(path: String) -> String {

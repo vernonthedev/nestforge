@@ -53,6 +53,46 @@ async fn graphql_router_accepts_post_requests() {
     assert_eq!(response.status(), axum::http::StatusCode::OK);
 }
 
+#[tokio::test]
+async fn graphql_router_rejects_requests_above_max_body_size() {
+    let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription).finish();
+    let container = Container::new();
+    container
+        .register(AppConfig {
+            app_name: "ok",
+        })
+        .expect("app config should register");
+    let app = graphql_router_with_config(
+        schema,
+        GraphQlConfig::new("/graphql")
+            .without_graphiql()
+            .with_max_request_bytes(32),
+    )
+    .with_state(container);
+    let payload = serde_json::json!({
+        "query": "{ health }",
+        "variables": {
+            "payload": "this request body is intentionally too large"
+        }
+    })
+    .to_string();
+
+    let response = app
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/graphql")
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .header(axum::http::header::CONTENT_LENGTH, payload.len())
+                .body(axum::body::Body::from(payload))
+                .expect("request should build"),
+        )
+        .await
+        .expect("request should succeed");
+
+    assert_eq!(response.status(), axum::http::StatusCode::PAYLOAD_TOO_LARGE);
+}
+
 #[derive(Clone)]
 struct ScopedRequestInfo {
     path: String,

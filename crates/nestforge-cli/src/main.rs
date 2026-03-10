@@ -2315,16 +2315,16 @@ fn template_app_cargo_toml(
             "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nserde = { version = \"1\", features = [\"derive\"] }\nanyhow = \"1\"\n"
         }
         AppTransport::Graphql => {
-            "tokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
+            "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
         }
         AppTransport::Grpc => {
-            "tokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\ntonic = { version = \"0.12\", features = [\"transport\"] }\nprost = \"0.13\"\n"
+            "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\ntonic = { version = \"0.12\", features = [\"transport\"] }\nprost = \"0.13\"\n"
         }
         AppTransport::Microservices => {
-            "tokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n"
+            "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n"
         }
         AppTransport::Websockets => {
-            "tokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
+            "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
         }
     };
 
@@ -4075,6 +4075,18 @@ mod tests {
 
         assert!(main_rs.contains("serde_json::json!({"));
         assert!(!main_rs.contains("serde_json::json!({{"));
+    }
+
+    #[test]
+    fn template_app_cargo_toml_includes_axum_for_microservices() {
+        let manifest = super::template_app_cargo_toml(
+            "demo-app",
+            "nestforge = { version = \"1.2.1\", features = [\"config\", \"microservices\"] }"
+                .to_string(),
+            AppTransport::Microservices,
+        );
+
+        assert!(manifest.contains("axum = \"0.8\""));
     }
 
     #[test]

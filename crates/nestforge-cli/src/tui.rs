@@ -240,7 +240,6 @@ impl NewWizardState {
                 self.transport = next_transport(self.transport)
             }
             KeyCode::Enter if matches!(self.focus, NewField::Transport) => {
-                self.transport = next_transport(self.transport);
                 self.focus = NewField::Submit;
             }
             KeyCode::Backspace if matches!(self.focus, NewField::Name) => {

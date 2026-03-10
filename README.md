@@ -22,7 +22,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 
 > [!IMPORTANT]
 > **Stable Release**
-> NestForge **1.2.0** is now published on crates.io.
+> NestForge **1.4.0** is now published on crates.io.
 
 ## What You Get
 
@@ -304,6 +304,7 @@ Export a static spec for CI/CD or frontend handoff:
 nestforge export-docs
 nestforge export-docs --format yaml --output docs/openapi.yaml
 ```
+
 - Config loading with `ConfigModule::for_root`
 - Versioned routes (`v1`, `v2`)
 

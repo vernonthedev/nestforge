@@ -15,7 +15,7 @@ Report security issues through one of these private channels:
 - GitHub Security Advisories:
   `https://github.com/vernonthedev/nestforge/security/advisories/new`
 - Email:
-  `security@veikeagency.com`
+  `techjaja2@gmail.com`
 
 Include the following when possible:
 

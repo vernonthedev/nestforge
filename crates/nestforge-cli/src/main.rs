@@ -24,7 +24,7 @@ use crate::diagnostics::{
     app_root_not_found, missing_app_module_declaration, module_file_not_found,
     openapi_feature_missing, render_cli_error,
 };
-use crate::tui::{run_generate_wizard, run_new_wizard};
+use crate::tui::{run_generate_wizard, run_new_wizard, should_fallback_to_prompt};
 use crate::ui::{
     interactive_enabled, print_brand_banner, print_note, print_success, prompt_generator_kind,
     prompt_transport, start_spinner,
@@ -131,7 +131,15 @@ fn run_cli(cli: Cli) -> Result<()> {
 fn resolve_new_args(args: NewArgs) -> Result<(String, AppTransport)> {
     let interactive = interactive_enabled(!args.no_tui);
     if interactive && (args.app_name.is_none() || args.transport.is_none()) {
-        return run_new_wizard();
+        match run_new_wizard() {
+            Ok(result) => return Ok(result),
+            Err(error) if should_fallback_to_prompt(&error) => {
+                print_note(
+                    "Full-screen TUI is unavailable in this terminal. Falling back to prompt mode.",
+                );
+            }
+            Err(error) => return Err(error),
+        }
     }
 
     let app_name = match args.app_name {
@@ -156,16 +164,25 @@ fn resolve_generate_args(
 ) -> Result<(GeneratorKindArg, String, GeneratorOptions)> {
     let interactive = interactive_enabled(!args.no_tui);
     if interactive && (args.kind.is_none() || args.name.is_none()) {
-        let result = run_generate_wizard()?;
-        return Ok((
-            result.kind,
-            result.name,
-            GeneratorOptions {
-                target_module: result.module.map(|value| normalize_resource_name(&value)),
-                layout: result.layout,
-                prompt_for_dto: !result.no_prompt,
-            },
-        ));
+        match run_generate_wizard() {
+            Ok(result) => {
+                return Ok((
+                    result.kind,
+                    result.name,
+                    GeneratorOptions {
+                        target_module: result.module.map(|value| normalize_resource_name(&value)),
+                        layout: result.layout,
+                        prompt_for_dto: !result.no_prompt,
+                    },
+                ));
+            }
+            Err(error) if should_fallback_to_prompt(&error) => {
+                print_note(
+                    "Full-screen TUI is unavailable in this terminal. Falling back to prompt mode.",
+                );
+            }
+            Err(error) => return Err(error),
+        }
     }
 
     let kind = match args.kind {

@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
@@ -9,7 +9,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Margin},
     style::{Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Clear, Paragraph},
     Terminal,
 };
 use std::io::{self, Stdout};
@@ -85,11 +85,12 @@ struct TerminalSession {
 
 impl TerminalSession {
     fn start() -> Result<Self> {
-        enable_raw_mode()?;
+        enable_raw_mode().context("Failed to initialize TUI raw mode")?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen)?;
+        execute!(stdout, EnterAlternateScreen)
+            .context("Failed to switch terminal to alternate screen")?;
         let backend = CrosstermBackend::new(stdout);
-        let terminal = Terminal::new(backend)?;
+        let terminal = Terminal::new(backend).context("Failed to initialize TUI backend")?;
         Ok(Self { terminal })
     }
 
@@ -100,6 +101,17 @@ impl TerminalSession {
         self.terminal.draw(render)?;
         Ok(())
     }
+}
+
+pub fn should_fallback_to_prompt(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        let message = cause.to_string().to_ascii_lowercase();
+        message.contains("failed to initialize tui")
+            || message.contains("alternate screen")
+            || message.contains("raw mode")
+            || message.contains("the system cannot find the file specified")
+            || message.contains("os error 2")
+    })
 }
 
 impl Drop for TerminalSession {
@@ -137,13 +149,16 @@ impl Default for NewWizardState {
 
 impl NewWizardState {
     fn render(&self, frame: &mut ratatui::Frame<'_>) {
-        let area = centered_rect(frame.area(), 70, 65);
+        let area = centered_rect(frame.area(), 78, 48);
         frame.render_widget(Clear, area);
-        let block = Block::default()
-            .title(" NestForge New App ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().cyan());
-        frame.render_widget(block, area);
+        frame.render_widget(
+            Block::default()
+                .title(" NestForge New App ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().cyan()),
+            area,
+        );
+
         let inner = area.inner(Margin {
             horizontal: 2,
             vertical: 1,
@@ -151,83 +166,50 @@ impl NewWizardState {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
+                Constraint::Length(2),
                 Constraint::Length(3),
                 Constraint::Length(3),
-                Constraint::Length(8),
                 Constraint::Length(3),
                 Constraint::Min(1),
             ])
             .split(inner);
 
         frame.render_widget(
-            Paragraph::new("Create a new NestForge app with arrow keys and Enter.")
-                .style(Style::default().gray()),
+            Paragraph::new(
+                "Create a new NestForge app. Tab moves focus, Enter advances, Esc cancels.",
+            )
+            .style(Style::default().gray()),
             chunks[0],
         );
         frame.render_widget(
-            field_block(
+            value_block(
                 "Application Name",
                 &self.app_name,
+                "Type the project folder name",
                 matches!(self.focus, NewField::Name),
             ),
             chunks[1],
         );
-
-        let transports = [
-            AppTransport::Http,
-            AppTransport::Graphql,
-            AppTransport::Grpc,
-            AppTransport::Microservices,
-            AppTransport::Websockets,
-        ];
-        let items = transports
-            .iter()
-            .map(|transport| {
-                let selected = *transport == self.transport;
-                let style = if selected {
-                    Style::default().green().add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                };
-                ListItem::new(Line::from(vec![Span::styled(transport.label(), style)]))
-            })
-            .collect::<Vec<_>>();
-        let list = List::new(items).block(
-            Block::default()
-                .title(if matches!(self.focus, NewField::Transport) {
-                    " Transport [active] "
-                } else {
-                    " Transport "
-                })
-                .borders(Borders::ALL)
-                .border_style(active_border(matches!(self.focus, NewField::Transport))),
-        );
-        frame.render_widget(list, chunks[2]);
-
         frame.render_widget(
-            Paragraph::new(Line::from(vec![Span::styled(
-                "[ Enter ] Create App",
-                if matches!(self.focus, NewField::Submit) {
-                    Style::default().yellow().add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                },
-            )]))
-            .block(
-                Block::default()
-                    .title(" Submit ")
-                    .borders(Borders::ALL)
-                    .border_style(active_border(matches!(self.focus, NewField::Submit))),
+            value_block(
+                "Transport",
+                self.transport.label(),
+                "Use Left/Right to change",
+                matches!(self.focus, NewField::Transport),
             ),
+            chunks[2],
+        );
+        frame.render_widget(
+            submit_block("Create App", matches!(self.focus, NewField::Submit)),
             chunks[3],
         );
-
-        if let Some(error) = &self.error {
-            frame.render_widget(
-                Paragraph::new(error.as_str()).style(Style::default().red()),
-                chunks[4],
-            );
-        }
+        frame.render_widget(
+            status_line(
+                self.error.as_deref(),
+                "Type into the name field. Left/Right changes transport.",
+            ),
+            chunks[4],
+        );
     }
 
     fn handle_key(&mut self, code: KeyCode) -> Result<bool> {
@@ -274,6 +256,10 @@ impl NewWizardState {
             _ => {}
         }
 
+        if !matches!(code, KeyCode::Enter) {
+            self.error = None;
+        }
+
         Ok(false)
     }
 }
@@ -309,7 +295,7 @@ impl Default for GenerateWizardState {
             module: String::new(),
             flat: false,
             no_prompt: false,
-            focus: GenerateField::Kind,
+            focus: GenerateField::Name,
             error: None,
         }
     }
@@ -323,13 +309,16 @@ impl GenerateWizardState {
     }
 
     fn render(&self, frame: &mut ratatui::Frame<'_>) {
-        let area = centered_rect(frame.area(), 76, 80);
+        let area = centered_rect(frame.area(), 84, 68);
         frame.render_widget(Clear, area);
-        let block = Block::default()
-            .title(" NestForge Generate ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().cyan());
-        frame.render_widget(block, area);
+        frame.render_widget(
+            Block::default()
+                .title(" NestForge Generate ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().cyan()),
+            area,
+        );
+
         let inner = area.inner(Margin {
             horizontal: 2,
             vertical: 1,
@@ -337,8 +326,8 @@ impl GenerateWizardState {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
+                Constraint::Length(2),
                 Constraint::Length(3),
-                Constraint::Length(7),
                 Constraint::Length(3),
                 Constraint::Length(3),
                 Constraint::Length(3),
@@ -350,56 +339,26 @@ impl GenerateWizardState {
             .split(inner);
 
         frame.render_widget(
-            Paragraph::new("Use arrows or tab to move, type to edit, Enter to submit.")
-                .style(Style::default().gray()),
+            Paragraph::new(
+                "Tab or arrows move focus. Type into text fields. Enter advances or submits.",
+            )
+            .style(Style::default().gray()),
             chunks[0],
         );
-
-        let kinds = [
-            GeneratorKindArg::Resource,
-            GeneratorKindArg::Controller,
-            GeneratorKindArg::Service,
-            GeneratorKindArg::Module,
-            GeneratorKindArg::Guard,
-            GeneratorKindArg::Decorator,
-            GeneratorKindArg::Filter,
-            GeneratorKindArg::Middleware,
-            GeneratorKindArg::Interceptor,
-            GeneratorKindArg::Serializer,
-            GeneratorKindArg::Graphql,
-            GeneratorKindArg::Grpc,
-            GeneratorKindArg::Gateway,
-            GeneratorKindArg::Microservice,
-        ];
-        let items = kinds
-            .iter()
-            .map(|kind| {
-                let style = if *kind == self.kind {
-                    Style::default().green().add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                };
-                ListItem::new(Line::from(vec![Span::styled(kind.label(), style)]))
-            })
-            .collect::<Vec<_>>();
         frame.render_widget(
-            List::new(items).block(
-                Block::default()
-                    .title(if matches!(self.focus, GenerateField::Kind) {
-                        " Generator [active] "
-                    } else {
-                        " Generator "
-                    })
-                    .borders(Borders::ALL)
-                    .border_style(active_border(matches!(self.focus, GenerateField::Kind))),
+            value_block(
+                "Generator",
+                self.kind.label(),
+                "Use Left/Right to change",
+                matches!(self.focus, GenerateField::Kind),
             ),
             chunks[1],
         );
-
         frame.render_widget(
-            field_block(
+            value_block(
                 "Name",
                 &self.name,
+                "Type the generated resource or module name",
                 matches!(self.focus, GenerateField::Name),
             ),
             chunks[2],
@@ -413,9 +372,14 @@ impl GenerateWizardState {
             chunks[3],
         );
         frame.render_widget(
-            field_block(
+            value_block(
                 "Module Name",
-                &self.module,
+                &self.module_name_value(),
+                if self.in_module {
+                    "Type an existing feature module name"
+                } else {
+                    "Turn on module mode to edit this field"
+                },
                 matches!(self.focus, GenerateField::ModuleName),
             ),
             chunks[4],
@@ -437,28 +401,23 @@ impl GenerateWizardState {
             chunks[6],
         );
         frame.render_widget(
-            Paragraph::new(Line::from(vec![Span::styled(
-                "[ Enter ] Generate",
-                if matches!(self.focus, GenerateField::Submit) {
-                    Style::default().yellow().add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                },
-            )]))
-            .block(
-                Block::default()
-                    .title(" Submit ")
-                    .borders(Borders::ALL)
-                    .border_style(active_border(matches!(self.focus, GenerateField::Submit))),
-            ),
+            submit_block("Generate", matches!(self.focus, GenerateField::Submit)),
             chunks[7],
         );
+        frame.render_widget(
+            status_line(
+                self.error.as_deref(),
+                "Left/Right changes the generator or toggles the active switch. Space also toggles switches.",
+            ),
+            chunks[8],
+        );
+    }
 
-        if let Some(error) = &self.error {
-            frame.render_widget(
-                Paragraph::new(error.as_str()).style(Style::default().red()),
-                chunks[8],
-            );
+    fn module_name_value(&self) -> String {
+        if self.in_module {
+            self.module.clone()
+        } else {
+            String::new()
         }
     }
 
@@ -508,6 +467,10 @@ impl GenerateWizardState {
             _ => {}
         }
 
+        if !matches!(code, KeyCode::Enter) {
+            self.error = None;
+        }
+
         Ok(false)
     }
 }
@@ -536,10 +499,22 @@ fn centered_rect(
     horizontal[1]
 }
 
-fn field_block<'a>(title: &'a str, value: &'a str, active: bool) -> Paragraph<'a> {
-    Paragraph::new(value).block(
+fn value_block<'a>(title: &'a str, value: &'a str, hint: &'a str, active: bool) -> Paragraph<'a> {
+    let (display, style) = if value.trim().is_empty() {
+        (
+            hint.to_string(),
+            Style::default().dark_gray().add_modifier(Modifier::ITALIC),
+        )
+    } else {
+        (
+            format!("{value}{}", if active { " _" } else { "" }),
+            Style::default(),
+        )
+    };
+
+    Paragraph::new(display).style(style).block(
         Block::default()
-            .title(format!(" {} ", title))
+            .title(format!(" {}{} ", if active { "> " } else { "" }, title))
             .borders(Borders::ALL)
             .border_style(active_border(active)),
     )
@@ -557,10 +532,34 @@ fn toggle_block<'a>(title: &'a str, enabled: bool, active: bool) -> Paragraph<'a
     )]))
     .block(
         Block::default()
-            .title(format!(" {} ", title))
+            .title(format!(" {}{} ", if active { "> " } else { "" }, title))
             .borders(Borders::ALL)
             .border_style(active_border(active)),
     )
+}
+
+fn submit_block<'a>(label: &'a str, active: bool) -> Paragraph<'a> {
+    Paragraph::new(Line::from(vec![Span::styled(
+        format!("[ Enter ] {label}"),
+        if active {
+            Style::default().yellow().add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        },
+    )]))
+    .block(
+        Block::default()
+            .title(format!(" {}{} ", if active { "> " } else { "" }, "Submit"))
+            .borders(Borders::ALL)
+            .border_style(active_border(active)),
+    )
+}
+
+fn status_line<'a>(error: Option<&'a str>, hint: &'a str) -> Paragraph<'a> {
+    match error {
+        Some(message) => Paragraph::new(message).style(Style::default().red()),
+        None => Paragraph::new(hint).style(Style::default().dark_gray()),
+    }
 }
 
 fn active_border(active: bool) -> Style {

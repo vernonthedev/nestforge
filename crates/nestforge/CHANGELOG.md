@@ -2,6 +2,45 @@
 
 All notable changes to the `nestforge` crate are documented in this file.
 
+## [1.4.0](https://github.com/vernonthedev/nestforge/compare/v1.3.0...v1.4.0) (2026-03-10)
+
+### Features
+
+* feat(cli): show nestforge banner in tui ([732e62f](https://github.com/vernonthedev/nestforge/commit/732e62f7d6891ce5c1a2d4e926ea8a8644a73ec5))
+* feat(cli): use block-style nestforge banner ([d320a24](https://github.com/vernonthedev/nestforge/commit/d320a24e6fcc4dff6a5d5d1e8d6de9b032ddd539))
+* feat(cli): add branded terminal banner ([6b4c51f](https://github.com/vernonthedev/nestforge/commit/6b4c51f2f1e0c9e007d1a7e78aa550afe2f75382))
+* feat(cli): scaffold openapi in new apps ([567b1d5](https://github.com/vernonthedev/nestforge/commit/567b1d5206baa51eaeea75622049fa1d809b5c04))
+* feat(cli): make generate tui step-based ([79c88ad](https://github.com/vernonthedev/nestforge/commit/79c88ad2b2b9720a6e5307be4b2e61410d76613f))
+* feat(cli): add typed miette diagnostics ([031a874](https://github.com/vernonthedev/nestforge/commit/031a8745f111d621000b97b2bbf2973049fb493a))
+* feat(cli): add ratatui wizards for new and generate ([4d6d2f6](https://github.com/vernonthedev/nestforge/commit/4d6d2f6bf42fd08f8bb1b18809d67d5843dfe5d9))
+* feat(cli): add structured commands and rich terminal output ([8d5b2d9](https://github.com/vernonthedev/nestforge/commit/8d5b2d9e510685750a2a25963998350a0dfae7a0))
+
+### Fixes
+
+* fix(cli): fixed the new project scaffold to stop creating empty services folders, fixes #16 ([ee4d333](https://github.com/vernonthedev/nestforge/commit/ee4d33360e2282910521f48e790b4088b0afb1c5))
+* fix(modules): fixed the bug report issue form so github can recognize it properly, fixes #17 ([a483abf](https://github.com/vernonthedev/nestforge/commit/a483abfa84732015603cdb8b9ef788a2b085dfdf))
+* fix(cli): fixed the graphql starter dependency and macro imports ([a848483](https://github.com/vernonthedev/nestforge/commit/a848483aa65dfc3776f91c8ce8ed48f47ac9a389))
+* fix(cli): fixed the graphql scaffold async-graphql imports ([71624b8](https://github.com/vernonthedev/nestforge/commit/71624b8fa725977d26758c0e1162ec81be2cd79c))
+* fix(cli): keep new wizard transport stable ([eaf68a7](https://github.com/vernonthedev/nestforge/commit/eaf68a73fc2110c5d3efe50240b3583f1a2b4886))
+* fix(cli): remove redundant tui titles ([ebff157](https://github.com/vernonthedev/nestforge/commit/ebff157af77c464c0a1be0d95feb9a662b068d04))
+* fix(cli): repair microservices scaffold template ([0c2f3d9](https://github.com/vernonthedev/nestforge/commit/0c2f3d9850185abe3cd5537d24ab3dc74d0bd171))
+* fix(openai): fixed the entire openapi docs generations ([e13304e](https://github.com/vernonthedev/nestforge/commit/e13304ee17bd666a00f0181eb63594270b768b9a))
+* fix(openapi): use docs-relative spec urls ([4496b03](https://github.com/vernonthedev/nestforge/commit/4496b03858bbde7ac198400e3b3f6d2fdc2db8d1))
+* fix(cli): use prompt wizard in git bash ([4f2928f](https://github.com/vernonthedev/nestforge/commit/4f2928f2a8cd6a36096be53d2f8192d1ac82d267))
+* fix(cli): add numeric choices to generate wizard ([24f988d](https://github.com/vernonthedev/nestforge/commit/24f988dfe82edf8c7c8a4b0fa75ae8a6eb11eac2))
+* fix(cli): use directional controls in generate wizard ([93b68ab](https://github.com/vernonthedev/nestforge/commit/93b68abdd4ba02a787b9759a64c564b12d7694e4))
+* fix(cli): simplify ratatui field rendering ([9263823](https://github.com/vernonthedev/nestforge/commit/926382319a1bace2fd856f244f4ff710d48a4c79))
+* fix(cli): clarify ratatui selectors and toggles ([453936a](https://github.com/vernonthedev/nestforge/commit/453936a0d6f4b47dfb1be054e6a28e55ea6c5d32))
+* fix(cli): improve ratatui field entry and prompt fallback ([8c1e471](https://github.com/vernonthedev/nestforge/commit/8c1e4719f64920ab9d555c7cb3e8a049603843fc))
+
+### Other
+
+* docs: did a little docs cleanup with the new shields ([9c69a1e](https://github.com/vernonthedev/nestforge/commit/9c69a1e691918b337d23e6834f3e9731ff9313b9))
+* docs(readme): added framework badges and the vscode extension section ([06a5510](https://github.com/vernonthedev/nestforge/commit/06a5510727cc70680b0b3a629f4a48ee74c79488))
+* docs(community): added the missing repository health files and contribution automation, fixes #15 ([94a7598](https://github.com/vernonthedev/nestforge/commit/94a75987c62a936bc928b33c4cd9092cfcbcc438))
+* chore: added dev exec example dir ([b4541c6](https://github.com/vernonthedev/nestforge/commit/b4541c6aad6b5159a84e6b8fa5e7f2af3b22b4bf))
+* refactor(cli): split parser ui and diagnostics modules ([68522ba](https://github.com/vernonthedev/nestforge/commit/68522ba1619eb2c6af39261b987744793774f5f4))
+
 ## [1.3.0](https://github.com/vernonthedev/nestforge/compare/v1.2.1...v1.3.0) (2026-03-10)
 
 ### Features

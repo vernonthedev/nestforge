@@ -32,7 +32,33 @@ async fn main() -> anyhow::Result<()> {
 This automatically mounts:
 
 - `GET /openapi.json`: The raw OpenAPI spec.
-- `GET /docs`: A simple HTML UI to browse your API.
+- `GET /openapi.yaml`: The YAML export of the same spec.
+- `GET /docs`: The primary docs UI.
+- `GET /swagger-ui`: Swagger UI.
+- `GET /redoc`: Redoc.
+
+By default, NestForge now serves Swagger UI at `/docs` and also exposes dedicated `/swagger-ui` and `/redoc` routes.
+
+## 2.1 Customize Docs Paths and UI
+
+If you want docs mounted at `api/docs` or prefer Redoc as the default UI, use `OpenApiConfig`:
+
+```rust
+use nestforge::{
+    NestForgeFactory, NestForgeFactoryOpenApiExt, OpenApiConfig, OpenApiUi,
+};
+
+NestForgeFactory::<AppModule>::create()?
+    .with_openapi_docs_config(
+        "My Service API",
+        "1.0.0",
+        OpenApiConfig::new()
+            .with_docs_path("/api/docs")
+            .with_default_ui(OpenApiUi::Redoc),
+    )?
+    .listen(3000)
+    .await?;
+```
 
 ## 3. Annotate Your Controllers
 

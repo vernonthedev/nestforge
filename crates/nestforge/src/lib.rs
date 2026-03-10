@@ -237,7 +237,9 @@ pub use nestforge_grpc::{prost, tonic, GrpcContext, GrpcServerConfig, NestForgeG
 #[cfg(feature = "mongo")]
 pub use nestforge_mongo::{InMemoryMongoRepo, MongoConfig};
 #[cfg(feature = "openapi")]
-pub use nestforge_openapi::{docs_router, OpenApiDoc, OpenApiRoute};
+pub use nestforge_openapi::{
+    docs_router, docs_router_with_config, OpenApiConfig, OpenApiDoc, OpenApiRoute, OpenApiUi,
+};
 #[cfg(feature = "orm")]
 pub use nestforge_orm::{EntityMeta, OrmError, Repo, RepoFuture, SqlRepo, SqlRepoBuilder};
 #[cfg(feature = "redis")]
@@ -280,11 +282,30 @@ pub fn openapi_docs_router_for_module<M: ModuleDefinition>(
 }
 
 #[cfg(feature = "openapi")]
+pub fn openapi_docs_router_for_module_with_config<M: ModuleDefinition>(
+    title: impl Into<String>,
+    version: impl Into<String>,
+    config: OpenApiConfig,
+) -> anyhow::Result<axum::Router<Container>> {
+    let doc = openapi_doc_for_module::<M>(title, version)?;
+    Ok(docs_router_with_config(doc, config))
+}
+
+#[cfg(feature = "openapi")]
 pub trait NestForgeFactoryOpenApiExt<M: ModuleDefinition> {
     fn with_openapi_docs(
         self,
         title: impl Into<String>,
         version: impl Into<String>,
+    ) -> anyhow::Result<Self>
+    where
+        Self: Sized;
+
+    fn with_openapi_docs_config(
+        self,
+        title: impl Into<String>,
+        version: impl Into<String>,
+        config: OpenApiConfig,
     ) -> anyhow::Result<Self>
     where
         Self: Sized;
@@ -298,6 +319,16 @@ impl<M: ModuleDefinition> NestForgeFactoryOpenApiExt<M> for NestForgeFactory<M> 
         version: impl Into<String>,
     ) -> anyhow::Result<Self> {
         let router = openapi_docs_router_for_module::<M>(title, version)?;
+        Ok(self.merge_router(router))
+    }
+
+    fn with_openapi_docs_config(
+        self,
+        title: impl Into<String>,
+        version: impl Into<String>,
+        config: OpenApiConfig,
+    ) -> anyhow::Result<Self> {
+        let router = openapi_docs_router_for_module_with_config::<M>(title, version, config)?;
         Ok(self.merge_router(router))
     }
 }

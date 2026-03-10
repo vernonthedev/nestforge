@@ -1,30 +1,31 @@
 #![cfg(feature = "openapi")]
 
 use nestforge::{
-    authenticated, controller, get, openapi_doc_for_module, response, roles, routes, summary, tag,
-    Container, ModuleDefinition,
+    openapi_doc_for_module, openapi_docs_router_for_module_with_config, Container,
+    ModuleDefinition, OpenApiConfig, OpenApiUi,
 };
+use tower::util::ServiceExt;
 
-#[controller("/users")]
+#[nestforge::controller("/users")]
 struct UsersController;
 
-#[routes]
-#[tag("controller-users")]
-#[authenticated]
-#[roles("admin")]
+#[nestforge::routes]
+#[nestforge::tag("controller-users")]
+#[nestforge::authenticated]
+#[nestforge::roles("admin")]
 impl UsersController {
-    #[get("/")]
-    #[summary("List users")]
-    #[tag("users")]
-    #[response(status = 200, description = "Users returned")]
+    #[nestforge::get("/")]
+    #[nestforge::summary("List users")]
+    #[nestforge::tag("users")]
+    #[nestforge::response(status = 200, description = "Users returned")]
     async fn list() -> nestforge::ApiResult<Vec<String>> {
         Ok(axum::Json(vec!["alice".to_string(), "bob".to_string()]))
     }
 
-    #[get("/me")]
-    #[summary("Get current user")]
-    #[authenticated]
-    #[response(status = 200, description = "Current user returned")]
+    #[nestforge::get("/me")]
+    #[nestforge::summary("Get current user")]
+    #[nestforge::authenticated]
+    #[nestforge::response(status = 200, description = "Current user returned")]
     async fn me() -> nestforge::ApiResult<String> {
         Ok(axum::Json("alice".to_string()))
     }
@@ -65,4 +66,42 @@ fn openapi_doc_for_module_collects_documented_routes() {
         .routes
         .iter()
         .any(|route| route.summary.as_deref() == Some("List users")));
+}
+
+#[tokio::test]
+async fn openapi_docs_router_supports_custom_docs_path_and_yaml_export() {
+    let app = openapi_docs_router_for_module_with_config::<AppModule>(
+        "Test API",
+        "1.0.0",
+        OpenApiConfig::new()
+            .with_docs_path("/api/docs")
+            .with_default_ui(OpenApiUi::SwaggerUi),
+    )
+    .expect("openapi docs router should build")
+    .with_state(Container::new());
+
+    let docs_response = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .uri("/api/docs")
+                .body(axum::body::Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("docs request should succeed");
+
+    assert_eq!(docs_response.status(), axum::http::StatusCode::OK);
+
+    let yaml_response = app
+        .oneshot(
+            axum::http::Request::builder()
+                .uri("/openapi.yaml")
+                .body(axum::body::Body::empty())
+                .expect("request should build"),
+        )
+        .await
+        .expect("yaml request should succeed");
+
+    assert_eq!(yaml_response.status(), axum::http::StatusCode::OK);
 }

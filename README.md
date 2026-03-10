@@ -31,6 +31,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - Route versioning (`#[nestforge::version("1")]`)
 - Global prefix support (`.with_global_prefix("api")`)
 - Generated OpenAPI docs from controller metadata with runtime mounting helpers
+- Swagger UI and Redoc hosting for generated OpenAPI docs
 - Optional GraphQL support through a dedicated `nestforge-graphql` crate and factory helpers
 - Optional gRPC transport support through a dedicated `nestforge-grpc` crate
 - Optional WebSocket gateway support through a dedicated `nestforge-websockets` crate

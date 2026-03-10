@@ -3120,7 +3120,7 @@ fn template_interceptor_rs(pascal_interceptor: &str) -> String {
 
 fn template_serializer_rs(serializer_name: &str, pascal_serializer: &str) -> String {
     format!(
-        r#"#[derive(serde::Serialize)]
+        r#"#[nestforge::response_dto]
 pub struct {pascal_serializer}Dto {{
     pub id: u64,
     pub label: String,

@@ -1280,15 +1280,11 @@ fn infer_request_body_doc_tokens(method: &ImplItemFn) -> TokenStream2 {
 }
 
 fn infer_response_body_doc_tokens(output: &ReturnType) -> TokenStream2 {
-    let Some(payload_ty) = extract_response_payload_type(output) else {
+    let Some(schema_doc) = extract_response_payload_doc(output) else {
         return quote! {};
     };
 
-    let schema_expr = schema_expression_for_type(&payload_ty);
-    quote! {
-        doc = doc.with_success_response_schema(#schema_expr);
-        doc = doc.with_schema_components(nestforge::openapi_schema_components_for::<#payload_ty>());
-    }
+    schema_doc
 }
 
 fn extract_request_payload_type(arg: &FnArg) -> Option<Type> {
@@ -1299,24 +1295,96 @@ fn extract_request_payload_type(arg: &FnArg) -> Option<Type> {
     extract_inner_type_named(ty, &["ValidatedBody", "Body", "Json"])
 }
 
-fn extract_response_payload_type(output: &ReturnType) -> Option<Type> {
+fn extract_response_payload_doc(output: &ReturnType) -> Option<TokenStream2> {
     let ReturnType::Type(_, ty) = output else {
         return None;
     };
 
-    unwrap_response_type(ty)
+    response_payload_doc_tokens(ty)
 }
 
-fn unwrap_response_type(ty: &Type) -> Option<Type> {
+fn response_payload_doc_tokens(ty: &Type) -> Option<TokenStream2> {
+    if let Some((value_ty, serializer_ty)) = extract_two_inner_types_named(ty, &["ApiSerializedResult"]) {
+        return Some(quote! {
+            doc = doc.with_success_response_schema(
+                nestforge::openapi_schema_for::<<#serializer_ty as nestforge::ResponseSerializer<#value_ty>>::Output>()
+            );
+            doc = doc.with_schema_components(
+                nestforge::openapi_schema_components_for::<<#serializer_ty as nestforge::ResponseSerializer<#value_ty>>::Output>()
+            );
+        });
+    }
+
+    if let Some(inner) = extract_inner_type_named(ty, &["ApiEnvelopeResult"]) {
+        let schema_expr = quote! {{
+            nestforge::serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "success": nestforge::openapi_schema_for::<bool>(),
+                    "data": nestforge::openapi_schema_for::<#inner>()
+                },
+                "required": ["success", "data"]
+            })
+        }};
+        return Some(quote! {
+            doc = doc.with_success_response_schema(#schema_expr);
+            doc = doc.with_schema_components(nestforge::openapi_schema_components_for::<#inner>());
+        });
+    }
+
     if let Some(inner) = extract_inner_type_named(ty, &["ApiResult", "Json"]) {
-        return unwrap_response_type(&inner).or(Some(inner));
+        return response_payload_doc_tokens(&inner).or_else(|| {
+            let schema_expr = schema_expression_for_type(&inner);
+            Some(quote! {
+                doc = doc.with_success_response_schema(#schema_expr);
+                doc = doc.with_schema_components(nestforge::openapi_schema_components_for::<#inner>());
+            })
+        });
     }
 
     if let Some(inner) = extract_inner_type_named(ty, &["Result"]) {
-        return unwrap_response_type(&inner).or(Some(inner));
+        return response_payload_doc_tokens(&inner).or_else(|| {
+            let schema_expr = schema_expression_for_type(&inner);
+            Some(quote! {
+                doc = doc.with_success_response_schema(#schema_expr);
+                doc = doc.with_schema_components(nestforge::openapi_schema_components_for::<#inner>());
+            })
+        });
     }
 
-    Some(ty.clone())
+    if let Some((value_ty, serializer_ty)) = extract_serialized_types(ty) {
+        return Some(quote! {
+            doc = doc.with_success_response_schema(
+                nestforge::openapi_schema_for::<<#serializer_ty as nestforge::ResponseSerializer<#value_ty>>::Output>()
+            );
+            doc = doc.with_schema_components(
+                nestforge::openapi_schema_components_for::<<#serializer_ty as nestforge::ResponseSerializer<#value_ty>>::Output>()
+            );
+        });
+    }
+
+    if let Some(inner) = extract_inner_type_named(ty, &["ResponseEnvelope"]) {
+        let schema_expr = quote!({
+            nestforge::serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "success": nestforge::openapi_schema_for::<bool>(),
+                    "data": nestforge::openapi_schema_for::<#inner>()
+                },
+                "required": ["success", "data"]
+            })
+        });
+        return Some(quote! {
+            doc = doc.with_success_response_schema(#schema_expr);
+            doc = doc.with_schema_components(nestforge::openapi_schema_components_for::<#inner>());
+        });
+    }
+
+    let schema_expr = schema_expression_for_type(ty);
+    Some(quote! {
+        doc = doc.with_success_response_schema(#schema_expr);
+        doc = doc.with_schema_components(nestforge::openapi_schema_components_for::<#ty>());
+    })
 }
 
 fn schema_expression_for_type(ty: &Type) -> TokenStream2 {
@@ -1348,6 +1416,33 @@ fn extract_inner_type_named(ty: &Type, names: &[&str]) -> Option<Type> {
         GenericArgument::Type(inner) => Some(inner.clone()),
         _ => None,
     })
+}
+
+fn extract_serialized_types(ty: &Type) -> Option<(Type, Type)> {
+    extract_two_inner_types_named(ty, &["Serialized"])
+}
+
+fn extract_two_inner_types_named(ty: &Type, names: &[&str]) -> Option<(Type, Type)> {
+    let Type::Path(type_path) = ty else {
+        return None;
+    };
+    let segment = type_path.path.segments.last()?;
+    if !names.iter().any(|name| segment.ident == *name) {
+        return None;
+    }
+
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return None;
+    };
+
+    let mut types = args.args.iter().filter_map(|arg| match arg {
+        GenericArgument::Type(inner) => Some(inner.clone()),
+        _ => None,
+    });
+
+    let value_ty = types.next()?;
+    let serializer_ty = types.next()?;
+    Some((value_ty, serializer_ty))
 }
 
 /* -------- module parser -------- */

@@ -1,6 +1,6 @@
 use crate::app_config::AppConfig;
 
-#[derive(serde::Serialize)]
+#[nestforge::response_dto]
 pub struct PublicAppConfigDto {
     pub app_name: String,
 }

@@ -67,6 +67,8 @@ nestforge g module users --flat
 nestforge g resource users --module users --flat
 ```
 
+When you run the resource generator in a terminal, NestForge can prompt for DTO fields and required/optional flags so the generated `Create*Dto`, `Update*Dto`, and entity DTO are usable immediately. Use `--no-prompt` if you want the default scaffold without interaction.
+
 Flat layout output:
 
 ```text
@@ -163,6 +165,7 @@ async fn main() -> anyhow::Result<()> {
 ## Next Steps
 
 - **Add OpenAPI Documentation**: Learn how to [setup OpenAPI from scratch](./auth-openapi.md).
+- **Export a Static Spec**: Run `nestforge export-docs --format yaml --output docs/openapi.yaml` once your app enables the `openapi` feature.
 - **Generate Features**: Use `nestforge g module <name>` to add new features.
 - **Use Flat Feature Layouts**: Pass `--flat` to keep generated controllers, services, and DTOs directly in the feature folder, for example `nestforge g resource users --module users --flat`.
 - **Dependency Injection**: Explore the [Module System](./module-system.md).

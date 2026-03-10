@@ -4,7 +4,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use nestforge_core::RouteDocumentation;
+use nestforge_core::{OpenApiSchemaComponent, RouteDocumentation};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -17,6 +17,7 @@ pub struct OpenApiRoute {
     pub tags: Vec<String>,
     pub requires_auth: bool,
     pub required_roles: Vec<String>,
+    pub request_body: Option<Value>,
     pub responses: Vec<OpenApiResponse>,
 }
 
@@ -24,6 +25,7 @@ pub struct OpenApiRoute {
 pub struct OpenApiResponse {
     pub status: u16,
     pub description: String,
+    pub schema: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -31,6 +33,7 @@ pub struct OpenApiDoc {
     pub title: String,
     pub version: String,
     pub routes: Vec<OpenApiRoute>,
+    pub components: Vec<OpenApiSchemaComponent>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +118,7 @@ impl OpenApiDoc {
             title: title.into(),
             version: version.into(),
             routes: Vec::new(),
+            components: Vec::new(),
         }
     }
 
@@ -126,12 +130,14 @@ impl OpenApiDoc {
             description: None,
             tags: Vec::new(),
             requires_auth: false,
-            required_roles: Vec::new(),
-            responses: vec![OpenApiResponse {
-                status: 200,
-                description: "OK".to_string(),
-            }],
-        });
+              required_roles: Vec::new(),
+              responses: vec![OpenApiResponse {
+                  status: 200,
+                  description: "OK".to_string(),
+                  schema: None,
+              }],
+              request_body: None,
+          });
         self
     }
 
@@ -144,25 +150,28 @@ impl OpenApiDoc {
             title: title.into(),
             version: version.into(),
             routes: routes
-                .into_iter()
+                .iter()
                 .map(|route| OpenApiRoute {
-                    method: route.method,
-                    path: route.path,
-                    summary: route.summary,
-                    description: route.description,
-                    tags: route.tags,
+                    method: route.method.clone(),
+                    path: route.path.clone(),
+                    summary: route.summary.clone(),
+                    description: route.description.clone(),
+                    tags: route.tags.clone(),
                     requires_auth: route.requires_auth,
-                    required_roles: route.required_roles,
+                    required_roles: route.required_roles.clone(),
+                    request_body: route.request_body.clone(),
                     responses: route
                         .responses
-                        .into_iter()
+                        .iter()
                         .map(|response| OpenApiResponse {
                             status: response.status,
-                            description: response.description,
+                            description: response.description.clone(),
+                            schema: response.schema.clone(),
                         })
                         .collect(),
                 })
                 .collect(),
+            components: collect_schema_components(&routes),
         }
     }
 
@@ -176,24 +185,51 @@ impl OpenApiDoc {
                 .responses
                 .iter()
                 .map(|response| {
+                    let mut body = json!({ "description": response.description });
+                    if let Some(schema) = &response.schema {
+                        body["content"] = json!({
+                            "application/json": {
+                                "schema": schema
+                            }
+                        });
+                    }
+
                     (
                         response.status.to_string(),
-                        json!({ "description": response.description }),
+                        body,
                     )
                 })
                 .collect::<serde_json::Map<String, Value>>();
+            let mut operation = json!({
+                "summary": route.summary,
+                "description": route.description,
+                "tags": route.tags,
+                "responses": responses,
+                "x-required-roles": route.required_roles,
+                "security": if route.requires_auth { json!([{"bearerAuth": []}]) } else { json!([]) }
+            });
+
+            if let Some(request_body) = &route.request_body {
+                operation["requestBody"] = json!({
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": request_body
+                        }
+                    }
+                });
+            }
             obj.insert(
                 method,
-                json!({
-                    "summary": route.summary,
-                    "description": route.description,
-                    "tags": route.tags,
-                    "responses": responses,
-                    "x-required-roles": route.required_roles,
-                    "security": if route.requires_auth { json!([{"bearerAuth": []}]) } else { json!([]) }
-                }),
+                operation,
             );
         }
+
+        let schemas = self
+            .components
+            .iter()
+            .map(|component| (component.name.clone(), component.schema.clone()))
+            .collect::<serde_json::Map<String, Value>>();
 
         json!({
             "openapi": "3.1.0",
@@ -208,7 +244,8 @@ impl OpenApiDoc {
                         "scheme": "bearer",
                         "bearerFormat": "JWT"
                     }
-                }
+                },
+                "schemas": schemas
             },
             "paths": paths
         })
@@ -329,6 +366,23 @@ fn render_simple_docs(doc: &OpenApiDoc, config: &OpenApiConfig) -> String {
         json_path = config.json_path,
         yaml_path = config.yaml_path,
     )
+}
+
+fn collect_schema_components(routes: &[RouteDocumentation]) -> Vec<OpenApiSchemaComponent> {
+    let mut components = Vec::new();
+
+    for route in routes {
+        for component in &route.schema_components {
+            if !components
+                .iter()
+                .any(|existing: &OpenApiSchemaComponent| existing.name == component.name)
+            {
+                components.push(component.clone());
+            }
+        }
+    }
+
+    components
 }
 
 fn render_swagger_ui(title: &str, json_path: &str) -> String {

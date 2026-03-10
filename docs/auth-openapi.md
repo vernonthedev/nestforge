@@ -80,6 +80,13 @@ impl ItemsController {
 }
 ```
 
+DTOs marked with `#[nestforge::dto]`, `#[nestforge::response_dto]`, or `#[nestforge::entity_dto]` are now emitted into `components.schemas` automatically. NestForge also infers request and response schemas from common controller signatures such as:
+
+- `body: ValidatedBody<CreateUserDto>`
+- `body: Body<CreateUserDto>`
+- `-> ApiResult<UserDto>`
+- `-> ApiResult<Vec<UserDto>>`
+
 ### Available Metadata Attributes
 
 - `#[nestforge::summary("...")]`: Short summary of the route.
@@ -110,3 +117,14 @@ NestForgeFactory::<AppModule>::create()?
 - **Missing Attributes**: Ensure `features = ["openapi"]` is in `Cargo.toml`.
 - **Method Not Found**: Ensure you have `use nestforge::NestForgeFactoryOpenApiExt;` in scope.
 - **Empty Docs**: Ensure your controllers are added to the `controllers` list in your module declaration.
+
+## Static Export
+
+NestForge CLI can export a static spec file from a standard app layout:
+
+```bash
+nestforge export-docs
+nestforge export-docs --format yaml --output docs/openapi.yaml
+```
+
+The export command expects the app to depend on `nestforge` with the `openapi` feature enabled. It uses `app_module::AppModule` by default; override the type with `--module-type <TypeName>` if your root module uses a different name.

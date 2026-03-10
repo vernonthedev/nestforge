@@ -3,7 +3,7 @@ use nestforge_db::{Db, DbConfig};
 use std::{
     collections::{HashMap, HashSet},
     env, fs,
-    io::Write,
+    io::{self, IsTerminal, Write},
     path::{Path, PathBuf},
     process::Command,
     time::{SystemTime, UNIX_EPOCH},
@@ -28,6 +28,24 @@ enum GeneratorLayout {
 struct GeneratorOptions {
     target_module: Option<String>,
     layout: GeneratorLayout,
+    prompt_for_dto: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct DtoFieldSpec {
+    name: String,
+    ty: DtoFieldType,
+    required: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DtoFieldType {
+    String,
+    Bool,
+    U32,
+    U64,
+    I64,
+    F64,
 }
 
 impl AppTransport {
@@ -50,6 +68,41 @@ impl AppTransport {
             Self::Microservices => "Microservices",
             Self::Websockets => "WebSocket",
         }
+    }
+}
+
+impl DtoFieldType {
+    fn rust_type(self) -> &'static str {
+        match self {
+            Self::String => "String",
+            Self::Bool => "bool",
+            Self::U32 => "u32",
+            Self::U64 => "u64",
+            Self::I64 => "i64",
+            Self::F64 => "f64",
+        }
+    }
+
+    fn prompt_label(self) -> &'static str {
+        match self {
+            Self::String => "String",
+            Self::Bool => "bool",
+            Self::U32 => "u32",
+            Self::U64 => "u64",
+            Self::I64 => "i64",
+            Self::F64 => "f64",
+        }
+    }
+
+    fn choices() -> &'static [Self] {
+        &[
+            Self::String,
+            Self::Bool,
+            Self::U32,
+            Self::U64,
+            Self::I64,
+            Self::F64,
+        ]
     }
 }
 
@@ -80,7 +133,12 @@ fn main() -> Result<()> {
 
             match kind.as_str() {
                 "resource" => {
-                    generate_resource(name, options.target_module.as_deref(), options.layout)?
+                    generate_resource(
+                        name,
+                        options.target_module.as_deref(),
+                        options.layout,
+                        options.prompt_for_dto,
+                    )?
                 }
                 "controller" => {
                     generate_controller_only(name, options.target_module.as_deref(), options.layout)?
@@ -106,7 +164,7 @@ fn main() -> Result<()> {
             }
         }
         "db" => run_db_command(&args)?,
-        "docs" => run_docs_command()?,
+        "docs" | "export-docs" => run_export_docs_command(&args[2..])?,
         "fmt" => run_fmt_command()?,
         _ => {
             print_help();
@@ -142,7 +200,8 @@ fn print_help() {
     println!("  nestforge db generate <name>");
     println!("  nestforge db migrate");
     println!("  nestforge db status");
-    println!("  nestforge docs");
+    println!("  nestforge export-docs");
+    println!("  nestforge export-docs --format yaml --output docs/openapi.yaml");
     println!("  nestforge fmt");
     println!();
     println!("Install:");
@@ -164,6 +223,7 @@ fn print_help() {
     println!("  nestforge g grpc billing");
     println!("  nestforge g gateway events");
     println!("  nestforge g microservice users");
+    println!("  nestforge export-docs");
     println!("  nestforge db init");
     println!("  nestforge db generate create_users_table");
 }
@@ -348,22 +408,157 @@ fn run_fmt_command() -> Result<()> {
     Ok(())
 }
 
-fn run_docs_command() -> Result<()> {
+fn run_export_docs_command(args: &[String]) -> Result<()> {
     let app_root = detect_app_root().or_else(|_| env::current_dir())?;
-    let docs_dir = app_root.join("docs");
-    fs::create_dir_all(&docs_dir)?;
-    let openapi_file = docs_dir.join("openapi.json");
-    let skeleton = r#"{
-  "openapi": "3.1.0",
-  "info": {
-    "title": "NestForge API",
-    "version": "0.1.0"
-  },
-  "paths": {}
+    let options = parse_export_docs_options(args)?;
+    let output = options.output.unwrap_or_else(|| {
+        let file_name = match options.format.as_str() {
+            "yaml" => "openapi.yaml",
+            _ => "openapi.json",
+        };
+        app_root.join("docs").join(file_name)
+    });
+
+    export_openapi_docs(&app_root, &options.title, &options.version, &options.module_type, &output)
 }
-"#;
-    write_file(&openapi_file, skeleton)?;
-    println!("Generated OpenAPI skeleton at {}", openapi_file.display());
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ExportDocsOptions {
+    format: String,
+    output: Option<PathBuf>,
+    title: String,
+    version: String,
+    module_type: String,
+}
+
+fn parse_export_docs_options(args: &[String]) -> Result<ExportDocsOptions> {
+    let mut format = "json".to_string();
+    let mut output = None;
+    let mut title = "NestForge API".to_string();
+    let mut version = "0.1.0".to_string();
+    let mut module_type = "AppModule".to_string();
+    let mut index = 0usize;
+
+    while index < args.len() {
+        match args[index].as_str() {
+            "--format" => {
+                let Some(value) = args.get(index + 1) else {
+                    bail!("Use: nestforge export-docs [--format json|yaml] [--output <path>] [--title <title>] [--version <version>] [--module-type <type>]");
+                };
+                let normalized = value.to_ascii_lowercase();
+                if normalized != "json" && normalized != "yaml" {
+                    bail!("Unsupported docs format `{value}`. Use `json` or `yaml`.");
+                }
+                format = normalized;
+                index += 2;
+            }
+            "--output" => {
+                let Some(value) = args.get(index + 1) else {
+                    bail!("Use: nestforge export-docs [--format json|yaml] [--output <path>] [--title <title>] [--version <version>] [--module-type <type>]");
+                };
+                output = Some(PathBuf::from(value));
+                index += 2;
+            }
+            "--title" => {
+                let Some(value) = args.get(index + 1) else {
+                    bail!("Use: nestforge export-docs [--format json|yaml] [--output <path>] [--title <title>] [--version <version>] [--module-type <type>]");
+                };
+                title = value.clone();
+                index += 2;
+            }
+            "--version" => {
+                let Some(value) = args.get(index + 1) else {
+                    bail!("Use: nestforge export-docs [--format json|yaml] [--output <path>] [--title <title>] [--version <version>] [--module-type <type>]");
+                };
+                version = value.clone();
+                index += 2;
+            }
+            "--module-type" => {
+                let Some(value) = args.get(index + 1) else {
+                    bail!("Use: nestforge export-docs [--format json|yaml] [--output <path>] [--title <title>] [--version <version>] [--module-type <type>]");
+                };
+                module_type = value.clone();
+                index += 2;
+            }
+            _ => bail!("Use: nestforge export-docs [--format json|yaml] [--output <path>] [--title <title>] [--version <version>] [--module-type <type>]"),
+        }
+    }
+
+    Ok(ExportDocsOptions {
+        format,
+        output,
+        title,
+        version,
+        module_type,
+    })
+}
+
+fn export_openapi_docs(
+    app_root: &Path,
+    title: &str,
+    version: &str,
+    module_type: &str,
+    output: &Path,
+) -> Result<()> {
+    let main_rs = app_root.join("src/main.rs");
+    let temp_bin = app_root.join("src/bin/nestforge_export_docs.rs");
+    let top_level_mods = collect_top_level_modules(&main_rs)?;
+    let module_lines = top_level_mods
+        .iter()
+        .map(|module_name| {
+            let module_path = resolve_top_level_module_path(app_root, module_name)?;
+            let relative = relative_path_from(&temp_bin, &module_path)?;
+            Ok(format!("#[path = \"{}\"] mod {};", relative, module_name))
+        })
+        .collect::<Result<Vec<_>>>()?
+        .join("\n");
+    let output_path = output
+        .canonicalize()
+        .unwrap_or_else(|_| output.to_path_buf());
+    let output_path_string = output_path.to_string_lossy().replace('\\', "\\\\");
+
+    let script = format!(
+        r#"{module_lines}
+
+use anyhow::Context;
+
+fn main() -> anyhow::Result<()> {{
+    let doc = nestforge::openapi_doc_for_module::<app_module::{module_type}>("{title}", "{version}")
+        .context("Failed to collect OpenAPI metadata. Ensure the app depends on nestforge with the `openapi` feature enabled.")?;
+    let path = std::path::PathBuf::from(r"{output_path_string}");
+    if let Some(parent) = path.parent() {{
+        std::fs::create_dir_all(parent)?;
+    }}
+    let body = if path.extension().and_then(|ext| ext.to_str()) == Some("yaml") {{
+        doc.to_openapi_yaml()
+    }} else {{
+        nestforge::serde_json::to_string_pretty(&doc.to_openapi_json())?
+    }};
+    std::fs::write(&path, body)?;
+    println!("Exported OpenAPI spec to {{}}", path.display());
+    Ok(())
+}}
+"#
+    );
+
+    write_file(&temp_bin, &script)?;
+    let status = Command::new("cargo")
+        .args(["run", "--offline", "--quiet", "--bin", "nestforge_export_docs"])
+        .current_dir(app_root)
+        .status()
+        .with_context(|| format!("Failed to run cargo export in {}", app_root.display()))?;
+
+    let cleanup_result = fs::remove_file(&temp_bin);
+    if let Err(error) = cleanup_result {
+        eprintln!("Warning: failed to remove {}: {error}", temp_bin.display());
+    }
+
+    if !status.success() {
+        bail!(
+            "OpenAPI export failed. Ensure the app builds with `nestforge` feature `openapi` enabled."
+        );
+    }
+
     Ok(())
 }
 
@@ -536,17 +731,26 @@ fn generate_resource(
     name: &str,
     target_module: Option<&str>,
     layout: GeneratorLayout,
+    prompt_for_dto: bool,
 ) -> Result<()> {
     let app_root = detect_app_root()?;
     let resource = normalize_resource_name(name);
     let singular = singular_name(&resource);
     let pascal_plural = to_pascal_case(&resource);
     let pascal_singular = to_pascal_case(&singular);
+    let dto_fields = collect_dto_fields(&pascal_singular, prompt_for_dto)?;
 
     let target_root = generator_target_root(&app_root, target_module)?;
     let imports = resource_import_paths(target_module, layout, &resource, &singular);
 
-    generate_dto_files(&target_root, layout, &resource, &singular, &pascal_singular)?;
+    generate_dto_files(
+        &target_root,
+        layout,
+        &resource,
+        &singular,
+        &pascal_singular,
+        &dto_fields,
+    )?;
     generate_service_file(
         &target_root,
         layout,
@@ -1013,6 +1217,7 @@ fn generate_dto_files(
     resource: &str,
     singular: &str,
     pascal_singular: &str,
+    fields: &[DtoFieldSpec],
 ) -> Result<()> {
     let dto_dir = dto_dir(target_root, layout);
 
@@ -1021,17 +1226,123 @@ fn generate_dto_files(
     let update_file = dto_dir.join(format!("update_{}_dto.rs", singular));
 
     if !entity_file.exists() {
-        write_file(&entity_file, &template_entity_dto_rs(pascal_singular))?;
+        write_file(&entity_file, &template_entity_dto_rs(pascal_singular, fields))?;
     }
     if !create_file.exists() {
-        write_file(&create_file, &template_create_dto_rs(pascal_singular))?;
+        write_file(&create_file, &template_create_dto_rs(pascal_singular, fields))?;
     }
     if !update_file.exists() {
-        write_file(&update_file, &template_update_dto_rs(pascal_singular))?;
+        write_file(&update_file, &template_update_dto_rs(pascal_singular, fields))?;
     }
 
     let _ = resource; // kept for future template customization
     Ok(())
+}
+
+fn collect_dto_fields(resource_name: &str, prompt_for_dto: bool) -> Result<Vec<DtoFieldSpec>> {
+    if !prompt_for_dto || !io::stdin().is_terminal() || !io::stdout().is_terminal() {
+        return Ok(default_dto_fields());
+    }
+
+    println!();
+    println!("Configure DTO fields for {resource_name}:");
+    if !prompt_yes_no("Customize generated DTO fields?", false)? {
+        return Ok(default_dto_fields());
+    }
+
+    let mut fields = Vec::new();
+    loop {
+        let name = prompt_string("Field name (leave empty to finish)", true)?;
+        if name.is_empty() {
+            break;
+        }
+
+        let normalized = normalize_resource_name(&name);
+        if normalized.is_empty() {
+            println!("Field name cannot be empty.");
+            continue;
+        }
+
+        if fields.iter().any(|field: &DtoFieldSpec| field.name == normalized) {
+            println!("Field `{normalized}` already exists.");
+            continue;
+        }
+
+        let ty = prompt_field_type()?;
+        let required = prompt_yes_no("Required in Create DTO?", ty != DtoFieldType::Bool)?;
+        fields.push(DtoFieldSpec {
+            name: normalized,
+            ty,
+            required,
+        });
+    }
+
+    if fields.is_empty() {
+        Ok(default_dto_fields())
+    } else {
+        Ok(fields)
+    }
+}
+
+fn default_dto_fields() -> Vec<DtoFieldSpec> {
+    vec![DtoFieldSpec {
+        name: "name".to_string(),
+        ty: DtoFieldType::String,
+        required: true,
+    }]
+}
+
+fn prompt_string(prompt: &str, allow_empty: bool) -> Result<String> {
+    loop {
+        print!("{prompt}: ");
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let value = input.trim().to_string();
+        if allow_empty || !value.is_empty() {
+            return Ok(value);
+        }
+    }
+}
+
+fn prompt_yes_no(prompt: &str, default: bool) -> Result<bool> {
+    let suffix = if default { "[Y/n]" } else { "[y/N]" };
+    loop {
+        print!("{prompt} {suffix}: ");
+        io::stdout().flush()?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let normalized = input.trim().to_ascii_lowercase();
+        if normalized.is_empty() {
+            return Ok(default);
+        }
+        match normalized.as_str() {
+            "y" | "yes" => return Ok(true),
+            "n" | "no" => return Ok(false),
+            _ => println!("Enter `y` or `n`."),
+        }
+    }
+}
+
+fn prompt_field_type() -> Result<DtoFieldType> {
+    println!("Select a field type:");
+    for (index, ty) in DtoFieldType::choices().iter().enumerate() {
+        println!("  {}. {}", index + 1, ty.prompt_label());
+    }
+
+    loop {
+        let value = prompt_string("Type number", false)?;
+        let Ok(choice) = value.parse::<usize>() else {
+            println!("Enter a number from the list.");
+            continue;
+        };
+
+        if let Some(ty) = DtoFieldType::choices().get(choice.saturating_sub(1)).copied() {
+            return Ok(ty);
+        }
+
+        println!("Enter a number from the list.");
+    }
 }
 
 fn generate_service_file(
@@ -2564,12 +2875,18 @@ fn template_env_file(app_name: &str, transport: AppTransport) -> String {
     )
 }
 
-fn template_entity_dto_rs(pascal_singular: &str) -> String {
+fn template_entity_dto_rs(pascal_singular: &str, fields: &[DtoFieldSpec]) -> String {
+    let field_lines = fields
+        .iter()
+        .map(template_entity_field_line)
+        .collect::<Vec<_>>()
+        .join("\n");
+
     format!(
         r#"#[nestforge::dto]
 pub struct {pascal_singular}Dto {{
     pub id: u64,
-    pub name: String,
+{field_lines}
 }}
 
 nestforge::impl_identifiable!({pascal_singular}Dto, id);
@@ -2577,25 +2894,64 @@ nestforge::impl_identifiable!({pascal_singular}Dto, id);
     )
 }
 
-fn template_create_dto_rs(pascal_singular: &str) -> String {
+fn template_create_dto_rs(pascal_singular: &str, fields: &[DtoFieldSpec]) -> String {
+    let field_lines = fields
+        .iter()
+        .map(template_create_field_block)
+        .collect::<Vec<_>>()
+        .join("\n");
+
     format!(
         r#"#[nestforge::dto]
 pub struct Create{pascal_singular}Dto {{
-    #[validate(required)]
-    pub name: String,
+{field_lines}
 }}
 "#
     )
 }
 
-fn template_update_dto_rs(pascal_singular: &str) -> String {
+fn template_update_dto_rs(pascal_singular: &str, fields: &[DtoFieldSpec]) -> String {
+    let field_lines = fields
+        .iter()
+        .map(template_update_field_line)
+        .collect::<Vec<_>>()
+        .join("\n");
+
     format!(
         r#"#[nestforge::dto]
 pub struct Update{pascal_singular}Dto {{
-    pub name: Option<String>,
+{field_lines}
 }}
 "#
     )
+}
+
+fn template_entity_field_line(field: &DtoFieldSpec) -> String {
+    let ty = if field.required {
+        field.ty.rust_type().to_string()
+    } else {
+        format!("Option<{}>", field.ty.rust_type())
+    };
+
+    format!("    pub {}: {},", field.name, ty)
+}
+
+fn template_create_field_block(field: &DtoFieldSpec) -> String {
+    let mut lines = Vec::new();
+    if field.required {
+        lines.push("    #[validate(required)]".to_string());
+    }
+    let ty = if field.required {
+        field.ty.rust_type().to_string()
+    } else {
+        format!("Option<{}>", field.ty.rust_type())
+    };
+    lines.push(format!("    pub {}: {},", field.name, ty));
+    lines.join("\n")
+}
+
+fn template_update_field_line(field: &DtoFieldSpec) -> String {
+    format!("    pub {}: Option<{}>,", field.name, field.ty.rust_type())
 }
 
 fn template_resource_service_rs(
@@ -2608,11 +2964,11 @@ fn template_resource_service_rs(
     format!(
         r#"use nestforge::ResourceService;
 
- use {dto_import}::{pascal_singular}Dto;
+ use {entity_dto_import}::{pascal_singular}Dto;
 
 pub type {pascal_plural}Service = ResourceService<{pascal_singular}Dto>;
  "#,
-        dto_import = imports.dto_import
+        entity_dto_import = imports.entity_dto_import
     )
 }
 
@@ -2627,7 +2983,9 @@ fn template_resource_controller_rs(
         r#"use axum::Json;
 use nestforge::{{controller, routes, ApiResult, Inject, List, OptionHttpExt, Param, ResultHttpExt, ValidatedBody}};
 
- use {dto_import}::{{Create{pascal_singular}Dto, Update{pascal_singular}Dto, {pascal_singular}Dto}};
+ use {entity_dto_import}::{pascal_singular}Dto;
+ use {create_dto_import}::Create{pascal_singular}Dto;
+ use {update_dto_import}::Update{pascal_singular}Dto;
  use {service_import}::{pascal_plural}Service;
 
 #[controller("/{resource}")]
@@ -2685,7 +3043,9 @@ impl {pascal_plural}Controller {{
         resource = resource,
         pascal_plural = pascal_plural,
         pascal_singular = pascal_singular,
-        dto_import = imports.dto_import,
+        entity_dto_import = imports.entity_dto_import,
+        create_dto_import = imports.create_dto_import,
+        update_dto_import = imports.update_dto_import,
         service_import = imports.service_import
     )
 }
@@ -2861,6 +3221,69 @@ fn detect_app_root() -> Result<PathBuf> {
     bail!("Run generator inside an app folder (where Cargo.toml + src/ exist).")
 }
 
+fn collect_top_level_modules(main_rs: &Path) -> Result<Vec<String>> {
+    let content = fs::read_to_string(main_rs)
+        .with_context(|| format!("Failed to read {}", main_rs.display()))?;
+    let mut modules = Vec::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if let Some(module_name) = trimmed
+            .strip_prefix("mod ")
+            .and_then(|value| value.strip_suffix(';'))
+        {
+            modules.push(module_name.trim().to_string());
+        }
+    }
+
+    if !modules.iter().any(|module_name| module_name == "app_module") {
+        bail!(
+            "Could not find `mod app_module;` in {}. Use `--module-type` or export from a standard NestForge app layout.",
+            main_rs.display()
+        );
+    }
+
+    Ok(modules)
+}
+
+fn resolve_top_level_module_path(app_root: &Path, module_name: &str) -> Result<PathBuf> {
+    let src_root = app_root.join("src");
+    let file = src_root.join(format!("{module_name}.rs"));
+    if file.exists() {
+        return Ok(file);
+    }
+
+    let directory_mod = src_root.join(module_name).join("mod.rs");
+    if directory_mod.exists() {
+        return Ok(directory_mod);
+    }
+
+    bail!("Could not resolve module `{module_name}` under {}", src_root.display())
+}
+
+fn relative_path_from(from_file: &Path, to_file: &Path) -> Result<String> {
+    let from_dir = from_file
+        .parent()
+        .context("Temporary export file has no parent directory")?;
+    let from_components = from_dir.components().collect::<Vec<_>>();
+    let to_components = to_file.components().collect::<Vec<_>>();
+    let common_len = from_components
+        .iter()
+        .zip(&to_components)
+        .take_while(|(left, right)| left == right)
+        .count();
+
+    let mut relative = PathBuf::new();
+    for _ in common_len..from_components.len() {
+        relative.push("..");
+    }
+    for component in &to_components[common_len..] {
+        relative.push(component.as_os_str());
+    }
+
+    Ok(relative.to_string_lossy().replace('\\', "/"))
+}
+
 fn normalize_resource_name(name: &str) -> String {
     to_snake_case(name).replace(' ', "_")
 }
@@ -2868,13 +3291,14 @@ fn normalize_resource_name(name: &str) -> String {
 fn parse_generator_options(args: &[String]) -> Result<GeneratorOptions> {
     let mut target_module = None;
     let mut layout = GeneratorLayout::Nested;
+    let mut prompt_for_dto = true;
     let mut index = 0usize;
 
     while index < args.len() {
         match args[index].as_str() {
             "--module" => {
                 let Some(value) = args.get(index + 1) else {
-                    bail!("Invalid generator options. Use: --module <feature> [--flat]");
+                    bail!("Invalid generator options. Use: --module <feature> [--flat] [--no-prompt]");
                 };
                 let module = normalize_resource_name(value);
                 if module.is_empty() {
@@ -2887,13 +3311,18 @@ fn parse_generator_options(args: &[String]) -> Result<GeneratorOptions> {
                 layout = GeneratorLayout::Flat;
                 index += 1;
             }
-            _ => bail!("Invalid generator options. Use: --module <feature> [--flat]"),
+            "--no-prompt" => {
+                prompt_for_dto = false;
+                index += 1;
+            }
+            _ => bail!("Invalid generator options. Use: --module <feature> [--flat] [--no-prompt]"),
         }
     }
 
     Ok(GeneratorOptions {
         target_module,
         layout,
+        prompt_for_dto,
     })
 }
 
@@ -2941,7 +3370,9 @@ fn target_mod_file(target_root: &Path) -> Option<PathBuf> {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ResourceImportPaths {
-    dto_import: String,
+    entity_dto_import: String,
+    create_dto_import: String,
+    update_dto_import: String,
     service_import: String,
 }
 
@@ -2953,19 +3384,27 @@ fn resource_import_paths(
 ) -> ResourceImportPaths {
     match (target_module, layout) {
         (Some(module_name), GeneratorLayout::Nested) => ResourceImportPaths {
-            dto_import: format!("crate::{module_name}::dto"),
+            entity_dto_import: format!("crate::{module_name}::dto"),
+            create_dto_import: format!("crate::{module_name}::dto"),
+            update_dto_import: format!("crate::{module_name}::dto"),
             service_import: format!("crate::{module_name}::services"),
         },
         (Some(module_name), GeneratorLayout::Flat) => ResourceImportPaths {
-            dto_import: format!("crate::{module_name}"),
+            entity_dto_import: format!("crate::{module_name}"),
+            create_dto_import: format!("crate::{module_name}"),
+            update_dto_import: format!("crate::{module_name}"),
             service_import: format!("crate::{module_name}"),
         },
         (None, GeneratorLayout::Nested) => ResourceImportPaths {
-            dto_import: "crate::dto".to_string(),
+            entity_dto_import: "crate::dto".to_string(),
+            create_dto_import: "crate::dto".to_string(),
+            update_dto_import: "crate::dto".to_string(),
             service_import: "crate::services".to_string(),
         },
         (None, GeneratorLayout::Flat) => ResourceImportPaths {
-            dto_import: format!("crate::{}_dto", singular),
+            entity_dto_import: format!("crate::{}_dto", singular),
+            create_dto_import: format!("crate::create_{}_dto", singular),
+            update_dto_import: format!("crate::update_{}_dto", singular),
             service_import: format!("crate::{}_service", resource),
         },
     }
@@ -3381,12 +3820,15 @@ fn contains_sql_content(sql: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::{
-        compute_content_hash, contains_sql_content, parse_generator_options,
+        compute_content_hash, contains_sql_content, parse_export_docs_options,
+        parse_generator_options,
         parse_new_transport_arg, template_exception_filter_rs, template_feature_mod_rs,
-        template_microservice_patterns_rs, template_named_ws_gateway_rs,
+        template_microservice_patterns_rs, template_named_ws_gateway_rs, template_create_dto_rs,
         template_request_decorator_rs, template_serializer_rs, AppTransport, GeneratorLayout,
-        GeneratorOptions,
+        GeneratorOptions, DtoFieldSpec, DtoFieldType, ExportDocsOptions,
     };
 
     #[test]
@@ -3477,8 +3919,73 @@ mod tests {
             GeneratorOptions {
                 target_module: Some("users".to_string()),
                 layout: GeneratorLayout::Flat,
+                prompt_for_dto: true,
             }
         );
+    }
+
+    #[test]
+    fn parse_generator_options_supports_no_prompt() {
+        let options = parse_generator_options(&["--no-prompt".to_string()])
+            .expect("generator options should parse");
+
+        assert_eq!(
+            options,
+            GeneratorOptions {
+                target_module: None,
+                layout: GeneratorLayout::Nested,
+                prompt_for_dto: false,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_export_docs_options_supports_custom_output() {
+        let options = parse_export_docs_options(&[
+            "--format".to_string(),
+            "yaml".to_string(),
+            "--output".to_string(),
+            "docs/openapi.yaml".to_string(),
+            "--title".to_string(),
+            "Users API".to_string(),
+            "--version".to_string(),
+            "2.0.0".to_string(),
+        ])
+        .expect("export options should parse");
+
+        assert_eq!(
+            options,
+            ExportDocsOptions {
+                format: "yaml".to_string(),
+                output: Some(PathBuf::from("docs/openapi.yaml")),
+                title: "Users API".to_string(),
+                version: "2.0.0".to_string(),
+                module_type: "AppModule".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn template_create_dto_uses_custom_field_specs() {
+        let template = template_create_dto_rs(
+            "User",
+            &[
+                DtoFieldSpec {
+                    name: "email".to_string(),
+                    ty: DtoFieldType::String,
+                    required: true,
+                },
+                DtoFieldSpec {
+                    name: "age".to_string(),
+                    ty: DtoFieldType::U32,
+                    required: false,
+                },
+            ],
+        );
+
+        assert!(template.contains("#[validate(required)]"));
+        assert!(template.contains("pub email: String,"));
+        assert!(template.contains("pub age: Option<u32>,"));
     }
 
     #[test]

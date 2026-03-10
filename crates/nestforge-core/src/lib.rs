@@ -26,7 +26,11 @@ pub mod validation;
 
 pub use auth::{AuthIdentity, AuthUser, BearerToken, OptionalAuthUser};
 pub use container::{Container, ContainerError};
-pub use documentation::{DocumentedController, RouteDocumentation, RouteResponseDocumentation};
+pub use documentation::{
+    openapi_array_schema_for, openapi_nullable_schema_for, openapi_schema_components_for,
+    openapi_schema_for, DocumentedController, OpenApiSchema, OpenApiSchemaComponent,
+    RouteDocumentation, RouteResponseDocumentation,
+};
 pub use error::HttpException;
 pub use http_ext::{OptionHttpExt, ResultHttpExt};
 pub use inject::Inject;

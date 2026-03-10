@@ -10,13 +10,16 @@ pub use nestforge_core::{
     ControllerDefinition, Cookies, Decorated, DocumentedController, DynamicModuleBuilder,
     ExceptionFilter, Guard, Headers, HttpException, Identifiable, InMemoryStore, InitializedModule,
     Inject, Interceptor, LifecycleHook, List, ModuleDefinition, ModuleGraphEntry,
-    ModuleGraphReport, ModuleRef, NextFn, NextFuture, OptionHttpExt, OptionalAuthUser, Param, Pipe,
-    PipedBody, PipedParam, PipedQuery, Provider, Query, RegisterProvider, RequestContext,
-    RequestDecorator, RequestId, RequireAuthenticationGuard, ResourceError, ResourceService,
-    ResponseEnvelope, ResponseSerializer, ResultHttpExt, RoleRequirementsGuard, RouteBuilder,
-    RouteDocumentation, RouteResponseDocumentation, Serialized, Validate, ValidatedBody,
-    ValidationErrors, ValidationIssue,
+    ModuleGraphReport, ModuleRef, NextFn, NextFuture, OpenApiSchema, OpenApiSchemaComponent,
+    OptionHttpExt, OptionalAuthUser, Param, Pipe, PipedBody, PipedParam, PipedQuery, Provider,
+    Query, RegisterProvider, RequestContext, RequestDecorator, RequestId,
+    RequireAuthenticationGuard, ResourceError, ResourceService, ResponseEnvelope,
+    ResponseSerializer, ResultHttpExt, RoleRequirementsGuard, RouteBuilder, RouteDocumentation,
+    RouteResponseDocumentation, Serialized, Validate, ValidatedBody, ValidationErrors,
+    ValidationIssue, openapi_array_schema_for, openapi_nullable_schema_for,
+    openapi_schema_components_for, openapi_schema_for,
 };
+pub use serde_json;
 
 #[cfg(feature = "cache")]
 pub use nestforge_cache::{

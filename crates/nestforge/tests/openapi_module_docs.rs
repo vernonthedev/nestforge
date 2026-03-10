@@ -6,6 +6,21 @@ use nestforge::{
 };
 use tower::util::ServiceExt;
 
+#[nestforge::dto]
+struct CreateUserDto {
+    #[validate(required, email)]
+    email: String,
+    #[validate(min_length = 3)]
+    display_name: String,
+}
+
+#[nestforge::dto]
+struct UserDto {
+    id: u64,
+    email: String,
+    display_name: String,
+}
+
 #[nestforge::controller("/users")]
 struct UsersController;
 
@@ -28,6 +43,18 @@ impl UsersController {
     #[nestforge::response(status = 200, description = "Current user returned")]
     async fn me() -> nestforge::ApiResult<String> {
         Ok(axum::Json("alice".to_string()))
+    }
+
+    #[nestforge::post("/")]
+    async fn create(
+        body: nestforge::ValidatedBody<CreateUserDto>,
+    ) -> nestforge::ApiResult<UserDto> {
+        let dto = body.value();
+        Ok(axum::Json(UserDto {
+            id: 1,
+            email: dto.email,
+            display_name: dto.display_name,
+        }))
     }
 }
 
@@ -52,7 +79,7 @@ fn openapi_doc_for_module_collects_documented_routes() {
     let doc = openapi_doc_for_module::<AppModule>("Test API", "1.0.0")
         .expect("openapi doc should generate");
 
-    assert_eq!(doc.routes.len(), 2);
+    assert_eq!(doc.routes.len(), 3);
     assert!(doc.routes.iter().any(|route| route.requires_auth));
     assert!(doc
         .routes
@@ -66,6 +93,25 @@ fn openapi_doc_for_module_collects_documented_routes() {
         .routes
         .iter()
         .any(|route| route.summary.as_deref() == Some("List users")));
+
+    let openapi = doc.to_openapi_json();
+    let create_operation = &openapi["paths"]["/users"]["post"];
+    assert!(create_operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        .as_str()
+        .is_some());
+    assert_eq!(
+        openapi["components"]["schemas"]["CreateUserDto"]["properties"]["email"]["format"],
+        "email"
+    );
+    assert_eq!(
+        openapi["components"]["schemas"]["CreateUserDto"]["properties"]["display_name"]
+            ["minLength"],
+        3
+    );
+    assert_eq!(
+        openapi["components"]["schemas"]["UserDto"]["properties"]["id"]["type"],
+        "integer"
+    );
 }
 
 #[tokio::test]

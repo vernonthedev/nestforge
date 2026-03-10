@@ -7,8 +7,9 @@ use syn::{
     parse_macro_input, parse_quote,
     punctuated::Punctuated,
     spanned::Spanned,
-    Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, ImplItem, ImplItemFn, ItemImpl,
-    ItemStruct, LitStr, Meta, Token, Type,
+    Attribute, Data, DeriveInput, Expr, Field, Fields, FnArg, GenericArgument, Ident, ImplItem,
+    ImplItemFn, ItemImpl, ItemStruct, LitStr, Meta, PatType, PathArguments, ReturnType, Token,
+    Type,
 };
 
 /*
@@ -167,21 +168,25 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     vec![nestforge::RouteResponseDocumentation {
                         status: 200,
                         description: "OK".to_string(),
+                        schema: None,
                     }]
                 }
             } else {
                 let responses = doc_meta.responses.iter().map(|response| {
                     let description = LitStr::new(&response.description, method.sig.ident.span());
                     let status = response.status;
-                    quote! {
-                        nestforge::RouteResponseDocumentation {
-                            status: #status,
-                            description: #description.to_string(),
+                        quote! {
+                            nestforge::RouteResponseDocumentation {
+                                status: #status,
+                                description: #description.to_string(),
+                                schema: None,
+                            }
                         }
-                    }
-                });
-                quote! { vec![#(#responses),*] }
-            };
+                    });
+                    quote! { vec![#(#responses),*] }
+                };
+            let request_schema_tokens = infer_request_body_doc_tokens(method);
+            let response_schema_tokens = infer_response_body_doc_tokens(&method.sig.output);
             let summary_tokens = if let Some(summary) = &doc_meta.summary {
                 let summary_lit = LitStr::new(summary, method.sig.ident.span());
                 quote! { doc = doc.with_summary(#summary_lit); }
@@ -227,13 +232,15 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     .with_responses(#response_docs);
                     #summary_tokens
                     #description_tokens
-                    #tag_tokens
-                    #auth_tokens
-                    #role_tokens
-                    doc
-                }
-            });
-        }
+                      #tag_tokens
+                      #auth_tokens
+                      #role_tokens
+                      #request_schema_tokens
+                      #response_schema_tokens
+                      doc
+                  }
+              });
+          }
     }
 
     let expanded = quote! {
@@ -438,15 +445,153 @@ pub fn roles(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+fn build_openapi_schema_impl(input: &ItemStruct) -> TokenStream2 {
+    let name = &input.ident;
+    let schema_body = build_openapi_schema_body(input);
+
+    quote! {
+        impl nestforge::OpenApiSchema for #name {
+            fn schema_name() -> Option<&'static str> {
+                Some(stringify!(#name))
+            }
+
+            fn schema() -> nestforge::serde_json::Value {
+                #schema_body
+            }
+        }
+    }
+}
+
+fn build_openapi_schema_body(input: &ItemStruct) -> TokenStream2 {
+    let Fields::Named(fields) = &input.fields else {
+        return quote! {
+            nestforge::serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            })
+        };
+    };
+
+    let property_builders = fields.named.iter().filter_map(build_openapi_property_tokens);
+    let required_fields = fields
+        .named
+        .iter()
+        .filter_map(required_field_literal)
+        .collect::<Vec<_>>();
+
+    quote! {{
+        let mut properties = nestforge::serde_json::Map::new();
+        #(#property_builders)*
+        nestforge::serde_json::json!({
+            "type": "object",
+            "properties": properties,
+            "required": [#(#required_fields),*]
+        })
+    }}
+}
+
+fn build_openapi_property_tokens(field: &Field) -> Option<TokenStream2> {
+    let field_ident = field.ident.as_ref()?;
+    let field_name = LitStr::new(&field_ident.to_string(), field_ident.span());
+    let field_ty = &field.ty;
+    let rules = parse_validate_rules(&field.attrs);
+    let schema_expr = schema_expression_for_type(field_ty);
+    let validations = validation_schema_mutations(&rules);
+
+    Some(quote! {
+        {
+            let mut property = #schema_expr;
+            #validations
+            properties.insert(#field_name.to_string(), property);
+        }
+    })
+}
+
+fn required_field_literal(field: &Field) -> Option<LitStr> {
+    let field_ident = field.ident.as_ref()?;
+    let rules = parse_validate_rules(&field.attrs);
+    if is_option_any(&field.ty) && !rules.required {
+        return None;
+    }
+
+    Some(LitStr::new(&field_ident.to_string(), field_ident.span()))
+}
+
+fn validation_schema_mutations(rules: &ValidateRules) -> TokenStream2 {
+    let mut tokens = Vec::new();
+
+    if rules.email {
+        tokens.push(quote! {
+            if let Some(object) = property.as_object_mut() {
+                object.insert(
+                    "format".to_string(),
+                    nestforge::serde_json::Value::String("email".to_string()),
+                );
+            }
+        });
+    }
+
+    if let Some(min_length) = rules.min_length {
+        tokens.push(quote! {
+            if let Some(object) = property.as_object_mut() {
+                object.insert(
+                    "minLength".to_string(),
+                    nestforge::serde_json::json!(#min_length),
+                );
+            }
+        });
+    }
+
+    if let Some(max_length) = rules.max_length {
+        tokens.push(quote! {
+            if let Some(object) = property.as_object_mut() {
+                object.insert(
+                    "maxLength".to_string(),
+                    nestforge::serde_json::json!(#max_length),
+                );
+            }
+        });
+    }
+
+    if let Some(min) = &rules.min {
+        tokens.push(quote! {
+            if let Some(object) = property.as_object_mut() {
+                object.insert(
+                    "minimum".to_string(),
+                    nestforge::serde_json::json!(#min),
+                );
+            }
+        });
+    }
+
+    if let Some(max) = &rules.max {
+        tokens.push(quote! {
+            if let Some(object) = property.as_object_mut() {
+                object.insert(
+                    "maximum".to_string(),
+                    nestforge::serde_json::json!(#max),
+                );
+            }
+        });
+    }
+
+    quote! { #(#tokens)* }
+}
+
 #[proc_macro_attribute]
 pub fn dto(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemStruct);
+    let schema_impl = build_openapi_schema_impl(&input);
 
     input.attrs.push(parse_quote!(
         #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, nestforge::Validate)]
     ));
 
-    TokenStream::from(quote! { #input })
+    TokenStream::from(quote! {
+        #input
+        #schema_impl
+    })
 }
 
 #[proc_macro_attribute]
@@ -490,12 +635,16 @@ pub fn identifiable(_attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn response_dto(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemStruct);
+    let schema_impl = build_openapi_schema_impl(&input);
 
     input
         .attrs
         .push(parse_quote!(#[derive(Debug, Clone, serde::Serialize)]));
 
-    TokenStream::from(quote! { #input })
+    TokenStream::from(quote! {
+        #input
+        #schema_impl
+    })
 }
 
 #[proc_macro_attribute]
@@ -525,6 +674,7 @@ pub fn entity_dto(_attr: TokenStream, item: TokenStream) -> TokenStream {
     ));
 
     let name = &input.ident;
+    let schema_impl = build_openapi_schema_impl(&input);
 
     TokenStream::from(quote! {
         #input
@@ -538,6 +688,8 @@ pub fn entity_dto(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 self.#id_field_name = id;
             }
         }
+
+        #schema_impl
     })
 }
 
@@ -1108,6 +1260,94 @@ fn parse_route_attr(attr: &Attribute) -> Option<(String, String)> {
     };
 
     Some((ident, path))
+}
+
+fn infer_request_body_doc_tokens(method: &ImplItemFn) -> TokenStream2 {
+    let Some(payload_ty) = method
+        .sig
+        .inputs
+        .iter()
+        .find_map(extract_request_payload_type)
+    else {
+        return quote! {};
+    };
+
+    let schema_expr = schema_expression_for_type(&payload_ty);
+    quote! {
+        doc = doc.with_request_body_schema(#schema_expr);
+        doc = doc.with_schema_components(nestforge::openapi_schema_components_for::<#payload_ty>());
+    }
+}
+
+fn infer_response_body_doc_tokens(output: &ReturnType) -> TokenStream2 {
+    let Some(payload_ty) = extract_response_payload_type(output) else {
+        return quote! {};
+    };
+
+    let schema_expr = schema_expression_for_type(&payload_ty);
+    quote! {
+        doc = doc.with_success_response_schema(#schema_expr);
+        doc = doc.with_schema_components(nestforge::openapi_schema_components_for::<#payload_ty>());
+    }
+}
+
+fn extract_request_payload_type(arg: &FnArg) -> Option<Type> {
+    let FnArg::Typed(PatType { ty, .. }) = arg else {
+        return None;
+    };
+
+    extract_inner_type_named(ty, &["ValidatedBody", "Body", "Json"])
+}
+
+fn extract_response_payload_type(output: &ReturnType) -> Option<Type> {
+    let ReturnType::Type(_, ty) = output else {
+        return None;
+    };
+
+    unwrap_response_type(ty)
+}
+
+fn unwrap_response_type(ty: &Type) -> Option<Type> {
+    if let Some(inner) = extract_inner_type_named(ty, &["ApiResult", "Json"]) {
+        return unwrap_response_type(&inner).or(Some(inner));
+    }
+
+    if let Some(inner) = extract_inner_type_named(ty, &["Result"]) {
+        return unwrap_response_type(&inner).or(Some(inner));
+    }
+
+    Some(ty.clone())
+}
+
+fn schema_expression_for_type(ty: &Type) -> TokenStream2 {
+    if let Some(inner) = extract_inner_type_named(ty, &["Vec", "List"]) {
+        return quote! { nestforge::openapi_array_schema_for::<#inner>() };
+    }
+
+    if let Some(inner) = extract_inner_type_named(ty, &["Option"]) {
+        return quote! { nestforge::openapi_nullable_schema_for::<#inner>() };
+    }
+
+    quote! { nestforge::openapi_schema_for::<#ty>() }
+}
+
+fn extract_inner_type_named(ty: &Type, names: &[&str]) -> Option<Type> {
+    let Type::Path(type_path) = ty else {
+        return None;
+    };
+    let segment = type_path.path.segments.last()?;
+    if !names.iter().any(|name| segment.ident == *name) {
+        return None;
+    }
+
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return None;
+    };
+
+    args.args.iter().find_map(|arg| match arg {
+        GenericArgument::Type(inner) => Some(inner.clone()),
+        _ => None,
+    })
 }
 
 /* -------- module parser -------- */

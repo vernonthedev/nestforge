@@ -32,6 +32,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 - Global prefix support (`.with_global_prefix("api")`)
 - Generated OpenAPI docs from controller metadata with runtime mounting helpers
 - Swagger UI and Redoc hosting for generated OpenAPI docs
+- DTO-driven OpenAPI schema generation for request and response bodies
 - Optional GraphQL support through a dedicated `nestforge-graphql` crate and factory helpers
 - Optional gRPC transport support through a dedicated `nestforge-grpc` crate
 - Optional WebSocket gateway support through a dedicated `nestforge-websockets` crate
@@ -217,6 +218,13 @@ src/users/
     update_user_dto.rs
 ```
 
+When you generate a resource from a real terminal, the CLI can now prompt for DTO fields so the scaffolded `Create*Dto`, `Update*Dto`, and entity DTO match your domain instead of defaulting to a single `name` field. For non-interactive runs, pass `--no-prompt` or let the CLI fall back to the default field set.
+
+```bash
+nestforge g resource users --module users --flat
+nestforge g resource users --module users --flat --no-prompt
+```
+
 DB commands:
 
 ```bash
@@ -258,6 +266,14 @@ NestForgeFactory::<AppModule>::create()?
 - Validation via `ValidatedBody<T>`
 - Guard/interceptor usage at route level
 - Generated `/docs` and `/openapi.json` routes from controller metadata
+- Generated OpenAPI schemas for DTOs used in `ValidatedBody<T>`, `Body<T>`, and `ApiResult<T>`
+
+Export a static spec for CI/CD or frontend handoff:
+
+```bash
+nestforge export-docs
+nestforge export-docs --format yaml --output docs/openapi.yaml
+```
 - Config loading with `ConfigModule::for_root`
 - Versioned routes (`v1`, `v2`)
 

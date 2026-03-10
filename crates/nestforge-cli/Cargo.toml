@@ -23,6 +23,8 @@ clap = { version = "4.5", features = ["derive", "wrap_help", "color"] }
 indicatif = "0.17"
 miette = { version = "7", features = ["fancy"] }
 owo-colors = "4"
+ratatui = "0.29"
+crossterm = "0.28"
 
 
 

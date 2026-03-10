@@ -13,6 +13,7 @@ use std::{
 
 mod cli;
 mod diagnostics;
+mod tui;
 mod ui;
 
 use crate::cli::{
@@ -20,6 +21,7 @@ use crate::cli::{
     GeneratorLayout, NewArgs,
 };
 use crate::diagnostics::render_cli_error;
+use crate::tui::{run_generate_wizard, run_new_wizard};
 use crate::ui::{
     interactive_enabled, print_brand_banner, print_note, print_success, prompt_generator_kind,
     prompt_transport, start_spinner,
@@ -125,6 +127,10 @@ fn run_cli(cli: Cli) -> Result<()> {
 
 fn resolve_new_args(args: NewArgs) -> Result<(String, AppTransport)> {
     let interactive = interactive_enabled(!args.no_tui);
+    if interactive && (args.app_name.is_none() || args.transport.is_none()) {
+        return run_new_wizard();
+    }
+
     let app_name = match args.app_name {
         Some(name) => name,
         None if interactive => prompt_string("Application name (example: care-api)", false)?,
@@ -146,6 +152,19 @@ fn resolve_generate_args(
     args: GenerateArgs,
 ) -> Result<(GeneratorKindArg, String, GeneratorOptions)> {
     let interactive = interactive_enabled(!args.no_tui);
+    if interactive && (args.kind.is_none() || args.name.is_none()) {
+        let result = run_generate_wizard()?;
+        return Ok((
+            result.kind,
+            result.name,
+            GeneratorOptions {
+                target_module: result.module.map(|value| normalize_resource_name(&value)),
+                layout: result.layout,
+                prompt_for_dto: !result.no_prompt,
+            },
+        ));
+    }
+
     let kind = match args.kind {
         Some(kind) => kind,
         None if interactive => prompt_generator_kind()?,

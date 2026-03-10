@@ -235,6 +235,10 @@ impl NewWizardState {
             KeyCode::Right if matches!(self.focus, NewField::Transport) => {
                 self.transport = next_transport(self.transport)
             }
+            KeyCode::Enter if matches!(self.focus, NewField::Transport) => {
+                self.transport = next_transport(self.transport);
+                self.focus = NewField::Submit;
+            }
             KeyCode::Backspace if matches!(self.focus, NewField::Name) => {
                 self.app_name.pop();
             }
@@ -434,6 +438,22 @@ impl GenerateWizardState {
             KeyCode::Right if matches!(self.focus, GenerateField::Kind) => {
                 self.kind = next_kind(self.kind)
             }
+            KeyCode::Enter if matches!(self.focus, GenerateField::Kind) => {
+                self.kind = next_kind(self.kind);
+                self.focus = GenerateField::Name;
+            }
+            KeyCode::Enter if matches!(self.focus, GenerateField::InModule) => {
+                self.in_module = !self.in_module;
+                self.focus = next_generate_field(self.focus, self.in_module);
+            }
+            KeyCode::Enter if matches!(self.focus, GenerateField::Layout) => {
+                self.flat = !self.flat;
+                self.focus = GenerateField::Prompt;
+            }
+            KeyCode::Enter if matches!(self.focus, GenerateField::Prompt) => {
+                self.no_prompt = !self.no_prompt;
+                self.focus = GenerateField::Submit;
+            }
             KeyCode::Left | KeyCode::Right | KeyCode::Char(' ') => match self.focus {
                 GenerateField::InModule => self.in_module = !self.in_module,
                 GenerateField::Layout => self.flat = !self.flat,
@@ -502,13 +522,13 @@ fn centered_rect(
 fn value_block<'a>(title: &'a str, value: &'a str, hint: &'a str, active: bool) -> Paragraph<'a> {
     let (display, style) = if value.trim().is_empty() {
         (
-            hint.to_string(),
-            Style::default().dark_gray().add_modifier(Modifier::ITALIC),
+            format!("Hint: {hint}"),
+            Style::default().gray().add_modifier(Modifier::ITALIC),
         )
     } else {
         (
-            format!("{value}{}", if active { " _" } else { "" }),
-            Style::default(),
+            format!("Value: {value}{}", if active { " _" } else { "" }),
+            Style::default().white(),
         )
     };
 
@@ -521,13 +541,17 @@ fn value_block<'a>(title: &'a str, value: &'a str, hint: &'a str, active: bool) 
 }
 
 fn toggle_block<'a>(title: &'a str, enabled: bool, active: bool) -> Paragraph<'a> {
-    let state = if enabled { "On" } else { "Off" };
+    let state = if enabled {
+        "On  | press Space/Enter to turn Off"
+    } else {
+        "Off | press Space/Enter to turn On"
+    };
     Paragraph::new(Line::from(vec![Span::styled(
         state,
         if enabled {
             Style::default().green().add_modifier(Modifier::BOLD)
         } else {
-            Style::default().dark_gray()
+            Style::default().gray()
         },
     )]))
     .block(
@@ -544,7 +568,7 @@ fn submit_block<'a>(label: &'a str, active: bool) -> Paragraph<'a> {
         if active {
             Style::default().yellow().add_modifier(Modifier::BOLD)
         } else {
-            Style::default()
+            Style::default().white()
         },
     )]))
     .block(

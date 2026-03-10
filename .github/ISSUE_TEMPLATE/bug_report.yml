@@ -1,83 +1,103 @@
-name: Bug Report
-description: Report a reproducible defect in NestForge.
+name: "Bug Report"
+description: "Report a bug to help us improve NestForge"
 title: "bug: "
-labels:
-  - triage-needed
+labels: ["triage-needed"]
 body:
   - type: markdown
     attributes:
-      value: |
-        Provide a minimal reproducible example. Issues without reproduction details are hard to validate and usually stall.
+      value: "Please provide a clear description of the bug."
   - type: dropdown
     id: area
     attributes:
-      label: Area
+      label: "Area"
+      description: "Which part of NestForge is affected?"
       options:
-        - core
-        - modules
-        - cli
+        - "core"
+        - "modules"
+        - "cli"
     validations:
       required: true
   - type: input
     id: nestforge_version
     attributes:
-      label: NestForge Version
-      placeholder: 1.2.1
+      label: "NestForge Version"
+      placeholder: "1.3.0"
     validations:
       required: true
   - type: input
     id: rust_version
     attributes:
-      label: Rust Version
-      placeholder: rustc 1.87.0
+      label: "Rust Version"
+      placeholder: "rustc 1.87.0"
     validations:
       required: true
   - type: input
     id: os
     attributes:
-      label: Operating System
-      placeholder: Windows 11 / Ubuntu 24.04 / macOS 15
+      label: "Operating System"
+      placeholder: "Windows 11 / Ubuntu 24.04 / macOS 15"
     validations:
       required: true
   - type: input
     id: edition
     attributes:
-      label: Rust Edition
-      placeholder: 2021
+      label: "Rust Edition"
+      placeholder: "2021"
     validations:
       required: true
   - type: textarea
     id: summary
     attributes:
-      label: Bug Summary
-      placeholder: What is failing, and what did you expect instead?
+      label: "Summary"
+      placeholder: "What happened, and what did you expect instead?"
     validations:
       required: true
   - type: textarea
-    id: mre
+    id: technical_spec
     attributes:
-      label: Minimal Reproducible Example
-      description: Include the smallest code, command sequence, or repo layout that reproduces the bug.
+      label: "Technical Spec"
+      description: "Describe the affected module, API surface, or runtime path."
+      placeholder: |
+        Affected crate/module:
+        Affected API or macro:
+        Expected behavior:
+        Actual behavior:
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: "Minimal Reproducible Example"
+      description: "Include the smallest code sample, commands, or repo layout that reproduces the bug."
       render: shell
-    validations:
-      required: true
-  - type: textarea
-    id: expected
-    attributes:
-      label: Expected Behavior
-    validations:
-      required: true
-  - type: textarea
-    id: actual
-    attributes:
-      label: Actual Behavior
     validations:
       required: true
   - type: textarea
     id: cargo_output
     attributes:
-      label: cargo check / cargo test Output
-      description: Paste the exact output from `cargo check`, `cargo test`, or the failing command.
+      label: "cargo check / cargo test Output"
+      description: "Paste the exact failing command output."
       render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: breaking_change
+    attributes:
+      label: "Breaking Change Analysis"
+      placeholder: "Does this change public behavior, generated code, or migration expectations?"
+    validations:
+      required: true
+  - type: textarea
+    id: performance_impact
+    attributes:
+      label: "Performance Impact"
+      placeholder: "Describe any runtime, startup, allocation, or compile-time impact."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "Alternatives Considered"
+      placeholder: "List any workarounds, mitigations, or alternative designs you considered."
     validations:
       required: true

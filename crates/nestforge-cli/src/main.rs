@@ -2707,7 +2707,7 @@ impl nestforge::FromEnv for AppConfig {{
 }
 
 fn template_graphql_schema_rs() -> String {
-    r#"use nestforge::async_graphql::{EmptyMutation, EmptySubscription, Object, Schema};
+    r#"use nestforge::async_graphql::{self, EmptyMutation, EmptySubscription, Object, Schema};
 
 pub type AppSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
 
@@ -2736,7 +2736,7 @@ impl QueryRoot {
 fn template_graphql_resolver_rs(resolver_name: &str, pascal_name: &str) -> String {
     let field_name = format!("{}_status", resolver_name);
     format!(
-        r#"use nestforge::async_graphql::Object;
+        r#"use nestforge::async_graphql::{{self, Object}};
 
 pub struct {pascal_name}Resolver;
 
@@ -4075,6 +4075,13 @@ mod tests {
 
         assert!(main_rs.contains("serde_json::json!({"));
         assert!(!main_rs.contains("serde_json::json!({{"));
+    }
+
+    #[test]
+    fn template_graphql_schema_imports_async_graphql_crate_path() {
+        let schema = super::template_graphql_schema_rs();
+
+        assert!(schema.contains("use nestforge::async_graphql::{self, EmptyMutation, EmptySubscription, Object, Schema};"));
     }
 
     #[test]

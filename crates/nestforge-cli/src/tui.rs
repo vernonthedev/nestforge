@@ -182,7 +182,7 @@ impl NewWizardState {
             chunks[0],
         );
         frame.render_widget(
-            value_block(
+            field_row(
                 "Application Name",
                 &self.app_name,
                 "Type the project folder name",
@@ -191,7 +191,7 @@ impl NewWizardState {
             chunks[1],
         );
         frame.render_widget(
-            value_block(
+            field_row(
                 "Transport",
                 self.transport.label(),
                 "Use Left/Right to change",
@@ -350,7 +350,7 @@ impl GenerateWizardState {
             chunks[0],
         );
         frame.render_widget(
-            value_block(
+            field_row(
                 "Generator",
                 self.kind.label(),
                 "Use Left/Right to change",
@@ -359,7 +359,7 @@ impl GenerateWizardState {
             chunks[1],
         );
         frame.render_widget(
-            value_block(
+            field_row(
                 "Name",
                 &self.name,
                 "Type the generated resource or module name",
@@ -376,7 +376,7 @@ impl GenerateWizardState {
             chunks[3],
         );
         frame.render_widget(
-            value_block(
+            field_row(
                 "Module Name",
                 &self.module_name_value(),
                 if self.in_module {
@@ -519,28 +519,28 @@ fn centered_rect(
     horizontal[1]
 }
 
-fn value_block<'a>(title: &'a str, value: &'a str, hint: &'a str, active: bool) -> Paragraph<'a> {
+fn field_row<'a>(title: &'a str, value: &'a str, hint: &'a str, active: bool) -> Paragraph<'a> {
     let (display, style) = if value.trim().is_empty() {
         (
-            format!("Hint: {hint}"),
+            format!("{title}: {hint}"),
             Style::default().gray().add_modifier(Modifier::ITALIC),
         )
     } else {
         (
-            format!("Value: {value}{}", if active { " _" } else { "" }),
-            Style::default().white(),
+            format!("{title}: {value}{}", if active { " _" } else { "" }),
+            Style::default(),
         )
     };
 
     Paragraph::new(display).style(style).block(
         Block::default()
-            .title(format!(" {}{} ", if active { "> " } else { "" }, title))
+            .title(if active { " > " } else { " " })
             .borders(Borders::ALL)
             .border_style(active_border(active)),
     )
 }
 
-fn toggle_block<'a>(title: &'a str, enabled: bool, active: bool) -> Paragraph<'a> {
+fn toggle_block<'a>(_title: &'a str, enabled: bool, active: bool) -> Paragraph<'a> {
     let state = if enabled {
         "On  | press Space/Enter to turn Off"
     } else {
@@ -556,7 +556,7 @@ fn toggle_block<'a>(title: &'a str, enabled: bool, active: bool) -> Paragraph<'a
     )]))
     .block(
         Block::default()
-            .title(format!(" {}{} ", if active { "> " } else { "" }, title))
+            .title(if active { " > " } else { " " })
             .borders(Borders::ALL)
             .border_style(active_border(active)),
     )
@@ -573,7 +573,7 @@ fn submit_block<'a>(label: &'a str, active: bool) -> Paragraph<'a> {
     )]))
     .block(
         Block::default()
-            .title(format!(" {}{} ", if active { "> " } else { "" }, "Submit"))
+            .title(if active { " > " } else { " " })
             .borders(Borders::ALL)
             .border_style(active_border(active)),
     )

@@ -155,3 +155,25 @@ Documentation wiki: https://github.com/vernonthedev/nestforge/wiki
 * chore: application fixes for the primitive bugs ([2602290](https://github.com/vernonthedev/nestforge/commit/2602290d0f5c742f8a1574fa3b3e8d8fdd864e99))
 * docs: updated version number to 1.2.0 in README ([543abfc](https://github.com/vernonthedev/nestforge/commit/543abfcef53e7fb96fc25412c3005ccd361a2ac7))
 
+
+
+## [1.3.0](https://github.com/vernonthedev/nestforge/compare/v1.2.1...v1.3.0) (2026-03-10)
+
+### Features
+
+* feat: setup integrated openai docs autogenerations, fixes #8 ([20e8510](https://github.com/vernonthedev/nestforge/commit/20e8510b1d5b888875aba9a118885f466a72ac1f))
+* feat: added comprehensive issue templates,  fixes #7 ([02a9f8e](https://github.com/vernonthedev/nestforge/commit/02a9f8e2740c6c2f960b7b5fec5e0a6826b92d13))
+* feat: updated core nested layout to remove default controller & service dirs leaving them for module setups only ([3864823](https://github.com/vernonthedev/nestforge/commit/3864823045c770de921f5d83ccbb7d52ab0ff717))
+* feat: implemented a Flat Module Structure for the CLI auto generations, fixes #6 ([2095ef9](https://github.com/vernonthedev/nestforge/commit/2095ef935bc865fd938f89b72c60973931c28d6b))
+
+### Fixes
+
+* fix(openapi): support serialized response schemas ([1d13544](https://github.com/vernonthedev/nestforge/commit/1d1354481b8e72de0cc42202b7c228b0c003dcc4))
+* fix(security): added bounded GraphQL requests without trusting thirdparties, fixed #2 ([e333c48](https://github.com/vernonthedev/nestforge/commit/e333c4825bd7776a7831aa394df17aa8668d7cca))
+* fix: fixed the proc error on project creation, fixes #5 ([3ce4542](https://github.com/vernonthedev/nestforge/commit/3ce454218c450f5ea7d0e00191309c1017431eea))
+
+### Other
+
+* refactor(dtos): updated cli to handle prompts for dto data structures ([eb6d7db](https://github.com/vernonthedev/nestforge/commit/eb6d7dbf8cc0ecb3c5f41525f20b8e1e5aa22ddf))
+* docs: added flat layout structure ([410de8d](https://github.com/vernonthedev/nestforge/commit/410de8d61d7927ed328ee262f745ddd7ab8f3769))
+

@@ -206,7 +206,7 @@ impl NewWizardState {
         frame.render_widget(
             status_line(
                 self.error.as_deref(),
-                "Type into the name field. Left/Right changes transport.",
+                "Only the name field accepts typed text. Transport is a selector.",
             ),
             chunks[4],
         );
@@ -268,15 +268,15 @@ impl NewWizardState {
     }
 }
 
-#[derive(Clone, Copy)]
-enum GenerateField {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum GenerateStep {
     Kind,
     Name,
     InModule,
     ModuleName,
     Layout,
     Prompt,
-    Submit,
+    Review,
 }
 
 struct GenerateWizardState {
@@ -286,7 +286,7 @@ struct GenerateWizardState {
     module: String,
     flat: bool,
     no_prompt: bool,
-    focus: GenerateField,
+    step: GenerateStep,
     error: Option<String>,
 }
 
@@ -299,7 +299,7 @@ impl Default for GenerateWizardState {
             module: String::new(),
             flat: false,
             no_prompt: false,
-            focus: GenerateField::Name,
+            step: GenerateStep::Kind,
             error: None,
         }
     }
@@ -313,7 +313,7 @@ impl GenerateWizardState {
     }
 
     fn render(&self, frame: &mut ratatui::Frame<'_>) {
-        let area = centered_rect(frame.area(), 84, 68);
+        let area = centered_rect(frame.area(), 74, 58);
         frame.render_widget(Clear, area);
         frame.render_widget(
             Block::default()
@@ -331,146 +331,151 @@ impl GenerateWizardState {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(2),
+                Constraint::Length(2),
                 Constraint::Length(3),
                 Constraint::Length(3),
-                Constraint::Length(3),
-                Constraint::Length(3),
-                Constraint::Length(3),
-                Constraint::Length(3),
-                Constraint::Length(3),
+                Constraint::Length(7),
                 Constraint::Min(1),
             ])
             .split(inner);
 
         frame.render_widget(
             Paragraph::new(
-                "Tab or arrows move focus. Type into text fields. Enter advances or submits.",
+                "Step-by-step wizard. Enter continues, Backspace edits text, Esc cancels.",
             )
             .style(Style::default().gray()),
             chunks[0],
         );
         frame.render_widget(
-            field_row(
-                "Generator",
-                self.kind.label(),
-                "Use Left/Right to change",
-                matches!(self.focus, GenerateField::Kind),
-            ),
+            Paragraph::new(format!(
+                "Step {} of {}: {}",
+                self.step_number(),
+                self.total_steps(),
+                self.step_title()
+            ))
+            .style(Style::default().cyan().add_modifier(Modifier::BOLD)),
             chunks[1],
         );
         frame.render_widget(
-            field_row(
-                "Name",
-                &self.name,
-                "Type the generated resource or module name",
-                matches!(self.focus, GenerateField::Name),
-            ),
+            prompt_card(self.step_title(), self.step_value(), self.step_hint()),
             chunks[2],
         );
         frame.render_widget(
-            toggle_block(
-                "Generate inside module",
-                self.in_module,
-                matches!(self.focus, GenerateField::InModule),
-            ),
+            status_line(self.error.as_deref(), self.step_controls()),
             chunks[3],
         );
         frame.render_widget(
-            field_row(
-                "Module Name",
-                &self.module_name_value(),
-                if self.in_module {
-                    "Type an existing feature module name"
-                } else {
-                    "Turn on module mode to edit this field"
-                },
-                matches!(self.focus, GenerateField::ModuleName),
-            ),
+            summary_card(&[
+                ("Generator", self.kind.label().to_string()),
+                ("Name", value_or_dash(&self.name)),
+                (
+                    "Inside module",
+                    if self.in_module {
+                        "Yes".to_string()
+                    } else {
+                        "No".to_string()
+                    },
+                ),
+                (
+                    "Module name",
+                    self.module_name().unwrap_or_else(|| "-".to_string()),
+                ),
+                (
+                    "Layout",
+                    if self.flat {
+                        "Flat".to_string()
+                    } else {
+                        "Nested".to_string()
+                    },
+                ),
+                (
+                    "DTO prompts",
+                    if self.no_prompt {
+                        "Disabled".to_string()
+                    } else {
+                        "Enabled".to_string()
+                    },
+                ),
+            ]),
             chunks[4],
         );
         frame.render_widget(
-            toggle_block(
-                "Flat layout",
-                self.flat,
-                matches!(self.focus, GenerateField::Layout),
-            ),
+            Paragraph::new(
+                "Enter applies the current step. Up/Left goes back. Down/Right goes forward.",
+            )
+            .style(Style::default().dark_gray()),
             chunks[5],
         );
-        frame.render_widget(
-            toggle_block(
-                "Disable DTO prompts",
-                self.no_prompt,
-                matches!(self.focus, GenerateField::Prompt),
-            ),
-            chunks[6],
-        );
-        frame.render_widget(
-            submit_block("Generate", matches!(self.focus, GenerateField::Submit)),
-            chunks[7],
-        );
-        frame.render_widget(
-            status_line(
-                self.error.as_deref(),
-                "Left/Right changes the generator or toggles the active switch. Space also toggles switches.",
-            ),
-            chunks[8],
-        );
-    }
-
-    fn module_name_value(&self) -> String {
-        if self.in_module {
-            self.module.clone()
-        } else {
-            String::new()
-        }
     }
 
     fn handle_key(&mut self, code: KeyCode) -> Result<bool> {
         match code {
             KeyCode::Esc => bail!("TUI cancelled by user."),
-            KeyCode::Up => self.focus = previous_generate_field(self.focus, self.in_module),
-            KeyCode::Down | KeyCode::Tab => {
-                self.focus = next_generate_field(self.focus, self.in_module)
+            KeyCode::Up | KeyCode::Left => {
+                if matches!(self.step, GenerateStep::Kind) {
+                    self.kind = previous_kind(self.kind);
+                } else {
+                    self.step = self.previous_step();
+                }
             }
-            KeyCode::Left if matches!(self.focus, GenerateField::Kind) => {
-                self.kind = previous_kind(self.kind)
+            KeyCode::Down | KeyCode::Right => {
+                if matches!(self.step, GenerateStep::Kind) {
+                    self.kind = next_kind(self.kind);
+                } else {
+                    self.step = self.next_step();
+                }
             }
-            KeyCode::Right if matches!(self.focus, GenerateField::Kind) => {
-                self.kind = next_kind(self.kind)
-            }
-            KeyCode::Enter if matches!(self.focus, GenerateField::Kind) => {
-                self.kind = next_kind(self.kind);
-                self.focus = GenerateField::Name;
-            }
-            KeyCode::Enter if matches!(self.focus, GenerateField::InModule) => {
-                self.in_module = !self.in_module;
-                self.focus = next_generate_field(self.focus, self.in_module);
-            }
-            KeyCode::Enter if matches!(self.focus, GenerateField::Layout) => {
-                self.flat = !self.flat;
-                self.focus = GenerateField::Prompt;
-            }
-            KeyCode::Enter if matches!(self.focus, GenerateField::Prompt) => {
-                self.no_prompt = !self.no_prompt;
-                self.focus = GenerateField::Submit;
-            }
-            KeyCode::Left | KeyCode::Right | KeyCode::Char(' ') => match self.focus {
-                GenerateField::InModule => self.in_module = !self.in_module,
-                GenerateField::Layout => self.flat = !self.flat,
-                GenerateField::Prompt => self.no_prompt = !self.no_prompt,
-                _ => {}
-            },
-            KeyCode::Backspace if matches!(self.focus, GenerateField::Name) => {
+            KeyCode::Backspace if matches!(self.step, GenerateStep::Name) => {
                 self.name.pop();
             }
-            KeyCode::Backspace if matches!(self.focus, GenerateField::ModuleName) => {
+            KeyCode::Backspace if matches!(self.step, GenerateStep::ModuleName) => {
                 self.module.pop();
             }
-            KeyCode::Char(ch) if matches!(self.focus, GenerateField::Name) => self.name.push(ch),
-            KeyCode::Char(ch) if matches!(self.focus, GenerateField::ModuleName) => {
+            KeyCode::Char(ch) if matches!(self.step, GenerateStep::Name) => self.name.push(ch),
+            KeyCode::Char(ch) if matches!(self.step, GenerateStep::ModuleName) => {
                 self.module.push(ch)
             }
-            KeyCode::Enter if matches!(self.focus, GenerateField::Submit) => {
+            KeyCode::Char(' ') if matches!(self.step, GenerateStep::InModule) => {
+                self.in_module = !self.in_module;
+            }
+            KeyCode::Char(' ') if matches!(self.step, GenerateStep::Layout) => {
+                self.flat = !self.flat;
+            }
+            KeyCode::Char(' ') if matches!(self.step, GenerateStep::Prompt) => {
+                self.no_prompt = !self.no_prompt;
+            }
+            KeyCode::Enter if matches!(self.step, GenerateStep::Kind) => {
+                self.step = self.next_step();
+            }
+            KeyCode::Enter if matches!(self.step, GenerateStep::Name) => {
+                if self.name.trim().is_empty() {
+                    self.error = Some("Generator name cannot be empty.".to_string());
+                } else {
+                    self.step = self.next_step();
+                }
+            }
+            KeyCode::Enter if matches!(self.step, GenerateStep::InModule) => {
+                self.in_module = !self.in_module;
+                self.step = self.next_step();
+            }
+            KeyCode::Enter if matches!(self.step, GenerateStep::ModuleName) => {
+                if self.module.trim().is_empty() {
+                    self.error = Some(
+                        "Module name cannot be empty when module mode is enabled.".to_string(),
+                    );
+                } else {
+                    self.step = self.next_step();
+                }
+            }
+            KeyCode::Enter if matches!(self.step, GenerateStep::Layout) => {
+                self.flat = !self.flat;
+                self.step = self.next_step();
+            }
+            KeyCode::Enter if matches!(self.step, GenerateStep::Prompt) => {
+                self.no_prompt = !self.no_prompt;
+                self.step = self.next_step();
+            }
+            KeyCode::Enter if matches!(self.step, GenerateStep::Review) => {
                 if self.name.trim().is_empty() {
                     self.error = Some("Generator name cannot be empty.".to_string());
                 } else if self.in_module && self.module.trim().is_empty() {
@@ -481,9 +486,6 @@ impl GenerateWizardState {
                     return Ok(true);
                 }
             }
-            KeyCode::Enter => {
-                self.focus = next_generate_field(self.focus, self.in_module);
-            }
             _ => {}
         }
 
@@ -492,6 +494,131 @@ impl GenerateWizardState {
         }
 
         Ok(false)
+    }
+
+    fn next_step(&self) -> GenerateStep {
+        match self.step {
+            GenerateStep::Kind => GenerateStep::Name,
+            GenerateStep::Name => GenerateStep::InModule,
+            GenerateStep::InModule if self.in_module => GenerateStep::ModuleName,
+            GenerateStep::InModule => GenerateStep::Layout,
+            GenerateStep::ModuleName => GenerateStep::Layout,
+            GenerateStep::Layout => GenerateStep::Prompt,
+            GenerateStep::Prompt => GenerateStep::Review,
+            GenerateStep::Review => GenerateStep::Review,
+        }
+    }
+
+    fn previous_step(&self) -> GenerateStep {
+        match self.step {
+            GenerateStep::Kind => GenerateStep::Kind,
+            GenerateStep::Name => GenerateStep::Kind,
+            GenerateStep::InModule => GenerateStep::Name,
+            GenerateStep::ModuleName => GenerateStep::InModule,
+            GenerateStep::Layout if self.in_module => GenerateStep::ModuleName,
+            GenerateStep::Layout => GenerateStep::InModule,
+            GenerateStep::Prompt => GenerateStep::Layout,
+            GenerateStep::Review => GenerateStep::Prompt,
+        }
+    }
+
+    fn total_steps(&self) -> usize {
+        if self.in_module {
+            7
+        } else {
+            6
+        }
+    }
+
+    fn step_number(&self) -> usize {
+        match self.step {
+            GenerateStep::Kind => 1,
+            GenerateStep::Name => 2,
+            GenerateStep::InModule => 3,
+            GenerateStep::ModuleName => 4,
+            GenerateStep::Layout if self.in_module => 5,
+            GenerateStep::Layout => 4,
+            GenerateStep::Prompt if self.in_module => 6,
+            GenerateStep::Prompt => 5,
+            GenerateStep::Review if self.in_module => 7,
+            GenerateStep::Review => 6,
+        }
+    }
+
+    fn step_title(&self) -> &'static str {
+        match self.step {
+            GenerateStep::Kind => "Choose generator",
+            GenerateStep::Name => "Enter resource or module name",
+            GenerateStep::InModule => "Generate inside a module?",
+            GenerateStep::ModuleName => "Enter target module name",
+            GenerateStep::Layout => "Choose layout",
+            GenerateStep::Prompt => "DTO prompts",
+            GenerateStep::Review => "Review and generate",
+        }
+    }
+
+    fn step_hint(&self) -> &'static str {
+        match self.step {
+            GenerateStep::Kind => {
+                "Use Left/Right to cycle. Enter keeps the current generator and continues."
+            }
+            GenerateStep::Name => "Type a name like users, health, auth, or billing.",
+            GenerateStep::InModule => "Press Space or Enter to toggle between Yes and No.",
+            GenerateStep::ModuleName => "Type the existing feature module name.",
+            GenerateStep::Layout => "Press Space or Enter to switch between Nested and Flat.",
+            GenerateStep::Prompt => "Press Space or Enter to enable or disable DTO prompts.",
+            GenerateStep::Review => {
+                "Press Enter to generate now, or Left/Up to revise earlier answers."
+            }
+        }
+    }
+
+    fn step_controls(&self) -> &'static str {
+        match self.step {
+            GenerateStep::Kind => "Left/Right changes the generator. Enter continues.",
+            GenerateStep::Name => "Type the name. Backspace edits. Enter continues.",
+            GenerateStep::InModule => {
+                "Space toggles Yes/No. Enter applies the current choice and continues."
+            }
+            GenerateStep::ModuleName => "Type the module name. Backspace edits. Enter continues.",
+            GenerateStep::Layout => {
+                "Space toggles Flat/Nested. Enter applies the current choice and continues."
+            }
+            GenerateStep::Prompt => {
+                "Space toggles DTO prompts. Enter applies the current choice and continues."
+            }
+            GenerateStep::Review => "Enter generates. Left or Up goes back to the previous step.",
+        }
+    }
+
+    fn step_value(&self) -> String {
+        match self.step {
+            GenerateStep::Kind => format!("Current generator: {}", self.kind.label()),
+            GenerateStep::Name => value_or_hint(&self.name, "Type the generated name here"),
+            GenerateStep::InModule => {
+                if self.in_module {
+                    "Current choice: Yes".to_string()
+                } else {
+                    "Current choice: No".to_string()
+                }
+            }
+            GenerateStep::ModuleName => value_or_hint(&self.module, "Type the target module name"),
+            GenerateStep::Layout => {
+                if self.flat {
+                    "Current layout: Flat".to_string()
+                } else {
+                    "Current layout: Nested".to_string()
+                }
+            }
+            GenerateStep::Prompt => {
+                if self.no_prompt {
+                    "Current choice: Disabled".to_string()
+                } else {
+                    "Current choice: Enabled".to_string()
+                }
+            }
+            GenerateStep::Review => "Ready to generate with the current selections.".to_string(),
+        }
     }
 }
 
@@ -526,10 +653,7 @@ fn field_row<'a>(title: &'a str, value: &'a str, hint: &'a str, active: bool) ->
             Style::default().gray().add_modifier(Modifier::ITALIC),
         )
     } else {
-        (
-            format!("{title}: {value}{}", if active { " _" } else { "" }),
-            Style::default(),
-        )
+        (format!("{title}: {value}"), Style::default())
     };
 
     Paragraph::new(display).style(style).block(
@@ -540,26 +664,36 @@ fn field_row<'a>(title: &'a str, value: &'a str, hint: &'a str, active: bool) ->
     )
 }
 
-fn toggle_block<'a>(_title: &'a str, enabled: bool, active: bool) -> Paragraph<'a> {
-    let state = if enabled {
-        "On  | press Space/Enter to turn Off"
-    } else {
-        "Off | press Space/Enter to turn On"
-    };
-    Paragraph::new(Line::from(vec![Span::styled(
-        state,
-        if enabled {
-            Style::default().green().add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().gray()
-        },
-    )]))
-    .block(
-        Block::default()
-            .title(if active { " > " } else { " " })
-            .borders(Borders::ALL)
-            .border_style(active_border(active)),
-    )
+fn prompt_card<'a>(title: &'a str, value: String, hint: &'a str) -> Paragraph<'a> {
+    Paragraph::new(vec![
+        Line::from(vec![Span::styled(
+            title,
+            Style::default().yellow().add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+        Line::from(value),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            hint,
+            Style::default().gray().add_modifier(Modifier::ITALIC),
+        )]),
+    ])
+    .block(Block::default().borders(Borders::ALL))
+}
+
+fn summary_card<'a>(items: &'a [(&'a str, String)]) -> Paragraph<'a> {
+    let mut lines = Vec::with_capacity(items.len());
+    for (label, value) in items {
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!("{label}: "),
+                Style::default().cyan().add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(value.clone()),
+        ]));
+    }
+
+    Paragraph::new(lines).block(Block::default().title(" Summary ").borders(Borders::ALL))
 }
 
 fn submit_block<'a>(label: &'a str, active: bool) -> Paragraph<'a> {
@@ -568,7 +702,7 @@ fn submit_block<'a>(label: &'a str, active: bool) -> Paragraph<'a> {
         if active {
             Style::default().yellow().add_modifier(Modifier::BOLD)
         } else {
-            Style::default().white()
+            Style::default()
         },
     )]))
     .block(
@@ -591,6 +725,22 @@ fn active_border(active: bool) -> Style {
         Style::default().yellow()
     } else {
         Style::default().gray()
+    }
+}
+
+fn value_or_hint(value: &str, hint: &str) -> String {
+    if value.trim().is_empty() {
+        hint.to_string()
+    } else {
+        value.to_string()
+    }
+}
+
+fn value_or_dash(value: &str) -> String {
+    if value.trim().is_empty() {
+        "-".to_string()
+    } else {
+        value.to_string()
     }
 }
 
@@ -651,31 +801,5 @@ fn previous_kind(current: GeneratorKindArg) -> GeneratorKindArg {
         K::Grpc => K::Graphql,
         K::Gateway => K::Grpc,
         K::Microservice => K::Gateway,
-    }
-}
-
-fn next_generate_field(current: GenerateField, in_module: bool) -> GenerateField {
-    match current {
-        GenerateField::Kind => GenerateField::Name,
-        GenerateField::Name => GenerateField::InModule,
-        GenerateField::InModule if in_module => GenerateField::ModuleName,
-        GenerateField::InModule => GenerateField::Layout,
-        GenerateField::ModuleName => GenerateField::Layout,
-        GenerateField::Layout => GenerateField::Prompt,
-        GenerateField::Prompt => GenerateField::Submit,
-        GenerateField::Submit => GenerateField::Kind,
-    }
-}
-
-fn previous_generate_field(current: GenerateField, in_module: bool) -> GenerateField {
-    match current {
-        GenerateField::Kind => GenerateField::Submit,
-        GenerateField::Name => GenerateField::Kind,
-        GenerateField::InModule => GenerateField::Name,
-        GenerateField::ModuleName => GenerateField::InModule,
-        GenerateField::Layout if in_module => GenerateField::ModuleName,
-        GenerateField::Layout => GenerateField::InModule,
-        GenerateField::Prompt => GenerateField::Layout,
-        GenerateField::Submit => GenerateField::Prompt,
     }
 }

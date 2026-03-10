@@ -127,6 +127,18 @@ cd demo-api
 cargo run
 ```
 
+The default app scaffold keeps bootstrap files at the root of `src/`:
+
+```text
+src/
+  app_config.rs
+  app_controller.rs
+  app_module.rs
+  health_controller.rs
+```
+
+Nested `controllers/` and `services/` folders are only created later when you generate root-level resources into them.
+
 Create a GraphQL-first app:
 
 ```bash

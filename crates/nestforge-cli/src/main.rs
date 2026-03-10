@@ -200,13 +200,8 @@ fn create_new_app(app_name: &str, transport: AppTransport) -> Result<()> {
         &template_app_module_rs(transport),
     )?;
 
-    /* services */
     write_file(
-        &app_dir.join("src/services/mod.rs"),
-        &template_services_mod_rs(),
-    )?;
-    write_file(
-        &app_dir.join("src/services/app_config.rs"),
+        &app_dir.join("src/app_config.rs"),
         &template_app_config_rs(transport),
     )?;
 
@@ -243,21 +238,15 @@ fn create_new_app(app_name: &str, transport: AppTransport) -> Result<()> {
 fn scaffold_transport_files(app_dir: &Path, transport: AppTransport) -> Result<()> {
     match transport {
         AppTransport::Http => {
-            fs::create_dir_all(app_dir.join("src/controllers"))?;
-            fs::create_dir_all(app_dir.join("src/dto"))?;
             fs::create_dir_all(app_dir.join("src/guards"))?;
             fs::create_dir_all(app_dir.join("src/interceptors"))?;
 
             write_file(
-                &app_dir.join("src/controllers/mod.rs"),
-                &template_controllers_mod_rs(),
-            )?;
-            write_file(
-                &app_dir.join("src/controllers/app_controller.rs"),
+                &app_dir.join("src/app_controller.rs"),
                 &template_app_controller_rs(),
             )?;
             write_file(
-                &app_dir.join("src/controllers/health_controller.rs"),
+                &app_dir.join("src/health_controller.rs"),
                 &template_health_controller_rs(),
             )?;
             write_file(
@@ -272,7 +261,6 @@ fn scaffold_transport_files(app_dir: &Path, transport: AppTransport) -> Result<(
                 &app_dir.join("src/interceptors/mod.rs"),
                 &template_interceptors_mod_rs(),
             )?;
-            write_file(&app_dir.join("src/dto/mod.rs"), &template_dto_mod_rs())?;
         }
         AppTransport::Graphql => {
             fs::create_dir_all(app_dir.join("src/graphql"))?;
@@ -591,6 +579,10 @@ fn generate_resource(
             patch_main_mod_decl(&app_root, &format!("{}_dto", singular))?;
             patch_main_mod_decl(&app_root, &format!("create_{}_dto", singular))?;
             patch_main_mod_decl(&app_root, &format!("update_{}_dto", singular))?;
+        } else {
+            patch_main_mod_decl(&app_root, "controllers")?;
+            patch_main_mod_decl(&app_root, "services")?;
+            patch_main_mod_decl(&app_root, "dto")?;
         }
         patch_app_module(&app_root, layout, &resource, &pascal_plural)?;
     }
@@ -627,6 +619,8 @@ fn generate_controller_only(
     } else {
         if layout == GeneratorLayout::Flat {
             patch_main_mod_decl(&app_root, &format!("{}_controller", resource))?;
+        } else {
+            patch_main_mod_decl(&app_root, "controllers")?;
         }
         patch_app_module_controllers_only(&app_root, layout, &resource, &pascal_plural)?;
     }
@@ -663,6 +657,8 @@ fn generate_service_only(
     } else {
         if layout == GeneratorLayout::Flat {
             patch_main_mod_decl(&app_root, &format!("{}_service", resource))?;
+        } else {
+            patch_main_mod_decl(&app_root, "services")?;
         }
         patch_app_module_providers_only(&app_root, layout, &resource, &pascal_plural)?;
     }
@@ -1145,7 +1141,11 @@ fn patch_dto_mod(
     }
 
     let path = target_root.join("dto/mod.rs");
-    let mut content = fs::read_to_string(&path)?;
+    let mut content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        template_dto_mod_rs()
+    };
 
     let mod_lines = [
         format!("pub mod {}_dto;", singular),
@@ -1212,7 +1212,11 @@ fn patch_services_mod(
     }
 
     let path = target_root.join("services/mod.rs");
-    let mut content = fs::read_to_string(&path)?;
+    let mut content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        template_services_mod_rs()
+    };
 
     let mod_line = format!("pub mod {}_service;", resource);
     let use_line = format!("pub use {}_service::{}Service;", resource, pascal_plural);
@@ -1262,7 +1266,11 @@ fn patch_controllers_mod(
     }
 
     let path = target_root.join("controllers/mod.rs");
-    let mut content = fs::read_to_string(&path)?;
+    let mut content = if path.exists() {
+        fs::read_to_string(&path)?
+    } else {
+        template_controllers_mod_rs()
+    };
 
     let mod_line = format!("pub mod {}_controller;", resource);
     let use_line = format!(
@@ -1636,25 +1644,6 @@ fn patch_app_module(
     patch_app_module_controllers_only(app_root, layout, resource, pascal_plural)?;
     patch_app_module_providers_only(app_root, layout, resource, pascal_plural)?;
 
-    if layout == GeneratorLayout::Flat {
-        return Ok(());
-    }
-
-    /* Also patch imports */
-    let path = app_root.join("src/app_module.rs");
-    let mut content = fs::read_to_string(&path)?;
-
-    /* controllers import */
-    content = patch_brace_import_list(
-        &content,
-        "controllers",
-        &format!("{}Controller", pascal_plural),
-    );
-
-    /* services import */
-    content = patch_brace_import_list(&content, "services", &format!("{}Service", pascal_plural));
-
-    fs::write(path, content)?;
     let _ = resource;
     Ok(())
 }
@@ -1795,14 +1784,19 @@ fn patch_app_module_controllers_only(
     }
 
     content = content.replace(marker, &format!("{}\n        {}", marker, entry));
-    if layout == GeneratorLayout::Flat {
-        let import_line = format!(
-            "use crate::{}_controller::{}Controller;\n",
-            resource, pascal_plural
-        );
-        if !content.contains(&import_line) {
-            content = format!("{import_line}{content}");
+    let import_line = match layout {
+        GeneratorLayout::Flat => {
+            format!(
+                "use crate::{}_controller::{}Controller;\n",
+                resource, pascal_plural
+            )
         }
+        GeneratorLayout::Nested => {
+            format!("use crate::controllers::{}Controller;\n", pascal_plural)
+        }
+    };
+    if !content.contains(&import_line) {
+        content = format!("{import_line}{content}");
     }
     fs::write(path, content)?;
     Ok(())
@@ -1825,14 +1819,19 @@ fn patch_app_module_providers_only(
     }
 
     content = content.replace(marker, &format!("{}\n        {}", marker, entry));
-    if layout == GeneratorLayout::Flat {
-        let import_line = format!(
-            "use crate::{}_service::{}Service;\n",
-            resource, pascal_plural
-        );
-        if !content.contains(&import_line) {
-            content = format!("{import_line}{content}");
+    let import_line = match layout {
+        GeneratorLayout::Flat => {
+            format!(
+                "use crate::{}_service::{}Service;\n",
+                resource, pascal_plural
+            )
         }
+        GeneratorLayout::Nested => {
+            format!("use crate::services::{}Service;\n", pascal_plural)
+        }
+    };
+    if !content.contains(&import_line) {
+        content = format!("{import_line}{content}");
     }
     fs::write(path, content)?;
     Ok(())
@@ -1940,12 +1939,12 @@ edition = "2021"
 
 fn template_main_rs(transport: AppTransport) -> String {
     match transport {
-        AppTransport::Http => r#"mod app_module;
-mod controllers;
-mod dto;
+        AppTransport::Http => r#"mod app_config;
+mod app_controller;
+mod app_module;
 mod guards;
+mod health_controller;
 mod interceptors;
-mod services;
 
 use app_module::AppModule;
 use nestforge::NestForgeFactory;
@@ -1966,10 +1965,11 @@ async fn main() -> anyhow::Result<()> {
 }
 "#
         .to_string(),
-        AppTransport::Graphql => r#"mod app_module;
+        AppTransport::Graphql => r#"mod app_config;
+mod app_module;
 mod graphql;
-mod services;
 
+use app_config::AppConfig;
 use app_module::AppModule;
 use graphql::schema::build_schema;
 use nestforge::{GraphQlConfig, NestForgeFactory, NestForgeFactoryGraphQlExt};
@@ -1978,7 +1978,7 @@ const PORT: u16 = 3000;
 
 async fn bootstrap() -> anyhow::Result<()> {
     let factory = NestForgeFactory::<AppModule>::create()?;
-    let config = factory.container().resolve::<crate::services::AppConfig>()?;
+    let config = factory.container().resolve::<AppConfig>()?;
     let schema = build_schema(config.app_name.clone());
 
     factory
@@ -1993,9 +1993,9 @@ async fn main() -> anyhow::Result<()> {
 }
 "#
         .to_string(),
-        AppTransport::Grpc => r#"mod app_module;
+        AppTransport::Grpc => r#"mod app_config;
+mod app_module;
 mod grpc;
-mod services;
 
 use app_module::AppModule;
 use grpc::{proto::hello::greeter_server::GreeterServer, service::GreeterGrpcService};
@@ -2021,9 +2021,9 @@ async fn main() -> anyhow::Result<()> {
 }
 "#
         .to_string(),
-        AppTransport::Microservices => r#"mod app_module;
+        AppTransport::Microservices => r#"mod app_config;
+mod app_module;
 mod microservices;
-mod services;
 
 use app_module::AppModule;
 use microservices::AppPatterns;
@@ -2054,8 +2054,8 @@ async fn main() -> anyhow::Result<()> {
 }
 "#
         .to_string(),
-        AppTransport::Websockets => r#"mod app_module;
-mod services;
+        AppTransport::Websockets => r#"mod app_config;
+mod app_module;
 mod ws;
 
 use app_module::AppModule;
@@ -2085,8 +2085,9 @@ fn template_app_module_rs(transport: AppTransport) -> String {
         AppTransport::Http => r#"use nestforge::{module, ConfigModule, ConfigOptions};
 
 use crate::{
-    controllers::{AppController, HealthController},
-    services::{AppConfig},
+    app_config::AppConfig,
+    app_controller::AppController,
+    health_controller::HealthController,
 };
 
 fn load_app_config() -> anyhow::Result<AppConfig> {
@@ -2114,7 +2115,7 @@ pub struct AppModule;
         AppTransport::Graphql | AppTransport::Grpc | AppTransport::Websockets => {
             r#"use nestforge::{module, ConfigModule, ConfigOptions};
 
-use crate::services::AppConfig;
+use crate::app_config::AppConfig;
 
 fn load_app_config() -> anyhow::Result<AppConfig> {
     Ok(ConfigModule::for_root::<AppConfig>(ConfigOptions::new().env_file(".env"))?)
@@ -2133,8 +2134,8 @@ pub struct AppModule;
         AppTransport::Microservices => r#"use nestforge::{module, ConfigModule, ConfigOptions};
 
 use crate::{
+    app_config::AppConfig,
     microservices::AppPatterns,
-    services::AppConfig,
 };
 
 fn load_app_config() -> anyhow::Result<AppConfig> {
@@ -2158,21 +2159,11 @@ pub struct AppModule;
 }
 
 fn template_controllers_mod_rs() -> String {
-    r#"pub mod app_controller;
-pub mod health_controller;
-
-pub use app_controller::AppController;
-pub use health_controller::HealthController;
-"#
-    .to_string()
+    "/* Controller exports get generated here */\n".to_string()
 }
 
 fn template_services_mod_rs() -> String {
-    r#"pub mod app_config;
-
-pub use app_config::AppConfig;
-"#
-    .to_string()
+    "/* Service exports get generated here */\n".to_string()
 }
 
 fn template_guards_mod_rs() -> String {
@@ -2206,7 +2197,7 @@ fn template_dto_mod_rs() -> String {
 fn template_app_controller_rs() -> String {
     r#"use nestforge::{controller, routes, HttpException, Inject};
 
-use crate::services::AppConfig;
+use crate::app_config::AppConfig;
 
 #[controller("")]
 pub struct AppController;
@@ -2382,8 +2373,8 @@ fn template_grpc_service_rs() -> String {
 };
 
 use crate::{
+    app_config::AppConfig,
     grpc::proto::hello::{greeter_server::Greeter, HelloReply, HelloRequest},
-    services::AppConfig,
 };
 
 #[derive(Clone)]
@@ -2442,13 +2433,13 @@ pub struct AppPatterns {
 
 impl AppPatterns {
     pub fn new() -> Self {
-        Self {
-            registry: nestforge::MicroserviceRegistry::builder()
-                .message("app.ping", |payload: serde_json::Value, ctx| async move {
-                    let config = ctx.resolve::<crate::services::AppConfig>()?;
-                    Ok(serde_json::json!({
-                        "app_name": config.app_name,
-                        "received": payload,
+            Self {
+                registry: nestforge::MicroserviceRegistry::builder()
+                    .message("app.ping", |payload: serde_json::Value, ctx| async move {
+                        let config = ctx.resolve::<crate::app_config::AppConfig>()?;
+                        Ok(serde_json::json!({
+                            "app_name": config.app_name,
+                            "received": payload,
                         "transport": ctx.transport(),
                     }))
                 })
@@ -2469,7 +2460,7 @@ fn template_microservices_mod_rs() -> String {
 }
 
 fn template_ws_gateway_rs() -> String {
-    r#"use crate::services::AppConfig;
+    r#"use crate::app_config::AppConfig;
 use nestforge::{Message, WebSocket, WebSocketContext, WebSocketGateway};
 
 pub struct EventsGateway;
@@ -3023,26 +3014,6 @@ fn to_snake_case(input: &str) -> String {
     }
 
     out
-}
-
-fn patch_brace_import_list(content: &str, module_name: &str, item: &str) -> String {
-    let start_marker = format!("{module_name}::{{");
-
-    if let Some(start_idx) = content.find(&start_marker) {
-        if let Some(end_rel) = content[start_idx..].find("},") {
-            let end_idx = start_idx + end_rel + 1; // points to the '}'
-            let segment = &content[start_idx..=end_idx];
-
-            if segment.contains(item) {
-                return content.to_string();
-            }
-
-            let replaced = segment.replace("}", &format!(", {item}}}"));
-            return content.replacen(segment, &replaced, 1);
-        }
-    }
-
-    content.to_string()
 }
 
 fn template_feature_mod_rs(

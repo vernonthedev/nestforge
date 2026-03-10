@@ -29,6 +29,18 @@ nestforge new my-nestforge-app
 cd my-nestforge-app
 ```
 
+The initial scaffold keeps app bootstrap files at the root of `src/`:
+
+```text
+src/
+  app_config.rs
+  app_controller.rs
+  app_module.rs
+  health_controller.rs
+```
+
+Feature modules can still use nested `controllers/`, `services/`, and `dto/` folders when you generate them that way.
+
 ## 4. Run the Server
 
 NestForge projects use standard Cargo commands:

@@ -104,8 +104,8 @@ fn main() -> miette::Result<()> {
 fn run_cli(cli: Cli) -> Result<()> {
     match cli.command.expect("command checked above") {
         Commands::New(args) => {
-            let (app_name, transport) = resolve_new_args(args)?;
-            create_new_app(&app_name, transport)?;
+            let (app_name, transport, enable_openapi) = resolve_new_args(args)?;
+            create_new_app(&app_name, transport, enable_openapi)?;
         }
         Commands::Generate(args) => {
             let (kind, name, options) = resolve_generate_args(args)?;
@@ -128,7 +128,7 @@ fn run_cli(cli: Cli) -> Result<()> {
     Ok(())
 }
 
-fn resolve_new_args(args: NewArgs) -> Result<(String, AppTransport)> {
+fn resolve_new_args(args: NewArgs) -> Result<(String, AppTransport, bool)> {
     let interactive = interactive_enabled(true);
     let tui_enabled = full_tui_enabled(!args.no_tui);
 
@@ -142,7 +142,7 @@ fn resolve_new_args(args: NewArgs) -> Result<(String, AppTransport)> {
 
     if tui_enabled && (args.app_name.is_none() || args.transport.is_none()) {
         match run_new_wizard() {
-            Ok(result) => return Ok(result),
+            Ok((app_name, transport)) => return Ok((app_name, transport, args.openapi)),
             Err(error) if should_fallback_to_prompt(&error) => {
                 print_note(
                     "Full-screen TUI is unavailable in this terminal. Falling back to prompt mode.",
@@ -166,7 +166,11 @@ fn resolve_new_args(args: NewArgs) -> Result<(String, AppTransport)> {
         None => AppTransport::Http,
     };
 
-    Ok((app_name, transport))
+    if args.openapi && !transport_supports_openapi(transport) {
+        bail!("OpenAPI scaffolding is currently supported for HTTP and GraphQL apps only.");
+    }
+
+    Ok((app_name, transport, args.openapi))
 }
 
 fn resolve_generate_args(
@@ -292,7 +296,7 @@ fn run_db_command_structured(args: DbArgs) -> Result<()> {
    NEW APP SCAFFOLD
 ------------------------------ */
 
-fn create_new_app(app_name: &str, transport: AppTransport) -> Result<()> {
+fn create_new_app(app_name: &str, transport: AppTransport, enable_openapi: bool) -> Result<()> {
     let app_dir = env::current_dir()?.join(app_name);
 
     if app_dir.exists() {
@@ -312,13 +316,16 @@ fn create_new_app(app_name: &str, transport: AppTransport) -> Result<()> {
         &app_dir.join("Cargo.toml"),
         &template_app_cargo_toml(
             app_name,
-            resolve_nestforge_dependency_line(transport),
+            resolve_nestforge_dependency_line(transport, enable_openapi),
             transport,
         ),
     )?;
 
     /* main.rs */
-    write_file(&app_dir.join("src/main.rs"), &template_main_rs(transport))?;
+    write_file(
+        &app_dir.join("src/main.rs"),
+        &template_main_rs(app_name, transport, enable_openapi),
+    )?;
 
     /* app_module.rs */
     write_file(
@@ -350,6 +357,10 @@ fn create_new_app(app_name: &str, transport: AppTransport) -> Result<()> {
     ));
     print_note(format!("Next: cd {}", app_dir.display()));
     print_note("Then run: cargo run");
+
+    if enable_openapi {
+        print_note("OpenAPI docs will be available at /api/v1/docs for supported HTTP routes.");
+    }
 
     if matches!(transport, AppTransport::Http) {
         print_note("Then generate your first resource: nestforge generate resource users");
@@ -2251,15 +2262,23 @@ fn parse_new_transport_arg(args: &[String]) -> Result<AppTransport> {
     bail!("Invalid new app options. Use: nestforge new <app-name> --transport <http|graphql|grpc|microservices|websockets>")
 }
 
-fn resolve_nestforge_dependency_line(transport: AppTransport) -> String {
+fn transport_supports_openapi(transport: AppTransport) -> bool {
+    matches!(transport, AppTransport::Http | AppTransport::Graphql)
+}
+
+fn resolve_nestforge_dependency_line(transport: AppTransport, enable_openapi: bool) -> String {
     let framework_version = env!("CARGO_PKG_VERSION");
-    let features = match transport {
-        AppTransport::Http => "\"config\"",
-        AppTransport::Graphql => "\"config\", \"graphql\"",
-        AppTransport::Grpc => "\"config\", \"grpc\"",
-        AppTransport::Microservices => "\"config\", \"microservices\", \"testing\"",
-        AppTransport::Websockets => "\"config\", \"websockets\"",
+    let mut features = match transport {
+        AppTransport::Http => vec!["\"config\""],
+        AppTransport::Graphql => vec!["\"config\"", "\"graphql\""],
+        AppTransport::Grpc => vec!["\"config\"", "\"grpc\""],
+        AppTransport::Microservices => vec!["\"config\"", "\"microservices\"", "\"testing\""],
+        AppTransport::Websockets => vec!["\"config\"", "\"websockets\""],
     };
+    if enable_openapi && transport_supports_openapi(transport) {
+        features.push("\"openapi\"");
+    }
+    let features = features.join(", ");
     let local_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .map(|p| p.join("nestforge"));
@@ -2335,9 +2354,25 @@ edition = "2021"
     )
 }
 
-fn template_main_rs(transport: AppTransport) -> String {
+fn template_main_rs(app_name: &str, transport: AppTransport, enable_openapi: bool) -> String {
     match transport {
-        AppTransport::Http => r#"mod app_config;
+        AppTransport::Http => {
+            let openapi_import = if enable_openapi {
+                ", NestForgeFactoryOpenApiExt"
+            } else {
+                ""
+            };
+            let openapi_setup = if enable_openapi {
+                format!(
+                    "        .with_openapi_docs(\"{} API\", \"1.0.0\")?\n",
+                    to_pascal_case(app_name).replace('_', " ")
+                )
+            } else {
+                String::new()
+            };
+
+            format!(
+                r#"mod app_config;
 mod app_controller;
 mod app_module;
 mod guards;
@@ -2345,52 +2380,70 @@ mod health_controller;
 mod interceptors;
 
 use app_module::AppModule;
-use nestforge::NestForgeFactory;
+use nestforge::{{NestForgeFactory{openapi_import}}};
 
 const PORT: u16 = 3000;
 
-async fn bootstrap() -> anyhow::Result<()> {
+async fn bootstrap() -> anyhow::Result<()> {{
     NestForgeFactory::<AppModule>::create()?
-        .with_global_prefix("api")
+        .with_global_prefix("api"){openapi_setup}
         .with_version("v1")
         .listen(PORT)
         .await
-}
+}}
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> anyhow::Result<()> {{
     bootstrap().await
-}
+}}
 "#
-        .to_string(),
-        AppTransport::Graphql => r#"mod app_config;
+            )
+        }
+        AppTransport::Graphql => {
+            let openapi_import = if enable_openapi {
+                ", NestForgeFactoryOpenApiExt"
+            } else {
+                ""
+            };
+            let openapi_setup = if enable_openapi {
+                format!(
+                    "\n        .with_openapi_docs(\"{} API\", \"1.0.0\")?",
+                    to_pascal_case(app_name).replace('_', " ")
+                )
+            } else {
+                String::new()
+            };
+
+            format!(
+                r#"mod app_config;
 mod app_module;
 mod graphql;
 
 use app_config::AppConfig;
 use app_module::AppModule;
 use graphql::schema::build_schema;
-use nestforge::{GraphQlConfig, NestForgeFactory, NestForgeFactoryGraphQlExt};
+use nestforge::{{GraphQlConfig, NestForgeFactory, NestForgeFactoryGraphQlExt{openapi_import}}};
 
 const PORT: u16 = 3000;
 
-async fn bootstrap() -> anyhow::Result<()> {
+async fn bootstrap() -> anyhow::Result<()> {{
     let factory = NestForgeFactory::<AppModule>::create()?;
     let config = factory.container().resolve::<AppConfig>()?;
     let schema = build_schema(config.app_name.clone());
 
     factory
-        .with_graphql_config(schema, GraphQlConfig::new("/graphql").with_graphiql("/"))
+{openapi_setup}        .with_graphql_config(schema, GraphQlConfig::new("/graphql").with_graphiql("/"))
         .listen(PORT)
         .await
-}
+}}
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> anyhow::Result<()> {{
     bootstrap().await
-}
+}}
 "#
-        .to_string(),
+            )
+        }
         AppTransport::Grpc => r#"mod app_config;
 mod app_module;
 mod grpc;
@@ -3999,6 +4052,21 @@ mod tests {
         );
 
         assert!(manifest.contains("\n[workspace]\n"));
+    }
+
+    #[test]
+    fn resolve_nestforge_dependency_line_adds_openapi_for_http_apps() {
+        let dependency = super::resolve_nestforge_dependency_line(AppTransport::Http, true);
+
+        assert!(dependency.contains("\"openapi\""));
+    }
+
+    #[test]
+    fn template_main_rs_wires_openapi_when_requested() {
+        let main_rs = super::template_main_rs("marknon", AppTransport::Http, true);
+
+        assert!(main_rs.contains("NestForgeFactoryOpenApiExt"));
+        assert!(main_rs.contains(".with_openapi_docs(\"Marknon API\", \"1.0.0\")?"));
     }
 
     #[test]

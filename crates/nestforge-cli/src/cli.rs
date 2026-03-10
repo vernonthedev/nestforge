@@ -42,6 +42,9 @@ pub struct NewArgs {
     /// Transport runtime
     #[arg(long, value_enum)]
     pub transport: Option<TransportArg>,
+    /// Enable OpenAPI docs wiring for supported transports
+    #[arg(long)]
+    pub openapi: bool,
     /// Disable interactive prompts
     #[arg(long)]
     pub no_tui: bool,

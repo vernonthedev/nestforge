@@ -39,6 +39,12 @@ This automatically mounts:
 
 By default, NestForge now serves Swagger UI at `/docs` and also exposes dedicated `/swagger-ui` and `/redoc` routes.
 
+If you are starting a new HTTP app, the CLI can scaffold this wiring for you:
+
+```bash
+nestforge new demo-api --openapi
+```
+
 ## 2.1 Customize Docs Paths and UI
 
 If you want docs mounted at `api/docs` or prefer Redoc as the default UI, use `OpenApiConfig`:

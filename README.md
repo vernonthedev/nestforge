@@ -129,6 +129,12 @@ cd demo-api
 cargo run
 ```
 
+Scaffold a new HTTP app with OpenAPI docs wired in from day one:
+
+```bash
+nestforge new demo-api --openapi
+```
+
 The default app scaffold keeps bootstrap files at the root of `src/`:
 
 ```text

@@ -14,7 +14,8 @@ categories = ["network-programming", "web-programming"]
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-nestforge-core = { version = "1.4.0", path = "../nestforge-core" }
+nestforge-core = { version = "1.4.1", path = "../nestforge-core" }
+
 
 
 

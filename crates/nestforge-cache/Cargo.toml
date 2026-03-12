@@ -15,8 +15,9 @@ axum = { workspace = true }
 http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-nestforge-core = { version = "1.4.0", path = "../nestforge-core" }
-nestforge-data = { version = "1.4.0", path = "../nestforge-data" }
+nestforge-core = { version = "1.4.1", path = "../nestforge-core" }
+nestforge-data = { version = "1.4.1", path = "../nestforge-data" }
+
 
 
 

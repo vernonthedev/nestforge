@@ -218,3 +218,11 @@ Documentation wiki: https://github.com/vernonthedev/nestforge/wiki
 * chore: added dev exec example dir ([b4541c6](https://github.com/vernonthedev/nestforge/commit/b4541c6aad6b5159a84e6b8fa5e7f2af3b22b4bf))
 * refactor(cli): split parser ui and diagnostics modules ([68522ba](https://github.com/vernonthedev/nestforge/commit/68522ba1619eb2c6af39261b987744793774f5f4))
 
+
+
+## [1.4.1](https://github.com/vernonthedev/nestforge/compare/v1.4.0...v1.4.1) (2026-03-12)
+
+### Other
+
+* docs: removed raw rendered md files ([f7fc9c9](https://github.com/vernonthedev/nestforge/commit/f7fc9c9bdb43c2350d80220ab4ec95989cc266fd))
+

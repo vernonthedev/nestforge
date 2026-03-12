@@ -2,6 +2,12 @@
 
 All notable changes to the `nestforge` crate are documented in this file.
 
+## [1.4.1](https://github.com/vernonthedev/nestforge/compare/v1.4.0...v1.4.1) (2026-03-12)
+
+### Other
+
+* docs: removed raw rendered md files ([f7fc9c9](https://github.com/vernonthedev/nestforge/commit/f7fc9c9bdb43c2350d80220ab4ec95989cc266fd))
+
 ## [1.4.0](https://github.com/vernonthedev/nestforge/compare/v1.3.0...v1.4.0) (2026-03-10)
 
 ### Features

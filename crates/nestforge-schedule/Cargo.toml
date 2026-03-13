@@ -13,7 +13,8 @@ categories = ["asynchronous", "web-programming"]
 [dependencies]
 anyhow = { workspace = true }
 tokio = { workspace = true }
-nestforge-core = { version = "1.4.1", path = "../nestforge-core" }
+nestforge-core = { version = "1.5.0", path = "../nestforge-core" }
+
 
 
 

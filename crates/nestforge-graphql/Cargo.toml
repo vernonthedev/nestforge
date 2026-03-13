@@ -14,7 +14,8 @@ categories = ["web-programming"]
 axum = { workspace = true }
 async-graphql = { workspace = true }
 async-graphql-axum = { workspace = true }
-nestforge-core = { version = "1.4.1", path = "../nestforge-core" }
+nestforge-core = { version = "1.5.0", path = "../nestforge-core" }
+
 
 
 

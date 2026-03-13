@@ -215,3 +215,39 @@ All notable changes to the `nestforge` crate are documented in this file.
 * setup the core module and controller definitions, and an HTTP factory for application bootstrapping ([5bd9fa4](https://github.com/vernonthedev/nestforge/commit/5bd9fa430ace114a1e3a4040419c87c83d766580))
 * setup the NestForgeFactory for HTTP server bootstrapping and module registration ([d08a235](https://github.com/vernonthedev/nestforge/commit/d08a2358aa8e2dc639c62862aa205b21c49968ca))
 
+
+
+## [1.5.0](https://github.com/vernonthedev/nestforge/compare/v1.4.1...v1.5.0) (2026-03-13)
+
+### Features
+
+* feat(funding): added GitHub FUNDING metadata ([8afffb3](https://github.com/vernonthedev/nestforge/commit/8afffb30f4a5beb9b4c8c45a2db563cd600bfed9))
+* feat(docs): completed the entire documentation workflow for the db based files ([a844524](https://github.com/vernonthedev/nestforge/commit/a844524b2384c1639623c4de73fdaa8d27491cc5))
+* feat(docs): Added detailed docs for easier dev onboarding, fixes #14 ([b692f91](https://github.com/vernonthedev/nestforge/commit/b692f91cdc344f5b39e2b782a9d45a4bf7a7b9fb))
+* feat(scaffold): add root lib barrels and document prelude ([df35447](https://github.com/vernonthedev/nestforge/commit/df354476a27140ec3ca013735674cbbf81a367a9))
+* feat(cli): scaffold app lib and simplify templates, fixes #21 ([ecdc931](https://github.com/vernonthedev/nestforge/commit/ecdc9315293b442ff4aa8ac081c081fde103394d))
+* feat(cli): enabled TUI when terminal is interactive ([c9bc1fc](https://github.com/vernonthedev/nestforge/commit/c9bc1fca93bc4e3e793993815da49a63fbec1f83))
+* feat(cli): added interactive mode to support `bash` kind of terminals ([7d7e354](https://github.com/vernonthedev/nestforge/commit/7d7e354e43e6827d2e3247ebbbe3f9f5a3c8820e))
+* feat(cli): allow Docs command to accept topic and no-tui options, fixes #20 ([01a2ed5](https://github.com/vernonthedev/nestforge/commit/01a2ed57d89ba524726704b54c06084194373654))
+* feat(cli): add Docs command and separate openapi alias ([ea440f1](https://github.com/vernonthedev/nestforge/commit/ea440f1e1d65667d9ca0136876c15e52ac79056c))
+* feat(macros): add injectable service registration ([770568a](https://github.com/vernonthedev/nestforge/commit/770568ac2c51b0dc34c2e257bab95452b5a5c3f2))
+* feat(core): add injectable registration primitives ([f814251](https://github.com/vernonthedev/nestforge/commit/f8142519cc40350313c5245ede8653e9ee04fb90))
+
+### Fixes
+
+* fix(tests): replace manual dto derive with response_dto ([ed90f2d](https://github.com/vernonthedev/nestforge/commit/ed90f2d508b539da7cf11576c051c2b30b1b6c42))
+* fix(cli): update module generation for nested layout ([0da89b6](https://github.com/vernonthedev/nestforge/commit/0da89b6c25ddb399436f68455be0cc6446c085c7))
+* fix(cli): register services as providers ([68fcd49](https://github.com/vernonthedev/nestforge/commit/68fcd496971052e8ca3e2c0c61308a0ae207981a))
+* fix(core): added service module injection structure, fixes #19 ([9ce6f4f](https://github.com/vernonthedev/nestforge/commit/9ce6f4ff5979d3408c37f30920e0a8b082cffee5))
+* fix(dependencies): updated Iru from 0.12.5 to 0.16.3 ([d9ebb8e](https://github.com/vernonthedev/nestforge/commit/d9ebb8e705f5ac309319cf9a6dd402b93033396a))
+
+### Other
+
+* chore: merge pull request #22 from vernonthedev/develop ([6112453](https://github.com/vernonthedev/nestforge/commit/6112453fa8c0e0c629d111d88b1744bd677af0c6))
+* docs: updated docs with the newly worked on features for injectable service structure & cli changes ([d9e4975](https://github.com/vernonthedev/nestforge/commit/d9e4975867b77bfddfa1cc03b0d15ff137701026))
+* docs(cli): clarify OpenAPI docs and prelude guidance ([7deaa7c](https://github.com/vernonthedev/nestforge/commit/7deaa7cd33726f7e9cd4a10297bc88c1cbd8439e))
+* chore(cli): drop redundant tui reliability notes ([bfd7838](https://github.com/vernonthedev/nestforge/commit/bfd7838bf7c2d517f9b891d75bf7b94bc0b80560))
+* chore(vendor): add ratatui vendor tree and adjust lockfile ([6376f09](https://github.com/vernonthedev/nestforge/commit/6376f09bed6f90488a5b4a6546e9ea75e419a2d8))
+* chore: simplified the service case study usage from derifs ([c147356](https://github.com/vernonthedev/nestforge/commit/c1473561d90bd69804562f23b61b8d718d40059d))
+* docs(readme): document injectable services ([5554041](https://github.com/vernonthedev/nestforge/commit/5554041c84c72e0b7f1e733c9c4f4bb2cd55e22b))
+

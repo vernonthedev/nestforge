@@ -31,7 +31,7 @@ resolver = "2"
 # Shared package settings for all crates in this workspace.
 edition = "2021"
 license = "MIT"
-version = "1.4.1"
+version = "1.5.0"
 repository = "https://github.com/vernonthedev/nestforge"
 homepage = "https://github.com/vernonthedev/nestforge"
 readme = "README.md"
@@ -58,6 +58,7 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 
 [patch.crates-io]
 ratatui = { path = "vendor/ratatui" }
+
 
 
 

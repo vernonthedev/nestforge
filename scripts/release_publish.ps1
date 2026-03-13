@@ -40,7 +40,11 @@ function Get-WorkspaceVersion {
 }
 
 function Get-LatestVersionTag {
-    @(Invoke-Git tag --list "v*" --sort=-version:refname | Select-Object -First 1)[0]
+    $tags = @(Invoke-Git tag --list "v*" --sort=-version:refname)
+    if ($tags.Count -eq 0) {
+        return $null
+    }
+    $tags[0]
 }
 
 function Get-CommitObjects {

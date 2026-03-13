@@ -970,31 +970,14 @@ fn generate_module(name: &str, layout: GeneratorLayout) -> Result<()> {
         &module_dir.join("mod.rs"),
         &template_feature_mod_rs(&module_name, &pascal_module, layout),
     )?;
-    if layout == GeneratorLayout::Flat {
-        write_file(
-            &module_dir.join("controller.rs"),
-            &template_feature_controller_rs(&module_name, &pascal_module, layout),
-        )?;
-        write_file(
-            &module_dir.join("service.rs"),
-            &template_feature_service_rs(&module_name, &pascal_module, layout),
-        )?;
-    } else {
+    if layout == GeneratorLayout::Nested {
         write_file(
             &module_dir.join("controllers/mod.rs"),
             &template_feature_controllers_mod_rs(&module_name, &pascal_module),
         )?;
         write_file(
-            &module_dir.join("controllers/controller.rs"),
-            &template_feature_controller_rs(&module_name, &pascal_module, layout),
-        )?;
-        write_file(
             &module_dir.join("services/mod.rs"),
             &template_feature_services_mod_rs(&module_name, &pascal_module),
-        )?;
-        write_file(
-            &module_dir.join("services/service.rs"),
-            &template_feature_service_rs(&module_name, &pascal_module, layout),
         )?;
         write_file(
             &module_dir.join("dto/mod.rs"),
@@ -2079,36 +2062,18 @@ fn patch_feature_module(
     let path = app_root.join("src").join(module_name).join("mod.rs");
     let mut content = fs::read_to_string(&path)?;
 
-    let controller_use_marker = "/* nestforge:feature_controllers_use */";
-    let provider_use_marker = "/* nestforge:feature_services_use */";
     let controllers_marker = "/* nestforge:feature_controllers */";
     let providers_marker = "/* nestforge:feature_providers */";
     let exports_marker = "/* nestforge:feature_exports */";
 
-    let controller_use = format!("{}Controller,", pascal_plural);
-    let service_use = format!("{}Service,", pascal_plural);
-    let controller_entry = format!("{}Controller,", pascal_plural);
-    let provider_entry = format!("{}Service,", pascal_plural);
-    let export_entry = format!("{}Service,", pascal_plural);
+    let controller_entry = format!("controllers::{}Controller,", pascal_plural);
+    let provider_entry = format!("services::{}Service,", pascal_plural);
+    let export_entry = format!("services::{}Service,", pascal_plural);
 
-    let controller_use_block = format!("{}\n    {}", controller_use_marker, controller_use);
-    let service_use_block = format!("{}\n    {}", provider_use_marker, service_use);
     let controller_block = format!("{}\n        {}", controllers_marker, controller_entry);
     let provider_block = format!("{}\n        {}", providers_marker, provider_entry);
     let export_block = format!("{}\n        {}", exports_marker, export_entry);
 
-    if !content.contains(&controller_use_block) && content.contains(controller_use_marker) {
-        content = content.replace(
-            controller_use_marker,
-            &format!("{}\n    {}", controller_use_marker, controller_use),
-        );
-    }
-    if !content.contains(&service_use_block) && content.contains(provider_use_marker) {
-        content = content.replace(
-            provider_use_marker,
-            &format!("{}\n    {}", provider_use_marker, service_use),
-        );
-    }
     if !content.contains(&controller_block) && content.contains(controllers_marker) {
         content = content.replace(
             controllers_marker,
@@ -2144,7 +2109,9 @@ fn patch_feature_module_flat(
 
     if include_controller {
         let controller_entry = format!("{pascal_plural}Controller,");
-        if !content.contains(&controller_entry) {
+        let controller_block =
+            format!("/* nestforge:feature_controllers */\n        {controller_entry}");
+        if !content.contains(&controller_block) {
             content = content.replacen(
                 "/* nestforge:feature_controllers */",
                 &format!("/* nestforge:feature_controllers */\n        {controller_entry}"),
@@ -2155,7 +2122,8 @@ fn patch_feature_module_flat(
 
     if include_service {
         let provider_entry = format!("{pascal_plural}Service,");
-        if !content.contains(&provider_entry) {
+        let provider_block = format!("/* nestforge:feature_providers */\n        {provider_entry}");
+        if !content.contains(&provider_block) {
             content = content.replacen(
                 "/* nestforge:feature_providers */",
                 &format!("/* nestforge:feature_providers */\n        {provider_entry}"),
@@ -2164,7 +2132,8 @@ fn patch_feature_module_flat(
         }
 
         let export_entry = format!("{pascal_plural}Service,");
-        if !content.contains(&export_entry) {
+        let export_block = format!("/* nestforge:feature_exports */\n        {export_entry}");
+        if !content.contains(&export_block) {
             content = content.replacen(
                 "/* nestforge:feature_exports */",
                 &format!("/* nestforge:feature_exports */\n        {export_entry}"),
@@ -2666,7 +2635,7 @@ pub struct AppService {
 fn build_app_service() -> anyhow::Result<AppService> {
     let config = <AppConfig as nestforge::FromEnv>::from_env(
         &nestforge::EnvStore::load_with_options(
-            nestforge::ConfigOptions::new().env_file(".env"),
+            &nestforge::ConfigOptions::new().env_file(".env"),
         )?,
     )?;
 
@@ -3671,27 +3640,15 @@ pub mod services;
 
 use nestforge::module;
 
-use self::controllers::{{
-    Controller,
-    /* nestforge:feature_controllers_use */
-}};
-use self::services::{{
-    Service,
-    /* nestforge:feature_services_use */
-}};
-
 #[module(
     imports = [],
     controllers = [
-        Controller,
         /* nestforge:feature_controllers */
     ],
     providers = [
-        Service,
         /* nestforge:feature_providers */
     ],
     exports = [
-        Service,
         /* nestforge:feature_exports */
     ]
 )]
@@ -3701,12 +3658,8 @@ pub struct {pascal_module};
 "#
         ),
         GeneratorLayout::Flat => format!(
-            r#"pub mod controller;
-pub mod service;
-/* nestforge:feature_modules */
+            r#"/* nestforge:feature_modules */
 
-pub use controller::Controller;
-pub use service::Service;
 /* nestforge:feature_reexports */
 
 use nestforge::module;
@@ -3714,15 +3667,12 @@ use nestforge::module;
 #[module(
     imports = [],
     controllers = [
-        Controller,
         /* nestforge:feature_controllers */
     ],
     providers = [
-        Service,
         /* nestforge:feature_providers */
     ],
     exports = [
-        Service,
         /* nestforge:feature_exports */
     ]
 )]
@@ -3735,61 +3685,11 @@ pub struct {pascal_module};
 }
 
 fn template_feature_controllers_mod_rs(_module_name: &str, _pascal_module: &str) -> String {
-    "pub mod controller;\n\npub use controller::Controller;\n".to_string()
-}
-
-fn template_feature_controller_rs(
-    module_name: &str,
-    _pascal_module: &str,
-    layout: GeneratorLayout,
-) -> String {
-    let service_import = match layout {
-        GeneratorLayout::Nested => format!("crate::{module_name}::services::Service"),
-        GeneratorLayout::Flat => format!("crate::{module_name}::Service"),
-    };
-    format!(
-        r#"use nestforge::{{controller, routes, Inject}};
-
-use {service_import};
-
-#[controller("/{module_name}")]
-pub struct Controller;
-
-#[routes]
-impl Controller {{
-    #[nestforge::get("/")]
-    async fn index(service: Inject<Service>) -> String {{
-        service.hello()
-    }}
-}}
- "#,
-        service_import = service_import
-    )
+    template_controllers_mod_rs()
 }
 
 fn template_feature_services_mod_rs(_module_name: &str, _pascal_module: &str) -> String {
-    "pub mod service;\n\npub use service::Service;\n".to_string()
-}
-
-fn template_feature_service_rs(
-    module_name: &str,
-    _pascal_module: &str,
-    _layout: GeneratorLayout,
-) -> String {
-    format!(
-        r#"use nestforge::injectable;
-
-#[injectable]
-#[derive(Default)]
-pub struct Service;
-
-impl Service {{
-    pub fn hello(&self) -> String {{
-        "Hello from {module_name} module".to_string()
-    }}
-}}
-"#
-    )
+    template_services_mod_rs()
 }
 
 fn template_feature_dto_mod_rs() -> String {
@@ -4266,11 +4166,26 @@ mod tests {
     fn flat_feature_module_template_exposes_root_level_exports() {
         let template = template_feature_mod_rs("users", "UsersModule", GeneratorLayout::Flat);
 
-        assert!(template.contains("pub mod controller;"));
-        assert!(template.contains("pub mod service;"));
         assert!(template.contains("/* nestforge:feature_modules */"));
         assert!(template.contains("/* nestforge:feature_reexports */"));
+        assert!(!template.contains("pub mod controller;"));
+        assert!(!template.contains("pub mod service;"));
+        assert!(!template.contains("Controller,"));
+        assert!(!template.contains("Service,"));
         assert!(!template.contains("pub mod controllers;"));
+    }
+
+    #[test]
+    fn nested_feature_module_template_starts_without_placeholder_imports() {
+        let template = template_feature_mod_rs("users", "UsersModule", GeneratorLayout::Nested);
+
+        assert!(template.contains("pub mod controllers;"));
+        assert!(template.contains("pub mod services;"));
+        assert!(template.contains("pub mod dto;"));
+        assert!(!template.contains("use self::controllers"));
+        assert!(!template.contains("use self::services"));
+        assert!(!template.contains("Controller,"));
+        assert!(!template.contains("Service,"));
     }
 
     #[test]

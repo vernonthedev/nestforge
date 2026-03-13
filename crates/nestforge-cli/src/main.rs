@@ -336,6 +336,10 @@ fn create_new_app(app_name: &str, transport: AppTransport, enable_openapi: bool)
         &app_dir.join("src/main.rs"),
         &template_main_rs(app_name, transport, enable_openapi),
     )?;
+    write_file(
+        &app_dir.join("src/lib.rs"),
+        &template_app_lib_rs(transport),
+    )?;
 
     /* app_module.rs */
     write_file(
@@ -2338,13 +2342,10 @@ edition = "2021"
 }
 
 fn template_main_rs(app_name: &str, transport: AppTransport, enable_openapi: bool) -> String {
+    let crate_name = to_snake_case(app_name);
+
     match transport {
         AppTransport::Http => {
-            let openapi_import = if enable_openapi {
-                ", NestForgeFactoryOpenApiExt"
-            } else {
-                ""
-            };
             let openapi_setup = if enable_openapi {
                 format!(
                     "        .with_openapi_docs(\"{} API\", \"1.0.0\")?\n",
@@ -2355,16 +2356,8 @@ fn template_main_rs(app_name: &str, transport: AppTransport, enable_openapi: boo
             };
 
             format!(
-                r#"mod app_config;
-mod app_controller;
-mod app_service;
-mod app_module;
-mod guards;
-mod health_controller;
-mod interceptors;
-
-use app_module::AppModule;
-use nestforge::{{NestForgeFactory{openapi_import}}};
+                r#"use {crate_name}::AppModule;
+use nestforge::prelude::*;
 
 const PORT: u16 = 3000;
 
@@ -2380,15 +2373,11 @@ async fn bootstrap() -> anyhow::Result<()> {{
 async fn main() -> anyhow::Result<()> {{
     bootstrap().await
 }}
-"#
+"#,
+                crate_name = crate_name
             )
         }
         AppTransport::Graphql => {
-            let openapi_import = if enable_openapi {
-                ", NestForgeFactoryOpenApiExt"
-            } else {
-                ""
-            };
             let openapi_setup = if enable_openapi {
                 format!(
                     "\n        .with_openapi_docs(\"{} API\", \"1.0.0\")?",
@@ -2399,14 +2388,8 @@ async fn main() -> anyhow::Result<()> {{
             };
 
             format!(
-                r#"mod app_config;
-mod app_module;
-mod graphql;
-
-use app_config::AppConfig;
-use app_module::AppModule;
-use graphql::schema::build_schema;
-use nestforge::{{GraphQlConfig, NestForgeFactory, NestForgeFactoryGraphQlExt{openapi_import}}};
+                r#"use {crate_name}::{{build_schema, AppConfig, AppModule}};
+use nestforge::prelude::*;
 
 const PORT: u16 = 3000;
 
@@ -2425,47 +2408,41 @@ async fn bootstrap() -> anyhow::Result<()> {{
 async fn main() -> anyhow::Result<()> {{
     bootstrap().await
 }}
-"#
+"#,
+                crate_name = crate_name
             )
         }
-        AppTransport::Grpc => r#"mod app_config;
-mod app_module;
-mod grpc;
-
-use app_module::AppModule;
-use grpc::{proto::hello::greeter_server::GreeterServer, service::GreeterGrpcService};
-use nestforge::NestForgeGrpcFactory;
+        AppTransport::Grpc => format!(
+            r#"use {crate_name}::{{proto::hello::greeter_server::GreeterServer, AppModule, GreeterGrpcService}};
+use nestforge::prelude::*;
 
 const ADDR: &str = "127.0.0.1:50051";
 
-async fn bootstrap() -> anyhow::Result<()> {
+async fn bootstrap() -> anyhow::Result<()> {{
     NestForgeGrpcFactory::<AppModule>::create()?
         .with_addr(ADDR)
-        .listen_with(|ctx, addr| async move {
+        .listen_with(|ctx, addr| async move {{
             nestforge::tonic::transport::Server::builder()
                 .add_service(GreeterServer::new(GreeterGrpcService::new(ctx)))
                 .serve(addr)
                 .await
-        })
+        }})
         .await
-}
+}}
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> anyhow::Result<()> {{
     bootstrap().await
-}
-"#
-        .to_string(),
-        AppTransport::Microservices => r#"mod app_config;
-mod app_module;
-mod microservices;
-
-use app_module::AppModule;
-use microservices::AppPatterns;
-use nestforge::{MicroserviceClient, TestFactory, TransportMetadata};
+}}
+"#,
+            crate_name = crate_name
+        ),
+        AppTransport::Microservices => format!(
+            r#"use {crate_name}::{{AppModule, AppPatterns}};
+use nestforge::prelude::*;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> anyhow::Result<()> {{
     let module = TestFactory::<AppModule>::create().build()?;
     let patterns = module.resolve::<AppPatterns>()?;
     let client = module.microservice_client_with_metadata(
@@ -2477,39 +2454,104 @@ async fn main() -> anyhow::Result<()> {
         let response: serde_json::Value = client
             .send(
                 "app.ping",
-                serde_json::json!({
+                serde_json::json!({{
                     "name": "NestForge"
-                }),
+                }}),
             )
             .await?;
 
-    println!("{}", serde_json::to_string_pretty(&response)?);
+    println!("{{}}", serde_json::to_string_pretty(&response)?);
     module.shutdown()?;
     Ok(())
-}
-"#
-        .to_string(),
-        AppTransport::Websockets => r#"mod app_config;
-mod app_module;
-mod ws;
-
-use app_module::AppModule;
-use nestforge::{NestForgeFactory, NestForgeFactoryWebSocketExt};
-use ws::EventsGateway;
+}}
+"#,
+            crate_name = crate_name
+        ),
+        AppTransport::Websockets => format!(
+            r#"use {crate_name}::{{AppModule, EventsGateway}};
+use nestforge::{{prelude::*, NestForgeFactory, NestForgeFactoryWebSocketExt}};
 
 const PORT: u16 = 3000;
 
-async fn bootstrap() -> anyhow::Result<()> {
+async fn bootstrap() -> anyhow::Result<()> {{
     NestForgeFactory::<AppModule>::create()?
         .with_websocket_gateway(EventsGateway)
         .listen(PORT)
         .await
-}
+}}
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> anyhow::Result<()> {{
     bootstrap().await
+}}
+"#,
+            crate_name = crate_name
+        ),
+    }
 }
+
+fn template_app_lib_rs(transport: AppTransport) -> String {
+    match transport {
+        AppTransport::Http => r#"pub mod app_config;
+pub mod app_controller;
+pub mod app_service;
+pub mod app_module;
+pub mod guards;
+pub mod health_controller;
+pub mod interceptors;
+/* nestforge:app_modules */
+
+pub use app_config::AppConfig;
+pub use app_controller::AppController;
+pub use app_service::AppService;
+pub use app_module::AppModule;
+pub use health_controller::HealthController;
+/* nestforge:app_reexports */
+"#
+        .to_string(),
+        AppTransport::Graphql => r#"pub mod app_config;
+pub mod app_module;
+pub mod graphql;
+/* nestforge:app_modules */
+
+pub use app_config::AppConfig;
+pub use app_module::AppModule;
+pub use graphql::schema::build_schema;
+/* nestforge:app_reexports */
+"#
+        .to_string(),
+        AppTransport::Grpc => r#"pub mod app_config;
+pub mod app_module;
+pub mod grpc;
+/* nestforge:app_modules */
+
+pub use app_config::AppConfig;
+pub use app_module::AppModule;
+pub use grpc::proto;
+pub use grpc::service::GreeterGrpcService;
+/* nestforge:app_reexports */
+"#
+        .to_string(),
+        AppTransport::Microservices => r#"pub mod app_config;
+pub mod app_module;
+pub mod microservices;
+/* nestforge:app_modules */
+
+pub use app_config::AppConfig;
+pub use app_module::AppModule;
+pub use microservices::AppPatterns;
+/* nestforge:app_reexports */
+"#
+        .to_string(),
+        AppTransport::Websockets => r#"pub mod app_config;
+pub mod app_module;
+pub mod ws;
+/* nestforge:app_modules */
+
+pub use app_config::AppConfig;
+pub use app_module::AppModule;
+pub use ws::EventsGateway;
+/* nestforge:app_reexports */
 "#
         .to_string(),
     }
@@ -2517,7 +2559,7 @@ async fn main() -> anyhow::Result<()> {
 
 fn template_app_module_rs(transport: AppTransport) -> String {
     match transport {
-        AppTransport::Http => r#"use nestforge::module;
+        AppTransport::Http => r#"use nestforge::prelude::*;
 
 use crate::{
     app_config::AppConfig,
@@ -2546,7 +2588,7 @@ pub struct AppModule;
 "#
         .to_string(),
         AppTransport::Graphql | AppTransport::Grpc | AppTransport::Websockets => {
-            r#"use nestforge::module;
+            r#"use nestforge::prelude::*;
 
 use crate::app_config::AppConfig;
 
@@ -2560,7 +2602,7 @@ pub struct AppModule;
 "#
             .to_string()
         }
-        AppTransport::Microservices => r#"use nestforge::module;
+        AppTransport::Microservices => r#"use nestforge::prelude::*;
 
 use crate::{
     app_config::AppConfig,
@@ -2616,9 +2658,9 @@ fn template_dto_mod_rs() -> String {
 }
 
 fn template_app_controller_rs() -> String {
-    r#"use nestforge::{controller, routes, HttpException, Inject};
+    r#"use nestforge::prelude::*;
 
-use crate::app_service::AppService;
+use crate::AppService;
 
 #[controller("")]
 pub struct AppController;
@@ -2635,9 +2677,9 @@ impl AppController {
 }
 
 fn template_app_service_rs() -> String {
-    r#"use nestforge::injectable;
+    r#"use nestforge::prelude::*;
 
-use crate::app_config::AppConfig;
+use crate::AppConfig;
 
 #[injectable(factory = build_app_service)]
 pub struct AppService {
@@ -2666,7 +2708,7 @@ impl AppService {
 }
 
 fn template_health_controller_rs() -> String {
-    r#"use nestforge::{controller, routes};
+    r#"use nestforge::prelude::*;
 
 #[controller("")]
 pub struct HealthController;
@@ -2692,7 +2734,7 @@ fn template_app_config_rs(transport: AppTransport) -> String {
     };
 
     format!(
-        r#"use nestforge::{{injectable, ConfigModule, ConfigOptions}};
+        r#"use nestforge::{{prelude::*, ConfigModule, ConfigOptions}};
 
 #[injectable(factory = load_app_config)]
 pub struct AppConfig {{
@@ -3754,6 +3796,38 @@ fn patch_root_app_module_imports_list(app_root: &Path, pascal_module: &str) -> R
 }
 
 fn patch_main_mod_decl(app_root: &Path, module_name: &str) -> Result<()> {
+    let lib_path = app_root.join("src/lib.rs");
+    if lib_path.exists() {
+        let mut content = fs::read_to_string(&lib_path)?;
+        let decl = format!("pub mod {};", module_name);
+        let reexport = format!("pub use {}::*;", module_name);
+
+        if !content.contains(&decl) {
+            if content.contains("/* nestforge:app_modules */") {
+                content = content.replace(
+                    "/* nestforge:app_modules */",
+                    &format!("/* nestforge:app_modules */\n{decl}"),
+                );
+            } else {
+                content.push_str(&format!("\n{decl}"));
+            }
+        }
+
+        if !content.contains(&reexport) {
+            if content.contains("/* nestforge:app_reexports */") {
+                content = content.replace(
+                    "/* nestforge:app_reexports */",
+                    &format!("/* nestforge:app_reexports */\n{reexport}"),
+                );
+            } else {
+                content.push_str(&format!("\n{reexport}"));
+            }
+        }
+
+        fs::write(lib_path, content)?;
+        return Ok(());
+    }
+
     let path = app_root.join("src/main.rs");
     let mut content = fs::read_to_string(&path)?;
     let decl = format!("mod {};", module_name);
@@ -4030,7 +4104,7 @@ mod tests {
     fn template_main_rs_wires_openapi_when_requested() {
         let main_rs = super::template_main_rs("marknon", AppTransport::Http, true);
 
-        assert!(main_rs.contains("NestForgeFactoryOpenApiExt"));
+        assert!(main_rs.contains("use nestforge::prelude::*;"));
         assert!(main_rs.contains(".with_openapi_docs(\"Marknon API\", \"1.0.0\")?"));
     }
 
@@ -4046,7 +4120,18 @@ mod tests {
     fn template_main_rs_declares_root_app_service_for_http_apps() {
         let main_rs = super::template_main_rs("demo-api", AppTransport::Http, false);
 
-        assert!(main_rs.contains("mod app_service;"));
+        assert!(main_rs.contains("use demo_api::AppModule;"));
+        assert!(!main_rs.contains("mod app_service;"));
+    }
+
+    #[test]
+    fn template_app_lib_rs_reexports_root_http_symbols() {
+        let lib_rs = super::template_app_lib_rs(AppTransport::Http);
+
+        assert!(lib_rs.contains("pub mod app_service;"));
+        assert!(lib_rs.contains("pub use app_module::AppModule;"));
+        assert!(lib_rs.contains("/* nestforge:app_modules */"));
+        assert!(lib_rs.contains("/* nestforge:app_reexports */"));
     }
 
     #[test]

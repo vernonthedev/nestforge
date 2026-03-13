@@ -267,6 +267,28 @@ pub use nestforge_websockets::{
     WebSocketContext, WebSocketGateway,
 };
 
+pub mod prelude {
+    pub use crate::{
+        authenticated, controller, delete, dto, entity, entity_dto, get, identifiable,
+        injectable, module, post, put, response, response_dto, routes, summary, tag,
+        use_exception_filter, use_guard, use_interceptor, version, HttpException, Inject,
+        NestForgeFactory, Query, Param, Validate,
+    };
+
+    #[cfg(feature = "config")]
+    pub use crate::{ConfigModule, ConfigOptions, FromEnv};
+    #[cfg(feature = "graphql")]
+    pub use crate::{GraphQlConfig, NestForgeFactoryGraphQlExt};
+    #[cfg(feature = "grpc")]
+    pub use crate::NestForgeGrpcFactory;
+    #[cfg(feature = "microservices")]
+    pub use crate::{TestFactory, TransportMetadata};
+    #[cfg(feature = "openapi")]
+    pub use crate::NestForgeFactoryOpenApiExt;
+    #[cfg(feature = "websockets")]
+    pub use crate::NestForgeFactoryWebSocketExt;
+}
+
 #[cfg(feature = "openapi")]
 pub fn openapi_doc_for_module<M: ModuleDefinition>(
     title: impl Into<String>,

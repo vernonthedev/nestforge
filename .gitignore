@@ -16,4 +16,3 @@ skills-lock.json
 .env
 *.log
 myapp/
-vendor/

@@ -134,7 +134,7 @@ fn run_cli(cli: Cli) -> Result<()> {
 
 fn run_docs_command(args: DocsArgs) -> Result<()> {
     let interactive = interactive_enabled(true);
-    let use_tui = full_tui_enabled(!args.no_tui);
+    let use_tui = interactive && !args.no_tui;
 
     if use_tui {
         match run_docs_browser(args.topic.as_deref()) {

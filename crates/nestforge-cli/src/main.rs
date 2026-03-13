@@ -107,6 +107,7 @@ fn run_cli(cli: Cli) -> Result<()> {
             let (app_name, transport, enable_openapi) = resolve_new_args(args)?;
             create_new_app(&app_name, transport, enable_openapi)?;
         }
+        Commands::Docs => print_cli_docs(),
         Commands::Generate(args) => {
             let (kind, name, options) = resolve_generate_args(args)?;
             run_generate_command(kind, &name, options)?;
@@ -126,6 +127,96 @@ fn run_cli(cli: Cli) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn print_cli_docs() {
+    println!("{}", cli_docs_text());
+}
+
+fn cli_docs_text() -> String {
+    r#"NestForge CLI Docs
+
+Getting started
+  nestforge new my-app --transport http --no-tui
+  cd my-app
+  cargo run
+
+Core workflow
+  1. Create an app with `nestforge new`.
+  2. Generate a feature module with `nestforge g module users`.
+  3. Generate a resource inside that module with `nestforge g resource users --module users`.
+  4. Run `cargo run` or `cargo check`.
+
+Create a new app
+  nestforge new <app-name> --transport http
+  nestforge new <app-name> --transport graphql --openapi
+  nestforge new <app-name> --transport grpc
+  nestforge new <app-name> --transport microservices
+  nestforge new <app-name> --transport websockets
+
+Useful `new` options
+  --transport <http|graphql|grpc|microservices|websockets>
+  --openapi     Enable OpenAPI wiring for supported transports
+  --no-tui      Disable interactive prompts
+
+Generate resources
+  nestforge g module users
+  nestforge g resource users --module users
+  nestforge g controller users --module users
+  nestforge g service users --module users
+
+Useful generators
+  resource      Create DTOs, controller, and service together
+  module        Create a feature module
+  controller    Create only a controller
+  service       Create only a service
+  guard         Create a guard
+  decorator     Create a request decorator
+  filter        Create an exception filter
+  middleware    Create middleware
+  interceptor   Create an interceptor
+  serializer    Create a response serializer
+  graphql       Create a GraphQL resolver
+  grpc          Create a gRPC service scaffold
+  gateway       Create a WebSocket gateway
+  microservice  Create microservice patterns
+
+Layout options
+  --module <name>   Generate inside an existing feature module
+  --flat            Generate files in the current module root
+  --no-prompt       Skip DTO field prompts
+  --no-tui          Disable interactive prompts
+
+Common examples
+  nestforge g module billing --flat
+  nestforge g resource invoices --module billing --flat --no-prompt
+  nestforge g guard auth
+  nestforge g interceptor logging
+  nestforge g serializer user
+
+OpenAPI export
+  nestforge export-docs --format json
+  nestforge export-docs --format yaml --output docs/openapi.yaml
+
+Database workflow
+  nestforge db init
+  nestforge db generate create_users
+  nestforge db migrate
+  nestforge db status
+
+Recommended first pass
+  nestforge new demo-api --transport http --no-tui
+  cd demo-api
+  nestforge g module users --flat
+  nestforge g resource users --module users --flat --no-prompt
+  cargo check
+
+Tips
+  Use `nestforge --help` to see the full command list.
+  Use `nestforge <command> --help` for command-specific flags.
+  Use `nestforge export-docs` when you want generated OpenAPI files, not CLI docs.
+"#
+    .to_string()
 }
 
 fn resolve_new_args(args: NewArgs) -> Result<(String, AppTransport, bool)> {
@@ -4230,5 +4321,16 @@ mod tests {
 
         assert!(template.contains("pub struct RewriteBadRequestFilter;"));
         assert!(template.contains("impl nestforge::ExceptionFilter for RewriteBadRequestFilter"));
+    }
+
+    #[test]
+    fn cli_docs_cover_generation_workflow() {
+        let docs = super::cli_docs_text();
+
+        assert!(docs.contains("nestforge new my-app --transport http --no-tui"));
+        assert!(docs.contains("nestforge g module users"));
+        assert!(docs.contains("nestforge g resource users --module users"));
+        assert!(docs.contains("nestforge export-docs --format yaml"));
+        assert!(docs.contains("nestforge db migrate"));
     }
 }

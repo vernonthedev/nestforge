@@ -23,13 +23,15 @@ pub struct Cli {
 pub enum Commands {
     /// Create a new NestForge application
     New(NewArgs),
+    /// Show CLI workflow and generator documentation
+    Docs,
     /// Generate framework resources and feature modules
     #[command(alias = "g")]
     Generate(GenerateArgs),
     /// Database migration commands
     Db(DbArgs),
     /// Export OpenAPI documentation
-    #[command(visible_alias = "docs")]
+    #[command(visible_alias = "openapi")]
     ExportDocs(ExportDocsArgs),
     /// Format Rust sources with cargo fmt
     Fmt,

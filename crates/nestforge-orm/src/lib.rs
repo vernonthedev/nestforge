@@ -3,29 +3,96 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use nestforge_db::{Db, DbError};
 use thiserror::Error;
 
+/** Type alias for async repository operations */
 pub type RepoFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/**
+ * EntityMeta Trait
+ *
+ * Metadata trait for database entities.
+ * Provides information about the table and ID column.
+ *
+ * # Type Parameters
+ * - `Self`: The entity type implementing the trait
+ * - `Id`: The type of the entity's primary key
+ *
+ * # Implementation
+ * Typically implemented via the `#[entity]` macro.
+ */
 pub trait EntityMeta: Send + Sync + 'static {
+    /** The type of the primary key */
     type Id: Send + Sync + Clone + 'static;
 
+    /**
+     * Returns the database table name for this entity.
+     */
     fn table_name() -> &'static str;
+    
+    /**
+     * Returns the column name for the primary key.
+     * Defaults to "id".
+     */
     fn id_column() -> &'static str {
         "id"
     }
+    
+    /**
+     * Returns a reference to the entity's ID value.
+     */
     fn id_value(&self) -> &Self::Id;
 }
 
+/**
+ * Repo Trait
+ *
+ * A trait for implementing SQL repositories in NestForge.
+ * Provides standard CRUD operations for database entities.
+ *
+ * # Type Parameters
+ * - `T`: The entity type (must implement EntityMeta)
+ *
+ * # Methods
+ * - `find_all`: Retrieves all entities
+ * - `find_by_id`: Retrieves a single entity by ID
+ * - `create`: Creates a new entity
+ * - `update_by_id`: Updates an existing entity
+ * - `delete_by_id`: Removes an entity
+ */
 pub trait Repo<T>: Send + Sync
 where
     T: EntityMeta,
 {
+    /**
+     * Retrieves all entities of type T.
+     */
     fn find_all(&self) -> RepoFuture<'_, Result<Vec<T>, OrmError>>;
+    
+    /**
+     * Retrieves a single entity by its ID.
+     */
     fn find_by_id(&self, id: T::Id) -> RepoFuture<'_, Result<Option<T>, OrmError>>;
+    
+    /**
+     * Creates a new entity in the database.
+     */
     fn create(&self, entity: T) -> RepoFuture<'_, Result<T, OrmError>>;
+    
+    /**
+     * Updates an existing entity by ID.
+     */
     fn update_by_id(&self, id: T::Id, entity: T) -> RepoFuture<'_, Result<T, OrmError>>;
+    
+    /**
+     * Deletes an entity by ID.
+     */
     fn delete_by_id(&self, id: T::Id) -> RepoFuture<'_, Result<(), OrmError>>;
 }
 
+/**
+ * OrmError
+ *
+ * Error types that can occur during ORM operations.
+ */
 #[derive(Debug, Error)]
 pub enum OrmError {
     #[error("Database error: {0}")]
@@ -50,6 +117,15 @@ type DeleteByIdHandler<T> = Arc<
     dyn Fn(&Db, <T as EntityMeta>::Id) -> RepoFuture<'static, Result<(), OrmError>> + Send + Sync,
 >;
 
+/**
+ * SqlRepo
+ *
+ * A generic SQL repository implementation.
+ * Provides CRUD operations backed by a SQL database.
+ *
+ * # Type Parameters
+ * - `T`: The entity type (must implement EntityMeta)
+ */
 pub struct SqlRepo<T>
 where
     T: EntityMeta,

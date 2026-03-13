@@ -8,6 +8,12 @@ use nestforge_core::{OpenApiSchemaComponent, RouteDocumentation};
 use serde::Serialize;
 use serde_json::{json, Value};
 
+/**
+ * OpenApiRoute
+ *
+ * Represents a single route in the OpenAPI documentation.
+ * Contains all metadata needed to generate OpenAPI specification.
+ */
 #[derive(Debug, Clone, Serialize)]
 pub struct OpenApiRoute {
     pub method: String,
@@ -21,6 +27,11 @@ pub struct OpenApiRoute {
     pub responses: Vec<OpenApiResponse>,
 }
 
+/**
+ * OpenApiResponse
+ *
+ * Represents a single response in the OpenAPI documentation.
+ */
 #[derive(Debug, Clone, Serialize)]
 pub struct OpenApiResponse {
     pub status: u16,
@@ -28,6 +39,12 @@ pub struct OpenApiResponse {
     pub schema: Option<Value>,
 }
 
+/**
+ * OpenApiDoc
+ *
+ * The complete OpenAPI documentation for an application.
+ * Contains title, version, routes, and schema components.
+ */
 #[derive(Debug, Clone, Serialize)]
 pub struct OpenApiDoc {
     pub title: String,
@@ -36,13 +53,34 @@ pub struct OpenApiDoc {
     pub components: Vec<OpenApiSchemaComponent>,
 }
 
+/**
+ * OpenApiUi
+ *
+ * Available UI options for viewing OpenAPI documentation.
+ */
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpenApiUi {
+    /** A minimal plain text UI */
     Simple,
+    /** Swagger UI - interactive API documentation */
     SwaggerUi,
+    /** Redoc - three-panel API documentation */
     Redoc,
 }
 
+/**
+ * OpenApiConfig
+ *
+ * Configuration options for OpenAPI documentation generation.
+ *
+ * # Defaults
+ * - JSON path: "/openapi.json"
+ * - YAML path: "/openapi.yaml"
+ * - Docs path: "/docs"
+ * - Swagger UI path: "/swagger-ui"
+ * - Redoc path: "/redoc"
+ * - Default UI: SwaggerUi
+ */
 #[derive(Debug, Clone)]
 pub struct OpenApiConfig {
     pub json_path: String,
@@ -67,15 +105,24 @@ impl Default for OpenApiConfig {
 }
 
 impl OpenApiConfig {
+    /**
+     * Creates a new OpenApiConfig with default values.
+     */
     pub fn new() -> Self {
         Self::default()
     }
 
+    /**
+     * Sets the path for the JSON OpenAPI specification.
+     */
     pub fn with_json_path(mut self, path: impl Into<String>) -> Self {
         self.json_path = normalize_path(path.into(), "/openapi.json");
         self
     }
 
+    /**
+     * Sets the path for the YAML OpenAPI specification.
+     */
     pub fn with_yaml_path(mut self, path: impl Into<String>) -> Self {
         self.yaml_path = normalize_path(path.into(), "/openapi.yaml");
         self

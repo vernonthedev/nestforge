@@ -8,13 +8,23 @@ use std::{
 
 use nestforge_data::{DataError, DocumentRepo};
 
+/**
+ * MongoConfig
+ *
+ * Configuration for MongoDB connection.
+ */
 #[derive(Clone)]
 pub struct MongoConfig {
+    /** The MongoDB connection URI */
     pub uri: String,
+    /** The default database name */
     pub database: String,
 }
 
 impl MongoConfig {
+    /**
+     * Creates a new MongoConfig with the given URI and database.
+     */
     pub fn new(uri: impl Into<String>, database: impl Into<String>) -> Self {
         Self {
             uri: uri.into(),
@@ -23,6 +33,15 @@ impl MongoConfig {
     }
 }
 
+/**
+ * InMemoryMongoRepo
+ *
+ * An in-memory implementation of DocumentRepo for development/testing.
+ * Provides the same interface as MongoDB but stores data in memory.
+ *
+ * # Type Parameters
+ * - `T`: The document type being stored
+ */
 #[derive(Clone)]
 pub struct InMemoryMongoRepo<T> {
     docs: Arc<RwLock<HashMap<String, T>>>,
@@ -30,6 +49,9 @@ pub struct InMemoryMongoRepo<T> {
 }
 
 impl<T> InMemoryMongoRepo<T> {
+    /**
+     * Creates a new empty InMemoryMongoRepo.
+     */
     pub fn new() -> Self {
         Self {
             docs: Arc::new(RwLock::new(HashMap::new())),

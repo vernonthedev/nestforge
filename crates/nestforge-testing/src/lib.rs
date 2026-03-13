@@ -16,12 +16,33 @@ use nestforge_websockets::WebSocketContext;
 
 type OverrideFn = Box<dyn Fn(&Container) -> Result<()> + Send + Sync>;
 
+/**
+ * TestFactory
+ *
+ * A factory for creating test instances of NestForge modules.
+ * Provides a convenient way to set up modules for testing with
+ * provider overrides.
+ *
+ * # Type Parameters
+ * - `M`: The module type to create a test instance for
+ *
+ * # Example
+ * ```rust
+ * let module = TestFactory::<AppModule>::create()
+ *     .override_provider(MyService::mock())
+ *     .build()
+ *     .unwrap();
+ * ```
+ */
 pub struct TestFactory<M: ModuleDefinition> {
     overrides: Vec<OverrideFn>,
     _marker: PhantomData<M>,
 }
 
 impl<M: ModuleDefinition> TestFactory<M> {
+    /**
+     * Creates a new TestFactory for the given module.
+     */
     pub fn create() -> Self {
         Self {
             overrides: Vec::new(),
@@ -29,6 +50,15 @@ impl<M: ModuleDefinition> TestFactory<M> {
         }
     }
 
+    /**
+     * Overrides a provider with a test value.
+     *
+     * # Type Parameters
+     * - `T`: The type to override
+     *
+     * # Arguments
+     * - `value`: The test value to use instead of the real provider
+     */
     pub fn override_provider<T>(mut self, value: T) -> Self
     where
         T: Send + Sync + Clone + 'static,
@@ -40,6 +70,9 @@ impl<M: ModuleDefinition> TestFactory<M> {
         self
     }
 
+    /**
+     * Builds the TestingModule with all configured overrides.
+     */
     pub fn build(self) -> Result<TestingModule> {
         let container = Container::new();
 
@@ -58,6 +91,12 @@ impl<M: ModuleDefinition> TestFactory<M> {
     }
 }
 
+/**
+ * TestingModule
+ *
+ * A fully initialized module for testing purposes.
+ * Provides access to the container, routers, and test utilities.
+ */
 #[derive(Clone)]
 pub struct TestingModule {
     container: Container,
@@ -65,10 +104,19 @@ pub struct TestingModule {
 }
 
 impl TestingModule {
+    /**
+     * Returns a reference to the DI container.
+     */
     pub fn container(&self) -> &Container {
         &self.container
     }
 
+    /**
+     * Resolves a service from the container.
+     *
+     * # Type Parameters
+     * - `T`: The type to resolve
+     */
     pub fn resolve<T>(&self) -> Result<Arc<T>, ContainerError>
     where
         T: Send + Sync + 'static,
@@ -76,6 +124,9 @@ impl TestingModule {
         self.container.resolve::<T>()
     }
 
+    /**
+     * Returns an HTTP router with all controllers merged.
+     */
     pub fn http_router(&self) -> Router {
         let mut app: Router<Container> = Router::new();
         for controller_router in &self.runtime.controllers {

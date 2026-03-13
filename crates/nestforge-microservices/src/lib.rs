@@ -13,7 +13,32 @@ use serde_json::Value;
 type MessageFuture = Pin<Box<dyn Future<Output = Result<Value>> + Send>>;
 type EventFuture = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
 
+/**
+ * MicroserviceClient Trait
+ *
+ * Defines the interface for sending messages and emitting events
+ * to microservices. Implement this trait to create custom transport
+ * adapters (e.g., TCP, Redis, NATS).
+ *
+ * # Methods
+ * - `send`: Sends a request-response style message and waits for a response
+ * - `emit`: Sends an event (fire-and-forget) without waiting for a response
+ *
+ * # Type Parameters
+ * - `Payload`: The message payload type (must be serializable)
+ * - `Response`: The response type (must be deserializable)
+ */
 pub trait MicroserviceClient: Send + Sync + 'static {
+    /**
+     * Sends a message and waits for a response.
+     *
+     * # Arguments
+     * - `pattern`: The microservice pattern/endpoint to call
+     * - `payload`: The message payload to send
+     *
+     * # Returns
+     * A future that resolves to the response from the microservice.
+     */
     fn send<Payload, Response>(
         &self,
         pattern: impl Into<String>,
@@ -23,6 +48,16 @@ pub trait MicroserviceClient: Send + Sync + 'static {
         Payload: Serialize + Send + 'static,
         Response: DeserializeOwned + Send + 'static;
 
+    /**
+     * Emits an event without waiting for a response.
+     *
+     * # Arguments
+     * - `pattern`: The event pattern to emit
+     * - `payload`: The event payload to send
+     *
+     * # Returns
+     * A future that completes when the event is sent.
+     */
     fn emit<Payload>(
         &self,
         pattern: impl Into<String>,
@@ -32,22 +67,46 @@ pub trait MicroserviceClient: Send + Sync + 'static {
         Payload: Serialize + Send + 'static;
 }
 
+/**
+ * TransportMetadata
+ *
+ * Key-value metadata that accompanies microservice messages and events.
+ * Used for routing, correlation, and custom headers.
+ */
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TransportMetadata {
     pub values: BTreeMap<String, String>,
 }
 
 impl TransportMetadata {
+    /**
+     * Creates a new empty TransportMetadata.
+     */
     pub fn new() -> Self {
         Self::default()
     }
 
+    /**
+     * Adds a key-value pair to the metadata.
+     *
+     * # Arguments
+     * - `key`: The metadata key
+     * - `value`: The metadata value
+     *
+     * Returns the modified metadata for chaining.
+     */
     pub fn insert(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.values.insert(key.into(), value.into());
         self
     }
 }
 
+/**
+ * MessageEnvelope
+ *
+ * A request-response style message sent between microservices.
+ * Contains the pattern, payload, and optional metadata.
+ */
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessageEnvelope {
     pub pattern: String,
@@ -57,6 +116,13 @@ pub struct MessageEnvelope {
 }
 
 impl MessageEnvelope {
+    /**
+     * Creates a new message envelope.
+     *
+     * # Arguments
+     * - `pattern`: The microservice pattern to target
+     * - `payload`: The message payload (must be serializable)
+     */
     pub fn new(pattern: impl Into<String>, payload: impl Serialize) -> Result<Self> {
         Ok(Self {
             pattern: pattern.into(),
@@ -66,12 +132,21 @@ impl MessageEnvelope {
         })
     }
 
+    /**
+     * Attaches metadata to the message envelope.
+     */
     pub fn with_metadata(mut self, metadata: TransportMetadata) -> Self {
         self.metadata = metadata;
         self
     }
 }
 
+/**
+ * EventEnvelope
+ *
+ * A fire-and-forget event sent to microservices.
+ * Events do not expect a response.
+ */
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventEnvelope {
     pub pattern: String,
@@ -81,6 +156,13 @@ pub struct EventEnvelope {
 }
 
 impl EventEnvelope {
+    /**
+     * Creates a new event envelope.
+     *
+     * # Arguments
+     * - `pattern`: The event pattern to emit
+     * - `payload`: The event payload (must be serializable)
+     */
     pub fn new(pattern: impl Into<String>, payload: impl Serialize) -> Result<Self> {
         Ok(Self {
             pattern: pattern.into(),
@@ -89,12 +171,21 @@ impl EventEnvelope {
         })
     }
 
+    /**
+     * Attaches metadata to the event envelope.
+     */
     pub fn with_metadata(mut self, metadata: TransportMetadata) -> Self {
         self.metadata = metadata;
         self
     }
 }
 
+/**
+ * MicroserviceContext
+ *
+ * The execution context for handling microservice messages and events.
+ * Provides access to the DI container, transport info, and authentication.
+ */
 #[derive(Clone)]
 pub struct MicroserviceContext {
     container: Container,
@@ -106,6 +197,15 @@ pub struct MicroserviceContext {
 }
 
 impl MicroserviceContext {
+    /**
+     * Creates a new microservice context.
+     *
+     * # Arguments
+     * - `container`: The DI container for resolving services
+     * - `transport`: The transport type (e.g., "tcp", "redis", "websocket")
+     * - `pattern`: The message/event pattern
+     * - `metadata`: Additional transport metadata
+     */
     pub fn new(
         container: Container,
         transport: impl Into<String>,
@@ -131,22 +231,37 @@ impl MicroserviceContext {
         }
     }
 
+    /**
+     * Returns a reference to the DI container.
+     */
     pub fn container(&self) -> &Container {
         &self.container
     }
 
+    /**
+     * Returns the transport type.
+     */
     pub fn transport(&self) -> &str {
         &self.transport
     }
 
+    /**
+     * Returns the message/event pattern.
+     */
     pub fn pattern(&self) -> &str {
         &self.pattern
     }
 
+    /**
+     * Returns a reference to the transport metadata.
+     */
     pub fn metadata(&self) -> &TransportMetadata {
         &self.metadata
     }
 
+    /**
+     * Returns the request ID if available.
+     */
     pub fn request_id(&self) -> Option<&RequestId> {
         self.request_id.as_ref()
     }

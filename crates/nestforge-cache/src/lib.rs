@@ -10,6 +10,12 @@ use nestforge_core::{
 use nestforge_data::CacheStore;
 use serde::{Deserialize, Serialize};
 
+/**
+ * CachedHttpResponse
+ *
+ * Internal representation of a cached HTTP response.
+ * Stores the status code, body, and content type.
+ */
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedHttpResponse {
     status: u16,
@@ -32,9 +38,29 @@ impl CachedHttpResponse {
     }
 }
 
+/**
+ * CachePolicy Trait
+ *
+ * Defines the caching strategy for responses.
+ *
+ * # Type Parameters
+ * - `Self`: The policy type
+ * - `Store`: The cache store implementation
+ *
+ * # Default Behavior
+ * By default, only GET requests are cached, with no TTL,
+ * and only successful (200 OK) responses are cached.
+ */
 pub trait CachePolicy: Default + Clone + Send + Sync + 'static {
+    /** The cache store type used by this policy */
     type Store: CacheStore + Send + Sync + 'static;
 
+    /**
+     * Generates a cache key for the given request.
+     *
+     * Return `None` to skip caching for this request.
+     * Default implementation caches all GET requests.
+     */
     fn cache_key(&self, ctx: &RequestContext, req: &Request<Body>) -> Option<String> {
         if ctx.method != Method::GET {
             return None;
@@ -43,15 +69,34 @@ pub trait CachePolicy: Default + Clone + Send + Sync + 'static {
         Some(format!("{}:{}", std::any::type_name::<Self>(), req.uri()))
     }
 
+    /**
+     * Returns the time-to-live in seconds for cached responses.
+     *
+     * Return `None` for no expiration.
+     */
     fn ttl_seconds(&self) -> Option<u64> {
         None
     }
 
+    /**
+     * Determines whether a response should be cached.
+     *
+     * Default implementation caches only 200 OK responses.
+     */
     fn should_cache_response(&self, response: &Response) -> bool {
         response.status() == StatusCode::OK
     }
 }
 
+/**
+ * CacheInterceptor
+ *
+ * An interceptor that implements HTTP response caching based on
+ * a configurable CachePolicy.
+ *
+ * # Type Parameters
+ * - `P`: The cache policy implementing CachePolicy
+ */
 #[derive(Debug, Clone)]
 pub struct CacheInterceptor<P>
 where
@@ -75,6 +120,9 @@ impl<P> CacheInterceptor<P>
 where
     P: CachePolicy,
 {
+    /**
+     * Creates a new CacheInterceptor with the given policy.
+     */
     pub fn new(policy: P) -> Self {
         Self { policy }
     }

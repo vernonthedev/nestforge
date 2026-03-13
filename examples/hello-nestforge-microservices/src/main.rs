@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
         .send(
             "app.greet",
             GreetingPayload {
-                name: "Vernon".to_string(),
+                name: "John Doe".to_string(),
             },
         )
         .await?;

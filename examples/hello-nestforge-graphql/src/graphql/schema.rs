@@ -20,13 +20,13 @@ impl UserStore {
             users: Arc::new(RwLock::new(vec![
                 User {
                     id: 1,
-                    name: "Vernon".to_string(),
-                    email: "vernon@example.com".to_string(),
+                    name: "John Doe".to_string(),
+                    email: "john.doe@example.com".to_string(),
                 },
                 User {
                     id: 2,
-                    name: "Sam".to_string(),
-                    email: "sam@example.com".to_string(),
+                    name: "Jane Doe".to_string(),
+                    email: "jane.doe@example.com".to_string(),
                 },
             ])),
         }

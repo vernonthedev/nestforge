@@ -12,13 +12,13 @@ fn build_users_service() -> UsersService {
         store: ResourceService::with_seed(vec![
             UserDto {
                 id: 1,
-                name: "Vernon".to_string(),
-                email: "vernon@example.com".to_string(),
+                name: "John Doe".to_string(),
+                email: "john.doe@example.com".to_string(),
             },
             UserDto {
                 id: 2,
-                name: "Sam".to_string(),
-                email: "sam@example.com".to_string(),
+                name: "Jane Doe".to_string(),
+                email: "jane.doe@example.com".to_string(),
             },
         ]),
     }

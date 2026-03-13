@@ -460,7 +460,6 @@ NestForgeFactory::<AppModule>::create()?
 
 - Main Documentation: [https://nestforge.suredoc.net](https://nestforge.suredoc.net)
 - Wiki: [https://github.com/vernonthedev/nestforge/wiki](https://github.com/vernonthedev/nestforge/wiki)
-- Project docs: [https://vernonthedev.github.io/nestforge/docs/Home.md](https://vernonthedev.github.io/nestforge/docs/Home.md)
 
 ## Contributing
 

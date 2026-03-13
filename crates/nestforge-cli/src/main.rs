@@ -2088,7 +2088,7 @@ fn patch_feature_module(
     let controller_use = format!("{}Controller,", pascal_plural);
     let service_use = format!("{}Service,", pascal_plural);
     let controller_entry = format!("{}Controller,", pascal_plural);
-    let provider_entry = format!("{}Service::new(),", pascal_plural);
+    let provider_entry = format!("{}Service,", pascal_plural);
     let export_entry = format!("{}Service,", pascal_plural);
 
     let controller_use_block = format!("{}\n    {}", controller_use_marker, controller_use);
@@ -2154,7 +2154,7 @@ fn patch_feature_module_flat(
     }
 
     if include_service {
-        let provider_entry = format!("{pascal_plural}Service::new(),");
+        let provider_entry = format!("{pascal_plural}Service,");
         if !content.contains(&provider_entry) {
             content = content.replacen(
                 "/* nestforge:feature_providers */",
@@ -2222,7 +2222,7 @@ fn patch_app_module_providers_only(
     let mut content = fs::read_to_string(&path)?;
 
     let marker = "/* nestforge:providers */";
-    let entry = format!("{}Service::new(),", pascal_plural);
+    let entry = format!("{}Service,", pascal_plural);
 
     if content.contains(&entry) {
         return Ok(());
@@ -2536,7 +2536,7 @@ async fn main() -> anyhow::Result<()> {
 
 fn template_app_module_rs(transport: AppTransport) -> String {
     match transport {
-        AppTransport::Http => r#"use nestforge::{module, ConfigModule, ConfigOptions, Provider};
+        AppTransport::Http => r#"use nestforge::module;
 
 use crate::{
     app_config::AppConfig,
@@ -2544,10 +2544,6 @@ use crate::{
     app_service::AppService,
     health_controller::HealthController,
 };
-
-fn load_app_config() -> anyhow::Result<AppConfig> {
-    Ok(ConfigModule::for_root::<AppConfig>(ConfigOptions::new().env_file(".env"))?)
-}
 
 #[module(
     imports = [
@@ -2559,11 +2555,8 @@ fn load_app_config() -> anyhow::Result<AppConfig> {
         /* nestforge:controllers */
     ],
     providers = [
-        load_app_config()?,
-        Provider::factory(|container| {
-            let config = container.resolve::<AppConfig>()?;
-            Ok(AppService::new(config.as_ref()))
-        }),
+        AppConfig,
+        AppService,
         /* nestforge:providers */
     ],
     exports = [AppConfig, AppService]
@@ -2572,43 +2565,31 @@ pub struct AppModule;
 "#
         .to_string(),
         AppTransport::Graphql | AppTransport::Grpc | AppTransport::Websockets => {
-            r#"use nestforge::{module, ConfigModule, ConfigOptions};
+            r#"use nestforge::module;
 
 use crate::app_config::AppConfig;
-
-fn load_app_config() -> anyhow::Result<AppConfig> {
-    Ok(ConfigModule::for_root::<AppConfig>(ConfigOptions::new().env_file(".env"))?)
-}
 
 #[module(
     imports = [],
     controllers = [],
-    providers = [load_app_config()?],
+    providers = [AppConfig],
     exports = [AppConfig]
 )]
 pub struct AppModule;
 "#
             .to_string()
         }
-        AppTransport::Microservices => r#"use nestforge::{module, ConfigModule, ConfigOptions};
+        AppTransport::Microservices => r#"use nestforge::module;
 
 use crate::{
     app_config::AppConfig,
     microservices::AppPatterns,
 };
 
-fn load_app_config() -> anyhow::Result<AppConfig> {
-    Ok(ConfigModule::for_root::<AppConfig>(ConfigOptions::new().env_file(".env"))?)
-}
-
-fn load_patterns() -> anyhow::Result<AppPatterns> {
-    Ok(AppPatterns::new())
-}
-
 #[module(
     imports = [],
     controllers = [],
-    providers = [load_app_config()?, load_patterns()?],
+    providers = [AppConfig, AppPatterns],
     exports = [AppConfig, AppPatterns]
 )]
 pub struct AppModule;
@@ -2673,20 +2654,28 @@ impl AppController {
 }
 
 fn template_app_service_rs() -> String {
-    r#"use crate::app_config::AppConfig;
+    r#"use nestforge::injectable;
 
-#[derive(Clone)]
+use crate::app_config::AppConfig;
+
+#[injectable(factory = build_app_service)]
 pub struct AppService {
     app_name: String,
 }
 
-impl AppService {
-    pub fn new(config: &AppConfig) -> Self {
-        Self {
-            app_name: config.app_name.clone(),
-        }
-    }
+fn build_app_service() -> anyhow::Result<AppService> {
+    let config = <AppConfig as nestforge::FromEnv>::from_env(
+        &nestforge::EnvStore::load_with_options(
+            nestforge::ConfigOptions::new().env_file(".env"),
+        )?,
+    )?;
 
+    Ok(AppService {
+        app_name: config.app_name,
+    })
+}
+
+impl AppService {
     pub fn welcome_message(&self) -> String {
         format!("Welcome to {}", self.app_name)
     }
@@ -2722,9 +2711,15 @@ fn template_app_config_rs(transport: AppTransport) -> String {
     };
 
     format!(
-        r#"#[derive(Clone)]
+        r#"use nestforge::{{injectable, ConfigModule, ConfigOptions}};
+
+#[injectable(factory = load_app_config)]
 pub struct AppConfig {{
     pub app_name: String,
+}}
+
+fn load_app_config() -> anyhow::Result<AppConfig> {{
+    Ok(ConfigModule::for_root::<AppConfig>(ConfigOptions::new().env_file(".env"))?)
 }}
 
 impl nestforge::FromEnv for AppConfig {{
@@ -2908,27 +2903,29 @@ pub use app_patterns::AppPatterns;
 }
 
 fn template_microservices_app_patterns_rs() -> String {
-    r#"#[derive(Clone)]
+    r#"use nestforge::injectable;
+
+#[injectable(factory = build_app_patterns)]
 pub struct AppPatterns {
     registry: nestforge::MicroserviceRegistry,
 }
 
-impl AppPatterns {
-    pub fn new() -> Self {
-            Self {
-                registry: nestforge::MicroserviceRegistry::builder()
-                    .message("app.ping", |payload: serde_json::Value, ctx| async move {
-                        let config = ctx.resolve::<crate::app_config::AppConfig>()?;
-                        Ok(serde_json::json!({
-                            "app_name": config.app_name,
-                            "received": payload,
-                        "transport": ctx.transport(),
-                    }))
-                })
-                .build(),
-        }
+fn build_app_patterns() -> AppPatterns {
+    AppPatterns {
+        registry: nestforge::MicroserviceRegistry::builder()
+            .message("app.ping", |payload: serde_json::Value, ctx| async move {
+                let config = ctx.resolve::<crate::app_config::AppConfig>()?;
+                Ok(serde_json::json!({
+                    "app_name": config.app_name,
+                    "received": payload,
+                    "transport": ctx.transport(),
+                }))
+            })
+            .build(),
     }
+}
 
+impl AppPatterns {
     pub fn registry(&self) -> &nestforge::MicroserviceRegistry {
         &self.registry
     }
@@ -3133,13 +3130,39 @@ fn template_resource_service_rs(
     imports: &ResourceImportPaths,
 ) -> String {
     format!(
-        r#"use nestforge::ResourceService;
+        r#"use nestforge::{{injectable, ResourceService}};
 
  use {entity_dto_import}::{pascal_singular}Dto;
+ use {create_dto_import}::Create{pascal_singular}Dto;
+ use {update_dto_import}::Update{pascal_singular}Dto;
 
-pub type {pascal_plural}Service = ResourceService<{pascal_singular}Dto>;
+#[injectable]
+#[derive(Default)]
+pub struct {pascal_plural}Service {{
+    store: ResourceService<{pascal_singular}Dto>,
+}}
+
+impl {pascal_plural}Service {{
+    pub fn list(&self) -> Vec<{pascal_singular}Dto> {{
+        self.store.all()
+    }}
+
+    pub fn get(&self, id: u64) -> Option<{pascal_singular}Dto> {{
+        self.store.get(id)
+    }}
+
+    pub fn create(&self, dto: Create{pascal_singular}Dto) -> Result<{pascal_singular}Dto, nestforge::ResourceError> {{
+        self.store.create(dto)
+    }}
+
+    pub fn update(&self, id: u64, dto: Update{pascal_singular}Dto) -> Result<Option<{pascal_singular}Dto>, nestforge::ResourceError> {{
+        self.store.update(id, dto)
+    }}
+}}
  "#,
-        entity_dto_import = imports.entity_dto_import
+        entity_dto_import = imports.entity_dto_import,
+        create_dto_import = imports.create_dto_import,
+        update_dto_import = imports.update_dto_import
     )
 }
 
@@ -3168,7 +3191,7 @@ impl {pascal_plural}Controller {{
     async fn list(
         service: Inject<{pascal_plural}Service>,
     ) -> ApiResult<List<{pascal_singular}Dto>> {{
-        Ok(Json(service.all()))
+        Ok(Json(service.list()))
     }}
 
     #[nestforge::get("/{{id}}")]
@@ -3664,7 +3687,7 @@ use self::services::{{
         /* nestforge:feature_controllers */
     ],
     providers = [
-        Service::new(),
+        Service,
         /* nestforge:feature_providers */
     ],
     exports = [
@@ -3695,7 +3718,7 @@ use nestforge::module;
         /* nestforge:feature_controllers */
     ],
     providers = [
-        Service::new(),
+        Service,
         /* nestforge:feature_providers */
     ],
     exports = [
@@ -3754,14 +3777,13 @@ fn template_feature_service_rs(
     _layout: GeneratorLayout,
 ) -> String {
     format!(
-        r#"#[derive(Clone)]
+        r#"use nestforge::injectable;
+
+#[injectable]
+#[derive(Default)]
 pub struct Service;
 
 impl Service {{
-    pub fn new() -> Self {{
-        Self
-    }}
-
     pub fn hello(&self) -> String {{
         "Hello from {module_name} module".to_string()
     }}
@@ -4139,8 +4161,9 @@ mod tests {
         let module_rs = super::template_app_module_rs(AppTransport::Http);
 
         assert!(module_rs.contains("app_service::AppService"));
-        assert!(module_rs.contains("Provider::factory(|container| {"));
-        assert!(module_rs.contains("Ok(AppService::new(config.as_ref()))"));
+        assert!(module_rs.contains("providers = ["));
+        assert!(module_rs.contains("AppConfig,"));
+        assert!(module_rs.contains("AppService,"));
         assert!(module_rs.contains("exports = [AppConfig, AppService]"));
     }
 

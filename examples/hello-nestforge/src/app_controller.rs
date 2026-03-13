@@ -1,6 +1,6 @@
-use nestforge::{controller, routes, ApiSerializedResult, HttpException, Inject, Serialized};
+use nestforge::prelude::*;
 
-use crate::app_config::AppConfig;
+use crate::AppConfig;
 use crate::serializers::AppConfigSerializer;
 
 #[controller("")]

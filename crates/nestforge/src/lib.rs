@@ -271,8 +271,8 @@ pub mod prelude {
     pub use crate::{
         authenticated, controller, delete, dto, entity, entity_dto, get, identifiable,
         injectable, module, post, put, response, response_dto, routes, summary, tag,
-        use_exception_filter, use_guard, use_interceptor, version, HttpException, Inject,
-        NestForgeFactory, Query, Param, Validate,
+        use_exception_filter, use_guard, use_interceptor, version, ApiSerializedResult,
+        HttpException, Inject, NestForgeFactory, Param, Query, Serialized, Validate,
     };
 
     #[cfg(feature = "config")]
@@ -282,7 +282,9 @@ pub mod prelude {
     #[cfg(feature = "grpc")]
     pub use crate::NestForgeGrpcFactory;
     #[cfg(feature = "microservices")]
-    pub use crate::{TestFactory, TransportMetadata};
+    pub use crate::{MicroserviceClient, TransportMetadata};
+    #[cfg(all(feature = "microservices", feature = "testing"))]
+    pub use crate::TestFactory;
     #[cfg(feature = "openapi")]
     pub use crate::NestForgeFactoryOpenApiExt;
     #[cfg(feature = "websockets")]

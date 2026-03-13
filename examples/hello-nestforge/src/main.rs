@@ -1,18 +1,5 @@
-mod app_config;
-mod app_controller;
-mod app_module;
-mod guards;
-mod health_controller;
-mod interceptors;
-mod serializers;
-mod settings;
-mod users;
-mod versioning;
-
-use app_module::AppModule;
-use guards::AllowAllGuard;
-use interceptors::LoggingInterceptor;
-use nestforge::{NestForgeFactory, NestForgeFactoryOpenApiExt};
+use hello_nestforge::{AllowAllGuard, AppModule, LoggingInterceptor};
+use nestforge::prelude::*;
 
 const PORT: u16 = 3000;
 

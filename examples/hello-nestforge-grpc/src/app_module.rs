@@ -1,7 +1,6 @@
-use nestforge::module;
+use nestforge::prelude::*;
 
-use crate::app_config::AppConfig;
-use crate::grpc::GrpcPatterns;
+use crate::{AppConfig, GrpcPatterns};
 
 #[module(
     imports = [],

@@ -1,4 +1,4 @@
-use crate::app_config::AppConfig;
+use crate::AppConfig;
 
 #[nestforge::response_dto]
 pub struct PublicAppConfigDto {

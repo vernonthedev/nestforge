@@ -1,8 +1,8 @@
 use nestforge::{module, Db, DbConfig};
 
 use crate::{
-    app_config::AppConfig, app_controller::AppController, health_controller::HealthController,
-    settings::SettingsModule, users::UsersModule, versioning::VersioningModule,
+    AppConfig, AppController, HealthController, settings::SettingsModule, users::UsersModule,
+    versioning::VersioningModule,
 };
 
 fn connect_db() -> anyhow::Result<Db> {

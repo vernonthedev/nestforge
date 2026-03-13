@@ -1,6 +1,6 @@
-use nestforge::module;
+use nestforge::prelude::*;
 
-use crate::app_config::AppConfig;
+use crate::AppConfig;
 
 #[module(
     imports = [],

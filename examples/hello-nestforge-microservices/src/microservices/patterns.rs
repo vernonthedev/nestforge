@@ -5,6 +5,8 @@ use std::sync::{
 
 use nestforge::injectable;
 
+use crate::AppConfig;
+
 #[injectable(factory = build_event_counter)]
 pub struct EventCounter(pub Arc<AtomicUsize>);
 
@@ -26,7 +28,7 @@ fn build_app_patterns() -> AppPatterns {
     AppPatterns {
         registry: nestforge::MicroserviceRegistry::builder()
             .message("app.greet", |payload: GreetingPayload, ctx| async move {
-                let config = ctx.resolve::<crate::app_config::AppConfig>()?;
+                let config = ctx.resolve::<AppConfig>()?;
                 Ok(serde_json::json!({
                     "message": format!("Hello, {}! Welcome to {}.", payload.name, config.app_name),
                     "transport": ctx.transport(),

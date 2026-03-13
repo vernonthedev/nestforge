@@ -9,7 +9,7 @@ fn build_ws_patterns() -> WsPatterns {
     WsPatterns {
         registry: MicroserviceRegistry::builder()
             .message("app.info", |_payload: (), ctx| async move {
-                let config = ctx.resolve::<crate::app_config::AppConfig>()?;
+                let config = ctx.resolve::<crate::AppConfig>()?;
                 Ok(serde_json::json!({
                     "app_name": config.app_name,
                     "transport": ctx.transport(),

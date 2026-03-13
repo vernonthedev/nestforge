@@ -1,9 +1,6 @@
-use nestforge::module;
+use nestforge::prelude::*;
 
-use crate::{
-    app_config::AppConfig,
-    microservices::{AppPatterns, EventCounter},
-};
+use crate::{AppConfig, AppPatterns, EventCounter};
 
 #[module(
     imports = [],

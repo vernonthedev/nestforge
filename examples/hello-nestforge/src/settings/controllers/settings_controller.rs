@@ -3,7 +3,7 @@ use nestforge::{
     controller, routes, ApiResult, Inject, List, OptionHttpExt, Param, ResultHttpExt, ValidatedBody,
 };
 
-use crate::app_config::AppConfig;
+use crate::AppConfig;
 use crate::settings::{
     dto::{CreateSettingDto, SettingDto, UpdateSettingDto},
     services::SettingsService,

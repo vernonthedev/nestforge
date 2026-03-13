@@ -2873,8 +2873,8 @@ fn template_grpc_service_rs() -> String {
 };
 
 use crate::{
-    app_config::AppConfig,
-    grpc::proto::hello::{greeter_server::Greeter, HelloReply, HelloRequest},
+    AppConfig,
+    proto::hello::{greeter_server::Greeter, HelloReply, HelloRequest},
 };
 
 #[derive(Clone)]
@@ -2928,6 +2928,8 @@ pub use app_patterns::AppPatterns;
 fn template_microservices_app_patterns_rs() -> String {
     r#"use nestforge::injectable;
 
+use crate::AppConfig;
+
 #[injectable(factory = build_app_patterns)]
 pub struct AppPatterns {
     registry: nestforge::MicroserviceRegistry,
@@ -2937,7 +2939,7 @@ fn build_app_patterns() -> AppPatterns {
     AppPatterns {
         registry: nestforge::MicroserviceRegistry::builder()
             .message("app.ping", |payload: serde_json::Value, ctx| async move {
-                let config = ctx.resolve::<crate::app_config::AppConfig>()?;
+                let config = ctx.resolve::<AppConfig>()?;
                 Ok(serde_json::json!({
                     "app_name": config.app_name,
                     "received": payload,
@@ -2962,7 +2964,7 @@ fn template_microservices_mod_rs() -> String {
 }
 
 fn template_ws_gateway_rs() -> String {
-    r#"use crate::app_config::AppConfig;
+    r#"use crate::AppConfig;
 use nestforge::{Message, WebSocket, WebSocketContext, WebSocketGateway};
 
 pub struct EventsGateway;
@@ -3012,7 +3014,7 @@ fn template_named_grpc_service_rs(service_name: &str, pascal_name: &str) -> Stri
     GrpcContext,
 }};
 
-use crate::grpc::proto::{service_name}::{{
+use crate::proto::{service_name}::{{
     {pascal_name}StatusReply,
     {pascal_name}StatusRequest,
     {service_name}_service_server::{pascal_name}Service,

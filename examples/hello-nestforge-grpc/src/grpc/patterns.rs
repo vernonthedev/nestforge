@@ -9,7 +9,7 @@ fn build_grpc_patterns() -> GrpcPatterns {
     GrpcPatterns {
         registry: MicroserviceRegistry::builder()
             .message("hello.say", |name: String, ctx| async move {
-                let config = ctx.resolve::<crate::app_config::AppConfig>()?;
+                let config = ctx.resolve::<crate::AppConfig>()?;
                 Ok(serde_json::json!({
                     "message": format!("Hello, {name}! Welcome to {}.", config.app_name),
                 }))

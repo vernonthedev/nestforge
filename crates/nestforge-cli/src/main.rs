@@ -146,8 +146,6 @@ fn run_docs_command(args: DocsArgs) -> Result<()> {
             }
             Err(error) => return Err(error),
         }
-    } else if interactive && !args.no_tui {
-        print_note("Using plain text docs because full-screen TUI is not reliable in this terminal.");
     }
 
     println!("{}", render_docs_plaintext(args.topic.as_deref()));
@@ -157,14 +155,6 @@ fn run_docs_command(args: DocsArgs) -> Result<()> {
 fn resolve_new_args(args: NewArgs) -> Result<(String, AppTransport, bool)> {
     let interactive = interactive_enabled(true);
     let tui_enabled = interactive && !args.no_tui;
-
-    if interactive
-        && !tui_enabled
-        && !args.no_tui
-        && (args.app_name.is_none() || args.transport.is_none())
-    {
-        print_note("Using prompt wizard because full-screen TUI is not reliable in this terminal.");
-    }
 
     if tui_enabled && (args.app_name.is_none() || args.transport.is_none()) {
         match run_new_wizard() {
@@ -204,10 +194,6 @@ fn resolve_generate_args(
 ) -> Result<(GeneratorKindArg, String, GeneratorOptions)> {
     let interactive = interactive_enabled(true);
     let tui_enabled = interactive && !args.no_tui;
-
-    if interactive && !tui_enabled && !args.no_tui && (args.kind.is_none() || args.name.is_none()) {
-        print_note("Using prompt wizard because full-screen TUI is not reliable in this terminal.");
-    }
 
     if tui_enabled && (args.kind.is_none() || args.name.is_none()) {
         match run_generate_wizard() {

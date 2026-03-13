@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -9,7 +9,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin},
     style::{Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Terminal,
 };
 use std::io::{self, Stdout};
@@ -870,5 +870,528 @@ fn previous_kind(current: GeneratorKindArg) -> GeneratorKindArg {
         K::Grpc => K::Graphql,
         K::Gateway => K::Grpc,
         K::Microservice => K::Gateway,
+    }
+}
+
+#[derive(Clone, Copy)]
+struct DocPage {
+    slug: &'static str,
+    title: &'static str,
+    body: &'static str,
+}
+
+const DOC_PAGES: &[DocPage] = &[
+    DocPage {
+        slug: "overview",
+        title: "Overview",
+        body: r#"NestForge CLI keeps the full scaffold-and-generate workflow inside the terminal.
+
+The intended loop is:
+1. Create a new app with `nestforge new`.
+2. Generate modules and resources with `nestforge g ...`.
+3. Run `cargo check` or `cargo run`.
+4. Export OpenAPI docs or run database commands when needed.
+
+This browser is meant to replace context switching to a web page when you just need the next command, generator shape, or a reminder of the normal workflow."#,
+    },
+    DocPage {
+        slug: "getting-started",
+        title: "Getting Started",
+        body: r#"Quick start:
+
+  nestforge new my-app --transport http --no-tui
+  cd my-app
+  cargo run
+
+Recommended first pass for a feature:
+
+  nestforge g module users --flat
+  nestforge g resource users --module users --flat --no-prompt
+  cargo check
+
+If you want guided prompts, omit `--no-tui` and the CLI will use the interactive flow when the terminal supports it."#,
+    },
+    DocPage {
+        slug: "new",
+        title: "Create Apps",
+        body: r#"Use `nestforge new <app-name>` to scaffold a fresh application.
+
+Common examples:
+  nestforge new billing-api --transport http
+  nestforge new graph-api --transport graphql --openapi
+  nestforge new chat-app --transport websockets
+  nestforge new events-app --transport microservices
+  nestforge new edge-grpc --transport grpc
+
+Important flags:
+  --transport <http|graphql|grpc|microservices|websockets>
+  --openapi
+  --no-tui
+
+`--no-tui` disables the fullscreen creation wizard and falls back to direct flags or prompt mode."#,
+    },
+    DocPage {
+        slug: "generate",
+        title: "Generate Workflow",
+        body: r#"Use `nestforge generate` or the short alias `nestforge g`.
+
+The most common sequence is:
+  nestforge g module users
+  nestforge g resource users --module users
+
+That creates a feature module and then adds DTOs, controller, and service for the resource.
+
+You can also generate individual pieces:
+  nestforge g controller auth --module users
+  nestforge g service auth --module users
+  nestforge g guard auth
+  nestforge g interceptor logging
+
+The CLI is designed so resource generation is usually the fastest way to create a full feature slice."#,
+    },
+    DocPage {
+        slug: "generators",
+        title: "Generator Reference",
+        body: r#"Available generators:
+
+  resource      DTOs + controller + service
+  module        Feature module scaffold
+  controller    Controller only
+  service       Service only
+  guard         Guard scaffold
+  decorator     Request decorator scaffold
+  filter        Exception filter scaffold
+  middleware    Middleware scaffold
+  interceptor   Interceptor scaffold
+  serializer    Response serializer scaffold
+  graphql       GraphQL resolver scaffold
+  grpc          gRPC service scaffold
+  gateway       WebSocket gateway scaffold
+  microservice  Microservice pattern scaffold
+
+Examples:
+  nestforge g serializer user
+  nestforge g graphql users
+  nestforge g gateway events
+  nestforge g microservice billing"#,
+    },
+    DocPage {
+        slug: "layout",
+        title: "Layout and Module Options",
+        body: r#"Generator flags that shape where files go:
+
+  --module <name>
+    Generate inside an existing feature module.
+
+  --flat
+    Generate files directly in the module root instead of nested folders.
+
+  --no-prompt
+    Skip DTO field customization prompts.
+
+Examples:
+  nestforge g module billing --flat
+  nestforge g resource invoices --module billing --flat --no-prompt
+
+Use nested layout when you want larger features grouped by folders.
+Use flat layout when you want a compact, NestJS-like feature folder."#,
+    },
+    DocPage {
+        slug: "openapi",
+        title: "OpenAPI Export",
+        body: r#"CLI docs and API docs are separate concerns.
+
+Use `nestforge docs` for CLI help inside the terminal.
+Use `nestforge export-docs` when you want generated OpenAPI files.
+
+Examples:
+  nestforge export-docs --format json
+  nestforge export-docs --format yaml --output docs/openapi.yaml
+  nestforge export-docs --format yaml --title "Users API" --version "1.0.0"
+
+The `export-docs` command inspects the app module and writes OpenAPI output for supported routes."#,
+    },
+    DocPage {
+        slug: "db",
+        title: "Database Workflow",
+        body: r#"Database commands:
+
+  nestforge db init
+  nestforge db generate create_users
+  nestforge db migrate
+  nestforge db status
+
+Typical flow:
+1. Initialize migration support with `db init`.
+2. Create a named migration with `db generate`.
+3. Edit the SQL file.
+4. Apply migrations with `db migrate`.
+5. Check current state with `db status`."#,
+    },
+    DocPage {
+        slug: "tips",
+        title: "Tips and Conventions",
+        body: r#"Navigation in this browser:
+  j / Down     next topic
+  k / Up       previous topic
+  PageDown     scroll content down
+  PageUp       scroll content up
+  /            search topics
+  q            quit
+
+General CLI tips:
+  Use `nestforge --help` for the top-level command map.
+  Use `nestforge <command> --help` for flag details.
+  Prefer `resource` generation when starting a CRUD-style feature.
+  Prefer `module` first when you want to grow a feature incrementally.
+  Keep `export-docs` for OpenAPI output and `docs` for CLI workflow help."#,
+    },
+];
+
+pub fn render_docs_plaintext(topic: Option<&str>) -> String {
+    let pages = filtered_doc_pages(topic);
+    let mut out = String::from("NestForge CLI Docs\n");
+
+    if pages.len() == 1 {
+        let page = pages[0];
+        out.push('\n');
+        out.push_str(page.title);
+        out.push('\n');
+        out.push('\n');
+        out.push_str(page.body);
+        out.push('\n');
+        return out;
+    }
+
+    for page in pages {
+        out.push('\n');
+        out.push_str(page.title);
+        out.push('\n');
+        out.push('\n');
+        out.push_str(page.body);
+        out.push('\n');
+    }
+
+    out
+}
+
+pub fn run_docs_browser(topic: Option<&str>) -> Result<()> {
+    let mut terminal = TerminalSession::start()?;
+    let mut state = DocsBrowserState::new(topic);
+
+    loop {
+        terminal.draw(|frame| state.render(frame))?;
+
+        let Event::Key(key) = event::read()? else {
+            continue;
+        };
+        if key.kind != KeyEventKind::Press {
+            continue;
+        }
+
+        if state.handle_key(key.code, key.modifiers) {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+struct DocsBrowserState {
+    selected: usize,
+    scroll: u16,
+    query: String,
+    search_mode: bool,
+    status: Option<String>,
+}
+
+impl DocsBrowserState {
+    fn new(topic: Option<&str>) -> Self {
+        let mut state = Self {
+            selected: 0,
+            scroll: 0,
+            query: String::new(),
+            search_mode: false,
+            status: None,
+        };
+
+        if let Some(topic) = topic {
+            let normalized = topic.trim().to_ascii_lowercase();
+            if let Some(index) = DOC_PAGES.iter().position(|page| {
+                page.slug.contains(&normalized)
+                    || page.title.to_ascii_lowercase().contains(&normalized)
+                    || page.body.to_ascii_lowercase().contains(&normalized)
+            }) {
+                state.selected = index;
+                state.status = Some(format!("Opened topic `{}`.", DOC_PAGES[index].title));
+            } else if !normalized.is_empty() {
+                state.status = Some(format!(
+                    "Topic `{}` was not found. Showing all docs instead.",
+                    topic
+                ));
+            }
+        }
+
+        state
+    }
+
+    fn render(&self, frame: &mut ratatui::Frame<'_>) {
+        let area = frame.area();
+        frame.render_widget(Clear, area);
+
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Min(10),
+                Constraint::Length(2),
+            ])
+            .split(area);
+
+        let body = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Length(28), Constraint::Min(40)])
+            .split(layout[1]);
+
+        let filtered = self.filtered_indices();
+        let current = self.current_page();
+
+        frame.render_widget(
+            Paragraph::new(vec![
+                Line::from(vec![Span::styled(
+                    " NestForge Docs ",
+                    Style::default().cyan().add_modifier(Modifier::BOLD),
+                )]),
+                Line::from(vec![Span::styled(
+                    if self.search_mode {
+                        format!(
+                            "Search: {}",
+                            if self.query.is_empty() {
+                                "_".to_string()
+                            } else {
+                                self.query.clone()
+                            }
+                        )
+                    } else {
+                        format!(
+                            "Topic: {}  |  {} results  |  Press / to search",
+                            current.title,
+                            filtered.len()
+                        )
+                    },
+                    Style::default().gray(),
+                )]),
+            ])
+            .block(Block::default().borders(Borders::ALL).border_style(Style::default().cyan())),
+            layout[0],
+        );
+
+        let nav_lines = if filtered.is_empty() {
+            vec![Line::from(vec![Span::styled(
+                "No topics match the current search.",
+                Style::default().red(),
+            )])]
+        } else {
+            filtered
+                .iter()
+                .enumerate()
+                .map(|(visible_index, page_index)| {
+                    let page = DOC_PAGES[*page_index];
+                    let active = visible_index == self.filtered_selected_position();
+                    let prefix = if active { "› " } else { "  " };
+                    let style = if active {
+                        Style::default().yellow().add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                    };
+                    Line::from(vec![Span::styled(
+                        format!("{prefix}{}", page.title),
+                        style,
+                    )])
+                })
+                .collect::<Vec<_>>()
+        };
+
+        frame.render_widget(
+            Paragraph::new(nav_lines)
+                .block(Block::default().title(" Topics ").borders(Borders::ALL)),
+            body[0],
+        );
+
+        frame.render_widget(
+            Paragraph::new(current.body)
+                .block(
+                    Block::default()
+                        .title(format!(" {} ", current.title))
+                        .borders(Borders::ALL),
+                )
+                .wrap(Wrap { trim: false })
+                .scroll((self.scroll, 0)),
+            body[1],
+        );
+
+        frame.render_widget(
+            Paragraph::new(match &self.status {
+                Some(status) => format!(
+                    "{status}  |  j/k topics  PageUp/PageDown scroll  / search  q quit"
+                ),
+                None => "j/k topics  PageUp/PageDown scroll  / search  q quit".to_string(),
+            })
+            .style(Style::default().dark_gray()),
+            layout[2],
+        );
+    }
+
+    fn handle_key(&mut self, code: KeyCode, modifiers: KeyModifiers) -> bool {
+        if self.search_mode {
+            match code {
+                KeyCode::Esc | KeyCode::Enter => {
+                    self.search_mode = false;
+                    self.status = Some(if self.query.trim().is_empty() {
+                        "Search cleared.".to_string()
+                    } else {
+                        format!("Filtered docs by `{}`.", self.query)
+                    });
+                    self.ensure_selection_visible();
+                }
+                KeyCode::Backspace => {
+                    self.query.pop();
+                    self.ensure_selection_visible();
+                }
+                KeyCode::Char(ch) if !modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.query.push(ch);
+                    self.ensure_selection_visible();
+                }
+                _ => {}
+            }
+            return false;
+        }
+
+        match code {
+            KeyCode::Char('q') | KeyCode::Esc => return true,
+            KeyCode::Char('/') => {
+                self.search_mode = true;
+                self.status = Some("Type to filter docs. Enter applies the search.".to_string());
+            }
+            KeyCode::Char('j') | KeyCode::Down => self.move_selection(1),
+            KeyCode::Char('k') | KeyCode::Up => self.move_selection(-1),
+            KeyCode::Char('G') => {
+                self.select_last();
+            }
+            KeyCode::Char('g') | KeyCode::Home => {
+                self.select_first();
+            }
+            KeyCode::Char('d') if modifiers.contains(KeyModifiers::CONTROL) => {
+                self.scroll = self.scroll.saturating_add(8);
+            }
+            KeyCode::Char('u') if modifiers.contains(KeyModifiers::CONTROL) => {
+                self.scroll = self.scroll.saturating_sub(8);
+            }
+            KeyCode::PageDown => {
+                self.scroll = self.scroll.saturating_add(12);
+            }
+            KeyCode::PageUp => {
+                self.scroll = self.scroll.saturating_sub(12);
+            }
+            _ => {}
+        }
+
+        false
+    }
+
+    fn filtered_indices(&self) -> Vec<usize> {
+        let query = self.query.trim().to_ascii_lowercase();
+        if query.is_empty() {
+            return (0..DOC_PAGES.len()).collect();
+        }
+
+        DOC_PAGES
+            .iter()
+            .enumerate()
+            .filter(|(_, page)| {
+                page.slug.contains(&query)
+                    || page.title.to_ascii_lowercase().contains(&query)
+                    || page.body.to_ascii_lowercase().contains(&query)
+            })
+            .map(|(index, _)| index)
+            .collect()
+    }
+
+    fn filtered_selected_position(&self) -> usize {
+        self.filtered_indices()
+            .iter()
+            .position(|index| *index == self.selected)
+            .unwrap_or(0)
+    }
+
+    fn current_page(&self) -> &'static DocPage {
+        let filtered = self.filtered_indices();
+        let index = filtered.first().copied().unwrap_or(0);
+        let selected = if filtered.contains(&self.selected) {
+            self.selected
+        } else {
+            index
+        };
+        &DOC_PAGES[selected]
+    }
+
+    fn ensure_selection_visible(&mut self) {
+        let filtered = self.filtered_indices();
+        if filtered.is_empty() {
+            self.selected = 0;
+            self.scroll = 0;
+            return;
+        }
+
+        if !filtered.contains(&self.selected) {
+            self.selected = filtered[0];
+            self.scroll = 0;
+        }
+    }
+
+    fn move_selection(&mut self, delta: isize) {
+        let filtered = self.filtered_indices();
+        if filtered.is_empty() {
+            return;
+        }
+
+        let current = filtered
+            .iter()
+            .position(|index| *index == self.selected)
+            .unwrap_or(0);
+        let next = if delta.is_negative() {
+            current.saturating_sub(delta.unsigned_abs())
+        } else {
+            (current + delta as usize).min(filtered.len().saturating_sub(1))
+        };
+        self.selected = filtered[next];
+        self.scroll = 0;
+        self.status = None;
+    }
+
+    fn select_first(&mut self) {
+        if let Some(first) = self.filtered_indices().first().copied() {
+            self.selected = first;
+            self.scroll = 0;
+        }
+    }
+
+    fn select_last(&mut self) {
+        if let Some(last) = self.filtered_indices().last().copied() {
+            self.selected = last;
+            self.scroll = 0;
+        }
+    }
+}
+
+fn filtered_doc_pages(topic: Option<&str>) -> Vec<&'static DocPage> {
+    match topic.and_then(|value| {
+        let normalized = value.trim().to_ascii_lowercase();
+        DOC_PAGES.iter().find(|page| {
+            page.slug.contains(&normalized) || page.title.to_ascii_lowercase().contains(&normalized)
+        })
+    }) {
+        Some(page) => vec![page],
+        None => DOC_PAGES.iter().collect(),
     }
 }

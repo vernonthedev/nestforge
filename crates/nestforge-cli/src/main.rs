@@ -17,14 +17,17 @@ mod tui;
 mod ui;
 
 use crate::cli::{
-    AppTransport, Cli, Commands, DbArgs, DbCommand, DocsFormatArg, GenerateArgs, GeneratorKindArg,
-    GeneratorLayout, NewArgs,
+    AppTransport, Cli, Commands, DbArgs, DbCommand, DocsArgs, DocsFormatArg, GenerateArgs,
+    GeneratorKindArg, GeneratorLayout, NewArgs,
 };
 use crate::diagnostics::{
     app_root_not_found, missing_app_module_declaration, module_file_not_found,
     openapi_feature_missing, render_cli_error,
 };
-use crate::tui::{run_generate_wizard, run_new_wizard, should_fallback_to_prompt};
+use crate::tui::{
+    render_docs_plaintext, run_docs_browser, run_generate_wizard, run_new_wizard,
+    should_fallback_to_prompt,
+};
 use crate::ui::{
     full_tui_enabled, interactive_enabled, print_brand_banner, print_note, print_success,
     prompt_generator_kind, prompt_transport, start_spinner,
@@ -107,7 +110,7 @@ fn run_cli(cli: Cli) -> Result<()> {
             let (app_name, transport, enable_openapi) = resolve_new_args(args)?;
             create_new_app(&app_name, transport, enable_openapi)?;
         }
-        Commands::Docs => print_cli_docs(),
+        Commands::Docs(args) => run_docs_command(args)?,
         Commands::Generate(args) => {
             let (kind, name, options) = resolve_generate_args(args)?;
             run_generate_command(kind, &name, options)?;
@@ -129,94 +132,26 @@ fn run_cli(cli: Cli) -> Result<()> {
     Ok(())
 }
 
-fn print_cli_docs() {
-    println!("{}", cli_docs_text());
-}
+fn run_docs_command(args: DocsArgs) -> Result<()> {
+    let interactive = interactive_enabled(true);
+    let use_tui = full_tui_enabled(!args.no_tui);
 
-fn cli_docs_text() -> String {
-    r#"NestForge CLI Docs
+    if use_tui {
+        match run_docs_browser(args.topic.as_deref()) {
+            Ok(()) => return Ok(()),
+            Err(error) if should_fallback_to_prompt(&error) => {
+                print_note(
+                    "Full-screen docs browser is unavailable in this terminal. Falling back to plain text.",
+                );
+            }
+            Err(error) => return Err(error),
+        }
+    } else if interactive && !args.no_tui {
+        print_note("Using plain text docs because full-screen TUI is not reliable in this terminal.");
+    }
 
-Getting started
-  nestforge new my-app --transport http --no-tui
-  cd my-app
-  cargo run
-
-Core workflow
-  1. Create an app with `nestforge new`.
-  2. Generate a feature module with `nestforge g module users`.
-  3. Generate a resource inside that module with `nestforge g resource users --module users`.
-  4. Run `cargo run` or `cargo check`.
-
-Create a new app
-  nestforge new <app-name> --transport http
-  nestforge new <app-name> --transport graphql --openapi
-  nestforge new <app-name> --transport grpc
-  nestforge new <app-name> --transport microservices
-  nestforge new <app-name> --transport websockets
-
-Useful `new` options
-  --transport <http|graphql|grpc|microservices|websockets>
-  --openapi     Enable OpenAPI wiring for supported transports
-  --no-tui      Disable interactive prompts
-
-Generate resources
-  nestforge g module users
-  nestforge g resource users --module users
-  nestforge g controller users --module users
-  nestforge g service users --module users
-
-Useful generators
-  resource      Create DTOs, controller, and service together
-  module        Create a feature module
-  controller    Create only a controller
-  service       Create only a service
-  guard         Create a guard
-  decorator     Create a request decorator
-  filter        Create an exception filter
-  middleware    Create middleware
-  interceptor   Create an interceptor
-  serializer    Create a response serializer
-  graphql       Create a GraphQL resolver
-  grpc          Create a gRPC service scaffold
-  gateway       Create a WebSocket gateway
-  microservice  Create microservice patterns
-
-Layout options
-  --module <name>   Generate inside an existing feature module
-  --flat            Generate files in the current module root
-  --no-prompt       Skip DTO field prompts
-  --no-tui          Disable interactive prompts
-
-Common examples
-  nestforge g module billing --flat
-  nestforge g resource invoices --module billing --flat --no-prompt
-  nestforge g guard auth
-  nestforge g interceptor logging
-  nestforge g serializer user
-
-OpenAPI export
-  nestforge export-docs --format json
-  nestforge export-docs --format yaml --output docs/openapi.yaml
-
-Database workflow
-  nestforge db init
-  nestforge db generate create_users
-  nestforge db migrate
-  nestforge db status
-
-Recommended first pass
-  nestforge new demo-api --transport http --no-tui
-  cd demo-api
-  nestforge g module users --flat
-  nestforge g resource users --module users --flat --no-prompt
-  cargo check
-
-Tips
-  Use `nestforge --help` to see the full command list.
-  Use `nestforge <command> --help` for command-specific flags.
-  Use `nestforge export-docs` when you want generated OpenAPI files, not CLI docs.
-"#
-    .to_string()
+    println!("{}", render_docs_plaintext(args.topic.as_deref()));
+    Ok(())
 }
 
 fn resolve_new_args(args: NewArgs) -> Result<(String, AppTransport, bool)> {
@@ -4325,7 +4260,7 @@ mod tests {
 
     #[test]
     fn cli_docs_cover_generation_workflow() {
-        let docs = super::cli_docs_text();
+        let docs = super::render_docs_plaintext(None);
 
         assert!(docs.contains("nestforge new my-app --transport http --no-tui"));
         assert!(docs.contains("nestforge g module users"));

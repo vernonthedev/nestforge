@@ -329,6 +329,32 @@ fn build_users_service() -> anyhow::Result<UsersService> {
 }
 ```
 
+The same pattern works nicely for framework-managed config objects in the examples:
+
+```rust
+use nestforge::{injectable, ConfigModule, ConfigOptions};
+
+#[injectable(factory = load_app_config)]
+pub struct AppConfig {
+    pub app_name: String,
+}
+
+fn load_app_config() -> anyhow::Result<AppConfig> {
+    Ok(ConfigModule::for_root::<AppConfig>(
+        ConfigOptions::new().env_file(".env"),
+    )?)
+}
+
+#[nestforge::module(
+    providers = [AppConfig],
+    exports = [AppConfig]
+)]
+pub struct AppModule;
+```
+
+Keep explicit value or factory providers for external runtime resources like database connections,
+clients, or other values you do not own as plain structs.
+
 ## Example App Features
 
 `examples/hello-nestforge` demonstrates:
@@ -349,7 +375,7 @@ nestforge export-docs
 nestforge export-docs --format yaml --output docs/openapi.yaml
 ```
 
-- Config loading with `ConfigModule::for_root`
+- Config loading with `ConfigModule::for_root` and `#[injectable(factory = ...)]`
 - Versioned routes (`v1`, `v2`)
 
 ## Optional GraphQL Setup

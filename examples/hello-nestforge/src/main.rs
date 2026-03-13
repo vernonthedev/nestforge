@@ -1,9 +1,3 @@
-/*
-Its job:
-- load app modules/files
-- boot the framework
-*/
-
 mod app_config;
 mod app_controller;
 mod app_module;

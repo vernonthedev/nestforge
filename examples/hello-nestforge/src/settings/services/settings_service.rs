@@ -1,11 +1,14 @@
-use nestforge::ResourceService;
+use std::ops::Deref;
+
+use nestforge::{injectable, ResourceService};
 
 use crate::settings::dto::{CreateSettingDto, SettingDto, UpdateSettingDto};
 
-pub type SettingsService = ResourceService<SettingDto>;
+#[injectable(factory = build_settings_service)]
+pub struct SettingsService(ResourceService<SettingDto>);
 
-pub fn settings_service_seed() -> SettingsService {
-    SettingsService::with_seed(vec![
+fn build_settings_service() -> SettingsService {
+    SettingsService(ResourceService::with_seed(vec![
         SettingDto {
             id: 1,
             key: "app_name".to_string(),
@@ -16,7 +19,15 @@ pub fn settings_service_seed() -> SettingsService {
             key: "log_level".to_string(),
             value: "info".to_string(),
         },
-    ])
+    ]))
+}
+
+impl Deref for SettingsService {
+    type Target = ResourceService<SettingDto>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 pub fn list_settings(service: &SettingsService) -> Vec<SettingDto> {

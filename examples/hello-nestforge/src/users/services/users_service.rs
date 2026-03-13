@@ -1,11 +1,14 @@
-use nestforge::{ResourceError, ResourceService};
+use std::ops::Deref;
+
+use nestforge::{injectable, ResourceError, ResourceService};
 
 use crate::users::dto::{CreateUserDto, UpdateUserDto, UserDto};
 
-pub type UsersService = ResourceService<UserDto>;
+#[injectable(factory = build_users_service)]
+pub struct UsersService(ResourceService<UserDto>);
 
-pub fn users_service_seed() -> UsersService {
-    ResourceService::with_seed(vec![
+fn build_users_service() -> UsersService {
+    UsersService(ResourceService::with_seed(vec![
         UserDto {
             id: 1,
             name: "Vernon".to_string(),
@@ -16,7 +19,15 @@ pub fn users_service_seed() -> UsersService {
             name: "Sam".to_string(),
             email: "sam@example.com".to_string(),
         },
-    ])
+    ]))
+}
+
+impl Deref for UsersService {
+    type Target = ResourceService<UserDto>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 pub fn list_users(service: &UsersService) -> Vec<UserDto> {

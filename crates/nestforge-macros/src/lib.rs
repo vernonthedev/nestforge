@@ -38,6 +38,48 @@ pub fn controller(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /*
+#[injectable]
+Marks a struct as a managed provider.
+
+Default behavior registers `Self::default()`.
+Use `#[injectable(factory = some_fn)]` when setup needs a custom zero-arg factory.
+*/
+#[proc_macro_attribute]
+pub fn injectable(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as InjectableArgs);
+    let mut input = parse_macro_input!(item as ItemStruct);
+
+    ensure_derive_trait(&mut input.attrs, "Clone");
+
+    let name = &input.ident;
+    let register_body = if let Some(factory) = args.factory {
+        quote! {
+            let value: Self =
+                nestforge::IntoInjectableResult::into_injectable_result((#factory)())?;
+            container.register(value)?;
+            Ok(())
+        }
+    } else {
+        quote! {
+            container.register(<Self as std::default::Default>::default())?;
+            Ok(())
+        }
+    };
+
+    let expanded = quote! {
+        #input
+
+        impl nestforge::Injectable for #name {
+            fn register(container: &nestforge::Container) -> anyhow::Result<()> {
+                #register_body
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+/*
 #[routes]
 Reads #[get], #[post], #[put] on methods inside the impl block,
 removes those attributes, and generates ControllerDefinition::router().
@@ -1464,6 +1506,11 @@ struct ModuleArgs {
     global: bool,
 }
 
+#[derive(Default)]
+struct InjectableArgs {
+    factory: Option<Expr>,
+}
+
 struct RouteResponseArgs {
     status: u16,
     description: LitStr,
@@ -1589,6 +1636,39 @@ impl Parse for ModuleArgs {
     }
 }
 
+impl Parse for InjectableArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        if input.is_empty() {
+            return Ok(Self::default());
+        }
+
+        let key: Ident = input.parse()?;
+        if key != "factory" {
+            return Err(syn::Error::new(
+                key.span(),
+                "Unsupported injectable key. Use `factory = some_fn`.",
+            ));
+        }
+        input.parse::<Token![=]>()?;
+        let factory = input.parse::<Expr>()?;
+
+        if input.peek(Token![,]) {
+            input.parse::<Token![,]>()?;
+        }
+
+        if !input.is_empty() {
+            return Err(syn::Error::new(
+                input.span(),
+                "Unexpected tokens in #[injectable(...)]",
+            ));
+        }
+
+        Ok(Self {
+            factory: Some(factory),
+        })
+    }
+}
+
 fn parse_bracket_list<T>(input: ParseStream) -> syn::Result<Vec<T>>
 where
     T: Parse,
@@ -1603,6 +1683,8 @@ where
 fn build_provider_registration(expr: &Expr) -> TokenStream2 {
     if is_provider_builder_expr(expr) {
         quote! { nestforge::register_provider(container, #expr)?; }
+    } else if let Some(ty) = injectable_type_expr(expr) {
+        quote! { nestforge::register_injectable::<#ty>(container)?; }
     } else {
         quote! { nestforge::register_provider(container, nestforge::Provider::value(#expr))?; }
     }
@@ -1630,6 +1712,39 @@ fn is_provider_builder_expr(expr: &Expr) -> bool {
     };
 
     provider.ident == "Provider"
+}
+
+fn injectable_type_expr(expr: &Expr) -> Option<Type> {
+    let Expr::Path(path) = expr else {
+        return None;
+    };
+
+    Some(Type::Path(syn::TypePath {
+        qself: None,
+        path: path.path.clone(),
+    }))
+}
+
+fn ensure_derive_trait(attrs: &mut Vec<Attribute>, trait_name: &str) {
+    for attr in attrs.iter_mut() {
+        if !attr.path().is_ident("derive") {
+            continue;
+        }
+
+        let Ok(mut derives) = attr.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated) else {
+            continue;
+        };
+
+        if derives.iter().any(|path| path.is_ident(trait_name)) {
+            return;
+        }
+
+        derives.push(parse_quote!(Clone));
+        *attr = parse_quote!(#[derive(#derives)]);
+        return;
+    }
+
+    attrs.push(parse_quote!(#[derive(Clone)]));
 }
 
 fn extract_id_field(fields: &mut Fields) -> Option<(Ident, Type)> {

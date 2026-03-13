@@ -29,8 +29,8 @@ use crate::tui::{
     should_fallback_to_prompt,
 };
 use crate::ui::{
-    full_tui_enabled, interactive_enabled, print_brand_banner, print_note, print_success,
-    prompt_generator_kind, prompt_transport, start_spinner,
+    interactive_enabled, print_brand_banner, print_note, print_success, prompt_generator_kind,
+    prompt_transport, start_spinner,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -156,7 +156,7 @@ fn run_docs_command(args: DocsArgs) -> Result<()> {
 
 fn resolve_new_args(args: NewArgs) -> Result<(String, AppTransport, bool)> {
     let interactive = interactive_enabled(true);
-    let tui_enabled = full_tui_enabled(!args.no_tui);
+    let tui_enabled = interactive && !args.no_tui;
 
     if interactive
         && !tui_enabled
@@ -203,7 +203,7 @@ fn resolve_generate_args(
     args: GenerateArgs,
 ) -> Result<(GeneratorKindArg, String, GeneratorOptions)> {
     let interactive = interactive_enabled(true);
-    let tui_enabled = full_tui_enabled(!args.no_tui);
+    let tui_enabled = interactive && !args.no_tui;
 
     if interactive && !tui_enabled && !args.no_tui && (args.kind.is_none() || args.name.is_none()) {
         print_note("Using prompt wizard because full-screen TUI is not reliable in this terminal.");

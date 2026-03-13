@@ -11,7 +11,7 @@ struct UserEntity {
     password_hash: String,
 }
 
-#[derive(serde::Serialize)]
+#[nestforge::response_dto]
 struct UserDto {
     id: u64,
     email: String,

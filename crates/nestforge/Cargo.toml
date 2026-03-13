@@ -11,23 +11,23 @@ keywords = ["rust", "framework", "backend", "di", "axum"]
 categories = ["web-programming", "web-programming::http-server"]
 
 [dependencies]
-nestforge-core = { version = "1.5.0", path = "../nestforge-core" }
-nestforge-http = { version = "1.5.0", path = "../nestforge-http" }
-nestforge-macros = { version = "1.5.0", path = "../nestforge-macros" }
-nestforge-testing = { version = "1.5.0", path = "../nestforge-testing", optional = true }
-nestforge-db = { version = "1.5.0", path = "../nestforge-db", optional = true }
-nestforge-orm = { version = "1.5.0", path = "../nestforge-orm", optional = true }
-nestforge-config = { version = "1.5.0", path = "../nestforge-config", optional = true }
-nestforge-openapi = { version = "1.5.0", path = "../nestforge-openapi", optional = true }
-nestforge-graphql = { version = "1.5.0", path = "../nestforge-graphql", optional = true }
-nestforge-grpc = { version = "1.5.0", path = "../nestforge-grpc", optional = true }
-nestforge-schedule = { version = "1.5.0", path = "../nestforge-schedule", optional = true }
-nestforge-websockets = { version = "1.5.0", path = "../nestforge-websockets", optional = true }
-nestforge-data = { version = "1.5.0", path = "../nestforge-data", optional = true }
-nestforge-cache = { version = "1.5.0", path = "../nestforge-cache", optional = true }
-nestforge-microservices = { version = "1.5.0", path = "../nestforge-microservices", optional = true }
-nestforge-mongo = { version = "1.5.0", path = "../nestforge-mongo", optional = true }
-nestforge-redis = { version = "1.5.0", path = "../nestforge-redis", optional = true }
+nestforge-core = { version = "1.6.0", path = "../nestforge-core" }
+nestforge-http = { version = "1.6.0", path = "../nestforge-http" }
+nestforge-macros = { version = "1.6.0", path = "../nestforge-macros" }
+nestforge-testing = { version = "1.6.0", path = "../nestforge-testing", optional = true }
+nestforge-db = { version = "1.6.0", path = "../nestforge-db", optional = true }
+nestforge-orm = { version = "1.6.0", path = "../nestforge-orm", optional = true }
+nestforge-config = { version = "1.6.0", path = "../nestforge-config", optional = true }
+nestforge-openapi = { version = "1.6.0", path = "../nestforge-openapi", optional = true }
+nestforge-graphql = { version = "1.6.0", path = "../nestforge-graphql", optional = true }
+nestforge-grpc = { version = "1.6.0", path = "../nestforge-grpc", optional = true }
+nestforge-schedule = { version = "1.6.0", path = "../nestforge-schedule", optional = true }
+nestforge-websockets = { version = "1.6.0", path = "../nestforge-websockets", optional = true }
+nestforge-data = { version = "1.6.0", path = "../nestforge-data", optional = true }
+nestforge-cache = { version = "1.6.0", path = "../nestforge-cache", optional = true }
+nestforge-microservices = { version = "1.6.0", path = "../nestforge-microservices", optional = true }
+nestforge-mongo = { version = "1.6.0", path = "../nestforge-mongo", optional = true }
+nestforge-redis = { version = "1.6.0", path = "../nestforge-redis", optional = true }
 axum = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }
@@ -55,6 +55,7 @@ serde = { workspace = true }
 tower = { workspace = true }
 serde_json = { workspace = true }
 async-graphql = "7.0.2"
+
 
 
 

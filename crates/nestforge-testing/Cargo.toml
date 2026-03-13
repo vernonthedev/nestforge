@@ -14,16 +14,17 @@ categories = ["development-tools::testing"]
 anyhow = { workspace = true }
 async-graphql = { workspace = true }
 axum = { workspace = true }
-nestforge-core = { version = "1.5.0", path = "../nestforge-core" }
-nestforge-graphql = { version = "1.5.0", path = "../nestforge-graphql" }
-nestforge-grpc = { version = "1.5.0", path = "../nestforge-grpc" }
-nestforge-microservices = { version = "1.5.0", path = "../nestforge-microservices" }
-nestforge-websockets = { version = "1.5.0", path = "../nestforge-websockets" }
+nestforge-core = { version = "1.6.0", path = "../nestforge-core" }
+nestforge-graphql = { version = "1.6.0", path = "../nestforge-graphql" }
+nestforge-grpc = { version = "1.6.0", path = "../nestforge-grpc" }
+nestforge-microservices = { version = "1.6.0", path = "../nestforge-microservices" }
+nestforge-websockets = { version = "1.6.0", path = "../nestforge-websockets" }
 
 [dev-dependencies]
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }
+
 
 
 

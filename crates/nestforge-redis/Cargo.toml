@@ -11,7 +11,8 @@ keywords = ["rust", "redis", "adapter", "nestforge"]
 categories = ["database"]
 
 [dependencies]
-nestforge-data = { version = "1.5.0", path = "../nestforge-data" }
+nestforge-data = { version = "1.6.0", path = "../nestforge-data" }
+
 
 
 

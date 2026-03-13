@@ -2,8 +2,7 @@ use nestforge::{
     handle_websocket_microservice_message, Message, WebSocket, WebSocketContext, WebSocketGateway,
 };
 
-use crate::app_config::AppConfig;
-use crate::ws::WsPatterns;
+use crate::{AppConfig, WsPatterns};
 
 pub struct EventsGateway;
 

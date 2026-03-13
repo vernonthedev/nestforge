@@ -56,6 +56,8 @@ tonic-build = "0.12"
 protoc-bin-vendored = "3"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "any", "postgres", "mysql"] }
 
+[patch.crates-io]
+ratatui = { path = "vendor/ratatui" }
 
 
 

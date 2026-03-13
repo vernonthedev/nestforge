@@ -13,29 +13,91 @@ use axum::{
 };
 use nestforge_core::{AuthIdentity, Container, RequestId};
 
+/**
+ * Re-exports async-graphql types for building GraphQL schemas.
+ */
 pub use async_graphql;
 
+/**
+ * GraphQL Schema Type Alias
+ *
+ * A convenient type alias for creating GraphQL schemas with optional
+ * mutation and subscription support.
+ *
+ * # Type Parameters
+ * - `Query`: The root query type (required)
+ * - `Mutation`: The root mutation type (defaults to EmptyMutation)
+ * - `Subscription`: The root subscription type (defaults to EmptySubscription)
+ *
+ * # Example
+ * ```rust
+ * type MySchema = GraphQlSchema<MyQuery, MyMutation, MySubscription>;
+ * ```
+ */
 pub type GraphQlSchema<Query, Mutation = EmptyMutation, Subscription = EmptySubscription> =
     Schema<Query, Mutation, Subscription>;
 
+/**
+ * Container Access for GraphQL Resolvers
+ *
+ * Retrieves the DI container from the GraphQL context, enabling
+ * dependency resolution within GraphQL field resolvers.
+ *
+ * # Usage in Resolvers
+ * ```rust
+ * fn resolve_user(ctx: &Context<'_>) -> Result<User> {
+ *     let container = graphql_container(ctx)?;
+ *     container.resolve::<UserService>()?.get_user()
+ * }
+ * ```
+ */
 pub fn graphql_container<'ctx>(
     ctx: &'ctx async_graphql::Context<'ctx>,
 ) -> async_graphql::Result<&'ctx Container> {
     ctx.data::<Container>()
 }
 
+/**
+ * Request ID Access for GraphQL Resolvers
+ *
+ * Retrieves the request ID from the GraphQL context for logging
+ * and tracing purposes.
+ */
 pub fn graphql_request_id<'ctx>(
     ctx: &'ctx async_graphql::Context<'ctx>,
 ) -> Option<&'ctx RequestId> {
     ctx.data_opt::<RequestId>()
 }
 
+/**
+ * Auth Identity Access for GraphQL Resolvers
+ *
+ * Retrieves the authentication identity from the GraphQL context,
+ * if authentication was performed.
+ */
 pub fn graphql_auth_identity<'ctx>(
     ctx: &'ctx async_graphql::Context<'ctx>,
 ) -> Option<&'ctx AuthIdentity> {
     ctx.data_opt::<Arc<AuthIdentity>>().map(AsRef::as_ref)
 }
 
+/**
+ * Resolve Service from DI Container
+ *
+ * A helper function for resolving services within GraphQL resolvers.
+ * Provides consistent error handling for dependency resolution failures.
+ *
+ * # Type Parameters
+ * - `T`: The type to resolve (must be Send + Sync + 'static)
+ *
+ * # Usage
+ * ```rust
+ * fn resolve_user(ctx: &Context<'_>) -> Result<User> {
+ *     let service = resolve_graphql::<UserService>(ctx)?;
+ *     service.get_user()
+ * }
+ * ```
+ */
 pub fn resolve_graphql<T>(ctx: &async_graphql::Context<'_>) -> async_graphql::Result<Arc<T>>
 where
     T: Send + Sync + 'static,
@@ -49,6 +111,16 @@ where
     })
 }
 
+/**
+ * GraphQL Configuration
+ *
+ * Configuration options for the GraphQL endpoint.
+ *
+ * # Fields
+ * - `endpoint`: The URL path for the GraphQL API (default: "/graphql")
+ * - `graphiql_endpoint`: Optional path for GraphiQL interface
+ * - `max_request_bytes`: Maximum request body size (default: 1MB)
+ */
 #[derive(Debug, Clone)]
 pub struct GraphQlConfig {
     pub endpoint: String,
@@ -67,6 +139,9 @@ impl Default for GraphQlConfig {
 }
 
 impl GraphQlConfig {
+    /**
+     * Creates a new config with a custom endpoint.
+     */
     pub fn new(endpoint: impl Into<String>) -> Self {
         Self {
             endpoint: normalize_path(endpoint.into()),
@@ -74,16 +149,25 @@ impl GraphQlConfig {
         }
     }
 
+    /**
+     * Enables GraphiQL at the specified path.
+     */
     pub fn with_graphiql(mut self, path: impl Into<String>) -> Self {
         self.graphiql_endpoint = Some(normalize_path(path.into()));
         self
     }
 
+    /**
+     * Disables the GraphiQL interface.
+     */
     pub fn without_graphiql(mut self) -> Self {
         self.graphiql_endpoint = None;
         self
     }
 
+    /**
+     * Sets the maximum request body size in bytes.
+     */
     pub fn with_max_request_bytes(mut self, bytes: usize) -> Self {
         self.max_request_bytes = bytes;
         self

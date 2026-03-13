@@ -5,10 +5,7 @@ use nestforge::{
 
 use crate::users::{
     dto::{CreateUserDto, UpdateUserDto, UserDto, UserExistsDto, UsersCountDto},
-    services::{
-        create_user, delete_user, get_user, list_users, replace_user, update_user, user_exists,
-        users_count, UsersService,
-    },
+    services::UsersService,
 };
 
 #[controller("/users")]
@@ -22,15 +19,13 @@ impl UsersController {
     #[nestforge::tag("users")]
     #[nestforge::response(status = 200, description = "Users returned successfully")]
     async fn list(users: Inject<UsersService>) -> ApiResult<List<UserDto>> {
-        Ok(Json(list_users(users.as_ref())))
+        Ok(Json(users.list()))
     }
 
     #[nestforge::get("/count")]
     #[nestforge::version("1")]
     async fn count(users: Inject<UsersService>) -> ApiResult<UsersCountDto> {
-        Ok(Json(UsersCountDto {
-            total: users_count(users.as_ref()),
-        }))
+        Ok(Json(UsersCountDto { total: users.count() }))
     }
 
     #[nestforge::get("/{id}")]
@@ -38,7 +33,7 @@ impl UsersController {
     #[nestforge::use_guard(crate::guards::RequireValidIdGuard)]
     async fn get_user(id: Param<u64>, users: Inject<UsersService>) -> ApiResult<UserDto> {
         let id = id.value();
-        let user = get_user(users.as_ref(), id).or_not_found_id("User", id)?;
+        let user = users.get(id).or_not_found_id("User", id)?;
         Ok(Json(user))
     }
 
@@ -53,7 +48,7 @@ impl UsersController {
         users: Inject<UsersService>,
         body: ValidatedBody<CreateUserDto>,
     ) -> ApiResult<UserDto> {
-        let user = create_user(users.as_ref(), body.value()).or_bad_request()?;
+        let user = users.create(body.value()).or_bad_request()?;
         Ok(Json(user))
     }
 
@@ -68,7 +63,8 @@ impl UsersController {
         body: ValidatedBody<UpdateUserDto>,
     ) -> ApiResult<UserDto> {
         let id = id.value();
-        let updated = update_user(users.as_ref(), id, body.value())
+        let updated = users
+            .update(id, body.value())
             .or_bad_request()?
             .or_not_found_id("User", id)?;
         Ok(Json(updated))
@@ -83,7 +79,8 @@ impl UsersController {
         body: ValidatedBody<CreateUserDto>,
     ) -> ApiResult<UserDto> {
         let id = id.value();
-        let replaced = replace_user(users.as_ref(), id, body.value())
+        let replaced = users
+            .replace(id, body.value())
             .or_bad_request()?
             .or_not_found_id("User", id)?;
         Ok(Json(replaced))
@@ -96,7 +93,7 @@ impl UsersController {
         let id = id.value();
         Ok(Json(UserExistsDto {
             id,
-            exists: user_exists(users.as_ref(), id),
+            exists: users.exists(id),
         }))
     }
 
@@ -108,7 +105,7 @@ impl UsersController {
     #[nestforge::response(status = 200, description = "User deleted successfully")]
     async fn delete(id: Param<u64>, users: Inject<UsersService>) -> ApiResult<UserDto> {
         let id = id.value();
-        let deleted = delete_user(users.as_ref(), id).or_not_found_id("User", id)?;
+        let deleted = users.delete(id).or_not_found_id("User", id)?;
         Ok(Json(deleted))
     }
 }

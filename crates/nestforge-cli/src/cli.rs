@@ -23,13 +23,15 @@ pub struct Cli {
 pub enum Commands {
     /// Create a new NestForge application
     New(NewArgs),
+    /// Browse CLI workflow and generator documentation
+    Docs(DocsArgs),
     /// Generate framework resources and feature modules
     #[command(alias = "g")]
     Generate(GenerateArgs),
     /// Database migration commands
     Db(DbArgs),
     /// Export OpenAPI documentation
-    #[command(visible_alias = "docs")]
+    #[command(visible_alias = "openapi")]
     ExportDocs(ExportDocsArgs),
     /// Format Rust sources with cargo fmt
     Fmt,
@@ -67,6 +69,15 @@ pub struct GenerateArgs {
     #[arg(long)]
     pub no_prompt: bool,
     /// Disable interactive prompts
+    #[arg(long)]
+    pub no_tui: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct DocsArgs {
+    /// Optional docs topic
+    pub topic: Option<String>,
+    /// Render plain text docs instead of the terminal browser
     #[arg(long)]
     pub no_tui: bool,
 }

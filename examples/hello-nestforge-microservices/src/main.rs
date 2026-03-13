@@ -1,12 +1,7 @@
-mod app_config;
-mod app_module;
-mod microservices;
-
 use std::sync::atomic::Ordering;
 
-use app_module::AppModule;
-use microservices::{AppPatterns, EventCounter, GreetingPayload};
-use nestforge::{MicroserviceClient, TestFactory, TransportMetadata};
+use hello_nestforge_microservices::{AppModule, AppPatterns, EventCounter, GreetingPayload};
+use nestforge::prelude::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -22,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
         .send(
             "app.greet",
             GreetingPayload {
-                name: "Vernon".to_string(),
+                name: "John Doe".to_string(),
             },
         )
         .await?;

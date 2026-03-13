@@ -1,60 +1,59 @@
-use nestforge::{ResourceError, ResourceService};
+use nestforge::{injectable, ResourceError, ResourceService};
 
 use crate::users::dto::{CreateUserDto, UpdateUserDto, UserDto};
 
-pub type UsersService = ResourceService<UserDto>;
-
-pub fn users_service_seed() -> UsersService {
-    ResourceService::with_seed(vec![
-        UserDto {
-            id: 1,
-            name: "Vernon".to_string(),
-            email: "vernon@example.com".to_string(),
-        },
-        UserDto {
-            id: 2,
-            name: "Sam".to_string(),
-            email: "sam@example.com".to_string(),
-        },
-    ])
+#[injectable(factory = build_users_service)]
+pub struct UsersService {
+    store: ResourceService<UserDto>,
 }
 
-pub fn list_users(service: &UsersService) -> Vec<UserDto> {
-    service.all()
+fn build_users_service() -> UsersService {
+    UsersService {
+        store: ResourceService::with_seed(vec![
+            UserDto {
+                id: 1,
+                name: "John Doe".to_string(),
+                email: "john.doe@example.com".to_string(),
+            },
+            UserDto {
+                id: 2,
+                name: "Jane Doe".to_string(),
+                email: "jane.doe@example.com".to_string(),
+            },
+        ]),
+    }
 }
 
-pub fn get_user(service: &UsersService, id: u64) -> Option<UserDto> {
-    service.get(id)
-}
+impl UsersService {
+    pub fn list(&self) -> Vec<UserDto> {
+        self.store.all()
+    }
 
-pub fn users_count(service: &UsersService) -> usize {
-    service.count()
-}
+    pub fn count(&self) -> usize {
+        self.store.count()
+    }
 
-pub fn user_exists(service: &UsersService, id: u64) -> bool {
-    service.exists(id)
-}
+    pub fn get(&self, id: u64) -> Option<UserDto> {
+        self.store.get(id)
+    }
 
-pub fn create_user(service: &UsersService, dto: CreateUserDto) -> Result<UserDto, ResourceError> {
-    service.create(dto)
-}
+    pub fn exists(&self, id: u64) -> bool {
+        self.store.exists(id)
+    }
 
-pub fn update_user(
-    service: &UsersService,
-    id: u64,
-    dto: UpdateUserDto,
-) -> Result<Option<UserDto>, ResourceError> {
-    service.update(id, dto)
-}
+    pub fn create(&self, dto: CreateUserDto) -> Result<UserDto, ResourceError> {
+        self.store.create(dto)
+    }
 
-pub fn replace_user(
-    service: &UsersService,
-    id: u64,
-    dto: CreateUserDto,
-) -> Result<Option<UserDto>, ResourceError> {
-    service.replace(id, dto)
-}
+    pub fn update(&self, id: u64, dto: UpdateUserDto) -> Result<Option<UserDto>, ResourceError> {
+        self.store.update(id, dto)
+    }
 
-pub fn delete_user(service: &UsersService, id: u64) -> Option<UserDto> {
-    service.delete(id)
+    pub fn replace(&self, id: u64, dto: CreateUserDto) -> Result<Option<UserDto>, ResourceError> {
+        self.store.replace(id, dto)
+    }
+
+    pub fn delete(&self, id: u64) -> Option<UserDto> {
+        self.store.delete(id)
+    }
 }

@@ -10,11 +10,19 @@ use nestforge_microservices::{
 use serde::Serialize;
 use tonic::Status;
 
+/** Re-exports prost for protobuf message handling */
 pub use prost;
+/** Re-exports tonic for gRPC server/client generation */
 pub use tonic;
 
+/**
+ * GrpcServerConfig
+ *
+ * Configuration options for the gRPC server.
+ */
 #[derive(Debug, Clone)]
 pub struct GrpcServerConfig {
+    /** The address to listen on (host:port) */
     pub addr: String,
 }
 
@@ -27,10 +35,16 @@ impl Default for GrpcServerConfig {
 }
 
 impl GrpcServerConfig {
+    /**
+     * Creates a new GrpcServerConfig with the given address.
+     */
     pub fn new(addr: impl Into<String>) -> Self {
         Self { addr: addr.into() }
     }
 
+    /**
+     * Parses the address into a SocketAddr.
+     */
     pub fn socket_addr(&self) -> Result<SocketAddr> {
         self.addr
             .parse()
@@ -38,20 +52,38 @@ impl GrpcServerConfig {
     }
 }
 
+/**
+ * GrpcContext
+ *
+ * The execution context for gRPC service handlers.
+ * Provides access to the DI container and microservice dispatch.
+ */
 #[derive(Clone)]
 pub struct GrpcContext {
     container: Container,
 }
 
 impl GrpcContext {
+    /**
+     * Creates a new GrpcContext with the given container.
+     */
     pub fn new(container: Container) -> Self {
         Self { container }
     }
 
+    /**
+     * Returns a reference to the DI container.
+     */
     pub fn container(&self) -> &Container {
         &self.container
     }
 
+    /**
+     * Resolves a service from the DI container.
+     *
+     * # Type Parameters
+     * - `T`: The type to resolve (must be Send + Sync + 'static)
+     */
     pub fn resolve<T>(&self) -> Result<Arc<T>, Status>
     where
         T: Send + Sync + 'static,
@@ -65,6 +97,9 @@ impl GrpcContext {
         })
     }
 
+    /**
+     * Creates a microservice context for dispatching messages from gRPC.
+     */
     pub fn microservice_context(
         &self,
         pattern: impl Into<String>,
@@ -74,6 +109,19 @@ impl GrpcContext {
     }
 }
 
+/**
+ * Dispatches a gRPC message to the microservice registry.
+ *
+ * # Type Parameters
+ * - `Payload`: The message payload type
+ * - `Response`: The response type
+ *
+ * # Arguments
+ * - `ctx`: The gRPC context
+ * - `registry`: The microservice registry
+ * - `pattern`: The message pattern
+ * - `payload`: The message payload
+ */
 pub async fn dispatch_grpc_message<Payload>(
     ctx: &GrpcContext,
     registry: &MicroserviceRegistry,

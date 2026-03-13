@@ -6,15 +6,27 @@ use sqlx::{
 };
 use thiserror::Error;
 
+/**
+ * DbConfig
+ *
+ * Configuration for database connections.
+ */
 #[derive(Debug, Clone)]
 pub struct DbConfig {
+    /** The database connection URL */
     pub url: String,
+    /** Maximum number of connections in the pool */
     pub max_connections: u32,
+    /** Minimum number of connections to maintain */
     pub min_connections: u32,
+    /** Timeout for acquiring a connection */
     pub acquire_timeout: Duration,
 }
 
 impl DbConfig {
+    /**
+     * Creates a new DbConfig with the given connection URL.
+     */
     pub fn new(url: impl Into<String>) -> Self {
         Self {
             url: url.into(),
@@ -24,11 +36,19 @@ impl DbConfig {
         }
     }
 
+    /**
+     * Creates a config for a local PostgreSQL database.
+     */
     pub fn postgres_local(database: &str) -> Self {
         Self::new(format!("postgres://postgres:postgres@localhost/{database}"))
     }
 }
 
+/**
+ * DbError
+ *
+ * Error types that can occur during database operations.
+ */
 #[derive(Debug, Error)]
 pub enum DbError {
     #[error("Invalid database configuration: {0}")]
@@ -44,6 +64,12 @@ pub enum DbError {
     Query(#[from] sqlx::Error),
 }
 
+/**
+ * Db
+ *
+ * The database connection pool manager in NestForge.
+ * Provides access to one or more database connections.
+ */
 #[derive(Clone)]
 pub struct Db {
     primary: AnyPool,
@@ -51,6 +77,12 @@ pub struct Db {
 }
 
 impl Db {
+    /**
+     * Connects to the database synchronously.
+     *
+     * # Arguments
+     * - `config`: Database configuration
+     */
     pub async fn connect(config: DbConfig) -> Result<Self, DbError> {
         let primary = connect_pool(&config).await?;
         Ok(Self {
@@ -59,6 +91,9 @@ impl Db {
         })
     }
 
+    /**
+     * Connects to the database lazily (without verifying connection).
+     */
     pub fn connect_lazy(config: DbConfig) -> Result<Self, DbError> {
         let primary = connect_pool_lazy(&config)?;
         Ok(Self {
@@ -67,6 +102,13 @@ impl Db {
         })
     }
 
+    /**
+     * Connects to multiple databases simultaneously.
+     *
+     * # Arguments
+     * - `primary`: Configuration for the primary database
+     * - `named`: Iterator of (name, config) pairs for additional databases
+     */
     pub async fn connect_many<I>(primary: DbConfig, named: I) -> Result<Self, DbError>
     where
         I: IntoIterator<Item = (String, DbConfig)>,

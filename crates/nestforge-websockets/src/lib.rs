@@ -8,14 +8,57 @@ use nestforge_microservices::{
 };
 use serde_json::Value;
 
+/**
+ * Re-exports WebSocket types from axum for public use.
+ *
+ * These types provide the core WebSocket functionality for handling
+ * real-time bidirectional communication.
+ */
 pub use axum::extract::ws::{CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketUpgrade};
 
 type WebSocketFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 
+/**
+ * WebSocketGateway Trait
+ *
+ * The primary interface for implementing WebSocket gateways in NestForge.
+ * Implement this trait to handle WebSocket connections with full access
+ * to the NestForge container and authentication context.
+ *
+ * # Method
+ * - `on_connect`: Called when a new WebSocket connection is established.
+ *   Receives a WebSocketContext with DI container, request ID, auth identity,
+ *   and headers, plus the WebSocket stream for communication.
+ *
+ * # Example
+ * ```rust
+ * struct MyGateway;
+ *
+ * impl WebSocketGateway for MyGateway {
+ *     fn on_connect(&self, ctx: WebSocketContext, socket: WebSocket) -> WebSocketFuture {
+ *         Box::pin(async move {
+ *             // Handle WebSocket communication
+ *             socket.close(None).await.ok();
+ *         })
+ *     }
+ * }
+ * ```
+ */
 pub trait WebSocketGateway: Send + Sync + 'static {
     fn on_connect(&self, ctx: WebSocketContext, socket: WebSocket) -> WebSocketFuture;
 }
 
+/**
+ * WebSocketConfig
+ *
+ * Configuration options for WebSocket endpoints.
+ *
+ * # Fields
+ * - `endpoint`: The URL path where the WebSocket handler is mounted
+ *
+ * # Defaults
+ * - Endpoint defaults to "/ws"
+ */
 #[derive(Debug, Clone)]
 pub struct WebSocketConfig {
     pub endpoint: String,
@@ -30,6 +73,12 @@ impl Default for WebSocketConfig {
 }
 
 impl WebSocketConfig {
+    /**
+     * Creates a new config with a custom endpoint.
+     *
+     * # Arguments
+     * - `endpoint`: The URL path for the WebSocket endpoint
+     */
     pub fn new(endpoint: impl Into<String>) -> Self {
         Self {
             endpoint: normalize_path(endpoint.into(), "/ws"),
@@ -37,6 +86,26 @@ impl WebSocketConfig {
     }
 }
 
+/**
+ * WebSocketContext
+ *
+ * The context object provided to WebSocket handlers, containing
+ * access to the DI container, request metadata, and authentication.
+ *
+ * # Access To
+ * - DI Container for resolving services
+ * - Request ID for logging/tracing
+ * - Auth identity (if authenticated)
+ * - HTTP headers
+ *
+ * # Usage in Handlers
+ * ```rust
+ * async fn handle_message(ctx: WebSocketContext, msg: Message) {
+ *     let service = ctx.resolve::<MyService>().unwrap();
+ *     // Use service...
+ * }
+ * ```
+ */
 #[derive(Clone)]
 pub struct WebSocketContext {
     container: Container,
@@ -46,6 +115,15 @@ pub struct WebSocketContext {
 }
 
 impl WebSocketContext {
+    /**
+     * Creates a new WebSocket context.
+     *
+     * # Arguments
+     * - `container`: The DI container for the request
+     * - `request_id`: Optional request ID for tracing
+     * - `auth_identity`: Optional authentication identity
+     * - `headers`: HTTP headers from the request
+     */
     pub fn new(
         container: Container,
         request_id: Option<RequestId>,
@@ -60,22 +138,40 @@ impl WebSocketContext {
         }
     }
 
+    /**
+     * Returns a reference to the DI container.
+     */
     pub fn container(&self) -> &Container {
         &self.container
     }
 
+    /**
+     * Returns the request ID if available.
+     */
     pub fn request_id(&self) -> Option<&RequestId> {
         self.request_id.as_ref()
     }
 
+    /**
+     * Returns the authentication identity if available.
+     */
     pub fn auth_identity(&self) -> Option<&AuthIdentity> {
         self.auth_identity.as_ref()
     }
 
+    /**
+     * Returns a reference to the HTTP headers.
+     */
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 
+    /**
+     * Resolves a service from the DI container.
+     *
+     * # Type Parameters
+     * - `T`: The type to resolve (must be Send + Sync + 'static)
+     */
     pub fn resolve<T>(&self) -> Result<Arc<T>>
     where
         T: Send + Sync + 'static,
@@ -83,10 +179,16 @@ impl WebSocketContext {
         Ok(self.container.resolve::<T>()?)
     }
 
+    /**
+     * Checks if the WebSocket connection is authenticated.
+     */
     pub fn is_authenticated(&self) -> bool {
         self.auth_identity.is_some()
     }
 
+    /**
+     * Checks if the authenticated user has a specific role.
+     */
     pub fn has_role(&self, role: &str) -> bool {
         self.auth_identity
             .as_ref()
@@ -94,6 +196,9 @@ impl WebSocketContext {
             .unwrap_or(false)
     }
 
+    /**
+     * Creates a microservice context for dispatching messages over WebSocket.
+     */
     pub fn microservice_context(
         &self,
         pattern: impl Into<String>,

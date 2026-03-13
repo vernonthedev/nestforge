@@ -881,6 +881,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
 name = "form_urlencoded"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1083,7 +1089,7 @@ checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
+ "foldhash 0.1.5",
 ]
 
 [[package]]
@@ -1091,6 +1097,11 @@ name = "hashbrown"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
+]
 
 [[package]]
 name = "hashlink"
@@ -1109,7 +1120,7 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hello-nestforge"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -1120,7 +1131,7 @@ dependencies = [
 
 [[package]]
 name = "hello-nestforge-graphql"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "async-graphql",
@@ -1132,7 +1143,7 @@ dependencies = [
 
 [[package]]
 name = "hello-nestforge-grpc"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -1146,7 +1157,7 @@ dependencies = [
 
 [[package]]
 name = "hello-nestforge-microservices"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -1158,7 +1169,7 @@ dependencies = [
 
 [[package]]
 name = "hello-nestforge-websockets"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -1516,9 +1527,9 @@ checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 
 [[package]]
 name = "js-sys"
-version = "0.3.91"
+version = "0.3.90"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b49715b7073f385ba4bc528e5747d02e66cb39c6146efb66b781f131f0fb399c"
+checksum = "14dc6f6450b3f6d4ed5b16327f38fed626d375a886159ca555bd7822c0c3a5a6"
 dependencies = [
  "once_cell",
  "wasm-bindgen",
@@ -1607,11 +1618,11 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "lru"
-version = "0.12.5"
+version = "0.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "234cf4f4a04dc1f57e24b96cc0cd600cf2af460d4161ac5ecdd0af8e1f3b2a38"
+checksum = "a1dc47f592c06f33f8e3aea9591776ec7c9f9e4124778ff8a3c3b87159f7e593"
 dependencies = [
- "hashbrown 0.15.5",
+ "hashbrown 0.16.1",
 ]
 
 [[package]]
@@ -1718,7 +1729,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "async-graphql",
@@ -1748,7 +1759,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-cache"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "axum 0.8.8",
  "http",
@@ -1760,7 +1771,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-cli"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1777,14 +1788,14 @@ dependencies = [
 
 [[package]]
 name = "nestforge-config"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "nestforge-core"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -1797,14 +1808,14 @@ dependencies = [
 
 [[package]]
 name = "nestforge-data"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "nestforge-db"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "sqlx",
  "thiserror",
@@ -1813,7 +1824,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-graphql"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "async-graphql",
  "async-graphql-axum",
@@ -1823,7 +1834,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-grpc"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "nestforge-core",
@@ -1837,7 +1848,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-http"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -1848,7 +1859,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-macros"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1857,7 +1868,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-microservices"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "nestforge-core",
@@ -1867,14 +1878,14 @@ dependencies = [
 
 [[package]]
 name = "nestforge-mongo"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "nestforge-data",
 ]
 
 [[package]]
 name = "nestforge-openapi"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "axum 0.8.8",
  "nestforge-core",
@@ -1886,7 +1897,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-orm"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "nestforge-db",
  "thiserror",
@@ -1895,14 +1906,14 @@ dependencies = [
 
 [[package]]
 name = "nestforge-redis"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "nestforge-data",
 ]
 
 [[package]]
 name = "nestforge-schedule"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "nestforge-core",
@@ -1911,7 +1922,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-testing"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "async-graphql",
@@ -1928,7 +1939,7 @@ dependencies = [
 
 [[package]]
 name = "nestforge-websockets"
-version = "1.3.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -2352,8 +2363,6 @@ dependencies = [
 [[package]]
 name = "ratatui"
 version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eabd94c2f37801c20583fc49dd5cd6b0ba68c716787c2dd6ed18571e1e63117b"
 dependencies = [
  "bitflags",
  "cassowary",
@@ -3462,9 +3471,9 @@ checksum = "b8dad83b4f25e74f184f64c43b150b91efe7647395b42289f38e50566d82855b"
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.114"
+version = "0.2.113"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6532f9a5c1ece3798cb1c2cfdba640b9b3ba884f5db45973a6f442510a87d38e"
+checksum = "60722a937f594b7fde9adb894d7c092fc1bb6612897c46368d18e7a20208eff2"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -3475,9 +3484,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.114"
+version = "0.2.113"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18a2d50fcf105fb33bb15f00e7a77b772945a2ee45dcf454961fd843e74c18e6"
+checksum = "0fac8c6395094b6b91c4af293f4c79371c163f9a6f56184d2c9a85f5a95f3950"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -3485,9 +3494,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.114"
+version = "0.2.113"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03ce4caeaac547cdf713d280eda22a730824dd11e6b8c3ca9e42247b25c631e3"
+checksum = "ab3fabce6159dc20728033842636887e4877688ae94382766e00b180abac9d60"
 dependencies = [
  "bumpalo",
  "proc-macro2",
@@ -3498,9 +3507,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.114"
+version = "0.2.113"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75a326b8c223ee17883a4251907455a2431acc2791c98c26279376490c378c16"
+checksum = "de0e091bdb824da87dc01d967388880d017a0a9bc4f3bdc0d86ee9f9336e3bb5"
 dependencies = [
  "unicode-ident",
 ]

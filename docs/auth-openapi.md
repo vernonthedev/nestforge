@@ -13,11 +13,12 @@ nestforge = { version = "1", features = ["openapi"] }
 
 ## 2. Activate Documentation Routes
 
-In your `src/main.rs`, import `NestForgeFactoryOpenApiExt` and call `.with_openapi_docs()` during bootstrap.
+In your `src/main.rs`, import your app module from the package crate plus the NestForge prelude,
+then call `.with_openapi_docs()` during bootstrap.
 
 ```rust
-use nestforge::{NestForgeFactory, NestForgeFactoryOpenApiExt};
-use crate::app_module::AppModule;
+use my_service::AppModule;
+use nestforge::prelude::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -50,9 +51,8 @@ nestforge new demo-api --openapi
 If you want docs mounted at `api/docs` or prefer Redoc as the default UI, use `OpenApiConfig`:
 
 ```rust
-use nestforge::{
-    NestForgeFactory, NestForgeFactoryOpenApiExt, OpenApiConfig, OpenApiUi,
-};
+use my_service::AppModule;
+use nestforge::{prelude::*, OpenApiConfig, OpenApiUi};
 
 NestForgeFactory::<AppModule>::create()?
     .with_openapi_docs_config(
@@ -121,7 +121,7 @@ NestForgeFactory::<AppModule>::create()?
 ## Troubleshooting
 
 - **Missing Attributes**: Ensure `features = ["openapi"]` is in `Cargo.toml`.
-- **Method Not Found**: Ensure you have `use nestforge::NestForgeFactoryOpenApiExt;` in scope.
+- **Method Not Found**: Ensure you have `use nestforge::prelude::*;` or `use nestforge::NestForgeFactoryOpenApiExt;` in scope.
 - **Empty Docs**: Ensure your controllers are added to the `controllers` list in your module declaration.
 
 ## Static Export

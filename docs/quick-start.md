@@ -29,14 +29,24 @@ nestforge new my-nestforge-app
 cd my-nestforge-app
 ```
 
-The initial scaffold keeps app bootstrap files at the root of `src/`:
+The initial scaffold now creates a root barrel in `src/lib.rs` so the binary can import app
+symbols directly from the package crate:
 
 ```text
 src/
+  lib.rs
+  main.rs
   app_config.rs
   app_controller.rs
   app_module.rs
   health_controller.rs
+```
+
+That means generated bootstrap code now looks more like:
+
+```rust
+use my_nestforge_app::AppModule;
+use nestforge::prelude::*;
 ```
 
 Feature modules can still use nested `controllers/`, `services/`, and `dto/` folders when you generate them that way.
@@ -74,8 +84,6 @@ Flat layout output:
 ```text
 src/users/
   mod.rs
-  controller.rs
-  service.rs
   user_dto.rs
   create_user_dto.rs
   update_user_dto.rs
@@ -89,10 +97,8 @@ Nested layout output:
 src/users/
   mod.rs
   controllers/
-    controller.rs
     users_controller.rs
   services/
-    service.rs
     users_service.rs
   dto/
     user_dto.rs
@@ -113,8 +119,7 @@ A minimal NestForge app consists of an **AppModule** and a **Controller**.
 Define your routes in a struct marked with `#[controller]`.
 
 ```rust
-use nestforge::{controller, routes, ApiResult};
-use axum::Json;
+use nestforge::prelude::*;
 
 #[controller("/")]
 pub struct AppController;
@@ -123,7 +128,7 @@ pub struct AppController;
 impl AppController {
     #[nestforge::get("/")]
     async fn get_hello() -> ApiResult<String> {
-        Ok(Json("Hello from NestForge!".to_string()))
+        Ok(axum::Json("Hello from NestForge!".to_string()))
     }
 }
 ```
@@ -133,7 +138,7 @@ impl AppController {
 Wire everything together in a module.
 
 ```rust
-use nestforge::module;
+use nestforge::prelude::*;
 use crate::AppController;
 
 #[module(
@@ -148,8 +153,8 @@ pub struct AppModule;
 Bootstrap the app using `NestForgeFactory`.
 
 ```rust
-use nestforge::NestForgeFactory;
-use crate::app_module::AppModule;
+use my_nestforge_app::AppModule;
+use nestforge::prelude::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -158,6 +163,22 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     Ok(())
 }
+```
+
+## Prelude and Barrel Imports
+
+NestForge provides `nestforge::prelude::*` for the framework items most apps use repeatedly:
+
+```rust
+use nestforge::prelude::*;
+```
+
+Generated apps also add a root `src/lib.rs` barrel that re-exports top-level symbols such as
+`AppModule` and `AppConfig`, so app code can stay flatter:
+
+```rust
+use my_nestforge_app::AppModule;
+use my_nestforge_app::AppConfig;
 ```
 
 ---

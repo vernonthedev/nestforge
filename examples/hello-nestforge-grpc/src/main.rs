@@ -1,10 +1,5 @@
-mod app_config;
-mod app_module;
-mod grpc;
-
-use app_module::AppModule;
-use grpc::{proto::hello::greeter_server::GreeterServer, service::GreeterGrpcService};
-use nestforge::NestForgeGrpcFactory;
+use hello_nestforge_grpc::{proto::hello::greeter_server::GreeterServer, AppModule, GreeterGrpcService};
+use nestforge::prelude::*;
 
 const PORT: &str = "127.0.0.1:50051";
 

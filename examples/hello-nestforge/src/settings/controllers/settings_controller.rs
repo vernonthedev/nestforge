@@ -3,12 +3,10 @@ use nestforge::{
     controller, routes, ApiResult, Inject, List, OptionHttpExt, Param, ResultHttpExt, ValidatedBody,
 };
 
-use crate::app_config::AppConfig;
+use crate::AppConfig;
 use crate::settings::{
     dto::{CreateSettingDto, SettingDto, UpdateSettingDto},
-    services::{
-        create_setting, delete_setting, get_setting, list_settings, update_setting, SettingsService,
-    },
+    services::SettingsService,
 };
 
 #[controller("/settings")]
@@ -29,14 +27,14 @@ impl SettingsController {
     #[nestforge::get("/")]
     #[nestforge::version("1")]
     async fn list(service: Inject<SettingsService>) -> ApiResult<List<SettingDto>> {
-        Ok(Json(list_settings(service.as_ref())))
+        Ok(Json(service.list()))
     }
 
     #[nestforge::get("/{id}")]
     #[nestforge::version("1")]
     async fn get_one(id: Param<u64>, service: Inject<SettingsService>) -> ApiResult<SettingDto> {
         let id = id.value();
-        let setting = get_setting(service.as_ref(), id).or_not_found_id("Setting", id)?;
+        let setting = service.get(id).or_not_found_id("Setting", id)?;
         Ok(Json(setting))
     }
 
@@ -46,7 +44,7 @@ impl SettingsController {
         service: Inject<SettingsService>,
         body: ValidatedBody<CreateSettingDto>,
     ) -> ApiResult<SettingDto> {
-        let setting = create_setting(service.as_ref(), body.value()).or_bad_request()?;
+        let setting = service.create(body.value()).or_bad_request()?;
         Ok(Json(setting))
     }
 
@@ -58,7 +56,8 @@ impl SettingsController {
         body: ValidatedBody<UpdateSettingDto>,
     ) -> ApiResult<SettingDto> {
         let id = id.value();
-        let setting = update_setting(service.as_ref(), id, body.value())
+        let setting = service
+            .update(id, body.value())
             .or_bad_request()?
             .or_not_found_id("Setting", id)?;
         Ok(Json(setting))
@@ -68,7 +67,7 @@ impl SettingsController {
     #[nestforge::version("1")]
     async fn delete(id: Param<u64>, service: Inject<SettingsService>) -> ApiResult<SettingDto> {
         let id = id.value();
-        let setting = delete_setting(service.as_ref(), id).or_not_found_id("Setting", id)?;
+        let setting = service.delete(id).or_not_found_id("Setting", id)?;
         Ok(Json(setting))
     }
 }

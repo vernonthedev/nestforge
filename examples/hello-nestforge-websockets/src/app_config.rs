@@ -1,6 +1,14 @@
-#[derive(Debug, Clone)]
+use nestforge::{injectable, ConfigModule, ConfigOptions};
+
+#[injectable(factory = load_app_config)]
 pub struct AppConfig {
     pub app_name: String,
+}
+
+fn load_app_config() -> anyhow::Result<AppConfig> {
+    Ok(ConfigModule::for_root::<AppConfig>(
+        ConfigOptions::new().env_file(".env"),
+    )?)
 }
 
 impl nestforge::FromEnv for AppConfig {

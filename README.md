@@ -28,6 +28,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 
 - Module system with `imports` and `exports`
 - Dependency Injection with simple provider registration
+- Managed singleton services with `#[injectable]`
 - Controller macros (`#[controller]`, `#[routes]`, `#[get]`, `#[post]`, `#[put]`, `#[delete]`)
 - Request extractors (`Inject<T>`, `Param<T>`, `Body<T>`, `ValidatedBody<T>`)
 - Extended request extractors (`Query<T>`, `Headers`, `Cookies`, `RequestId`)
@@ -142,15 +143,28 @@ Scaffold a new HTTP app with OpenAPI docs wired in from day one:
 nestforge new demo-api --openapi
 ```
 
-The default app scaffold keeps bootstrap files at the root of `src/`:
+The default app scaffold now creates a root `src/lib.rs` barrel so the binary can import app
+symbols directly from the package crate:
 
 ```text
 src/
+  lib.rs
+  main.rs
   app_config.rs
   app_controller.rs
   app_module.rs
   health_controller.rs
 ```
+
+That means generated bootstrap code looks more like:
+
+```rust
+use demo_api::AppModule;
+use nestforge::prelude::*;
+```
+
+instead of a long list of `mod app_config;`, `mod app_module;`, and similar declarations in
+`main.rs`.
 
 Nested `controllers/` and `services/` folders are only created later when you generate root-level resources into them.
 
@@ -205,8 +219,6 @@ This keeps generated files together in the feature root:
 ```text
 src/users/
   mod.rs
-  controller.rs
-  service.rs
   user_dto.rs
   create_user_dto.rs
   update_user_dto.rs
@@ -220,10 +232,8 @@ Without `--flat`, the CLI keeps the older nested layout:
 src/users/
   mod.rs
   controllers/
-    controller.rs
     users_controller.rs
   services/
-    service.rs
     users_service.rs
   dto/
     user_dto.rs
@@ -274,7 +284,8 @@ The extension currently provides:
 ## Minimal App Bootstrap
 
 ```rust
-use nestforge::NestForgeFactory;
+use my_app::AppModule;
+use nestforge::prelude::*;
 
 NestForgeFactory::<AppModule>::create()?
     .with_global_prefix("api")
@@ -284,6 +295,108 @@ NestForgeFactory::<AppModule>::create()?
     .listen(3000)
     .await?;
 ```
+
+## Prelude and Root Re-exports
+
+NestForge includes a lightweight `nestforge::prelude` for the framework items you reach for most
+often in app code and generated scaffolds:
+
+```rust
+use nestforge::prelude::*;
+```
+
+The prelude is meant to reduce repetitive framework import noise. It groups together the common
+factories, route/module macros, and helper types used in everyday NestForge code.
+
+Examples of what it gives you:
+
+- `NestForgeFactory`
+- `NestForgeGrpcFactory`
+- `NestForgeFactoryGraphQlExt`
+- `NestForgeFactoryWebSocketExt`
+- `Inject`
+- `HttpException`
+- common route and module macros such as `#[module]`, `#[controller]`, and `#[get]`
+
+On top of that, generated apps now include a root `src/lib.rs` barrel that re-exports top-level app
+symbols like `AppModule` and `AppConfig`. That lets you write:
+
+```rust
+use demo_api::AppModule;
+use demo_api::AppConfig;
+```
+
+instead of pushing those imports through `mod ...;` declarations or deeper nested paths in
+`main.rs`.
+
+## Injectable Services
+
+Use `#[injectable]` when you want NestForge to treat a struct as a managed provider without a
+manual `#[derive(Clone)]`.
+
+```rust
+use nestforge::{injectable, module, Inject};
+
+#[injectable]
+#[derive(Default)]
+pub struct UsersService;
+
+#[module(
+    providers = [UsersService],
+    exports = [UsersService]
+)]
+pub struct UsersModule;
+
+#[nestforge::controller("/users")]
+pub struct UsersController;
+
+#[nestforge::routes]
+impl UsersController {
+    #[nestforge::get("/count")]
+    async fn count(_users: Inject<UsersService>) -> Result<&'static str, nestforge::HttpException> {
+        Ok("ok")
+    }
+}
+```
+
+If a service needs custom setup, point the macro at a zero-arg factory:
+
+```rust
+#[injectable(factory = build_users_service)]
+pub struct UsersService {
+    pub label: &'static str,
+}
+
+fn build_users_service() -> anyhow::Result<UsersService> {
+    Ok(UsersService { label: "users" })
+}
+```
+
+The same pattern works nicely for framework-managed config objects in the examples:
+
+```rust
+use nestforge::{injectable, ConfigModule, ConfigOptions};
+
+#[injectable(factory = load_app_config)]
+pub struct AppConfig {
+    pub app_name: String,
+}
+
+fn load_app_config() -> anyhow::Result<AppConfig> {
+    Ok(ConfigModule::for_root::<AppConfig>(
+        ConfigOptions::new().env_file(".env"),
+    )?)
+}
+
+#[nestforge::module(
+    providers = [AppConfig],
+    exports = [AppConfig]
+)]
+pub struct AppModule;
+```
+
+Keep explicit value or factory providers for external runtime resources like database connections,
+clients, or other values you do not own as plain structs.
 
 ## Example App Features
 
@@ -305,7 +418,7 @@ nestforge export-docs
 nestforge export-docs --format yaml --output docs/openapi.yaml
 ```
 
-- Config loading with `ConfigModule::for_root`
+- Config loading with `ConfigModule::for_root` and `#[injectable(factory = ...)]`
 - Versioned routes (`v1`, `v2`)
 
 ## Optional GraphQL Setup
@@ -313,10 +426,7 @@ nestforge export-docs --format yaml --output docs/openapi.yaml
 Enable the `graphql` feature and merge a GraphQL schema directly into the app:
 
 ```rust
-use nestforge::{
-    async_graphql::{EmptyMutation, EmptySubscription, Object, Schema},
-    NestForgeFactory, NestForgeFactoryGraphQlExt,
-};
+use nestforge::{async_graphql::{EmptyMutation, EmptySubscription, Object, Schema}, prelude::*};
 
 struct QueryRoot;
 
@@ -340,7 +450,7 @@ NestForgeFactory::<AppModule>::create()?
 Enable the `grpc` feature and bootstrap a gRPC transport with the dedicated factory:
 
 ```rust
-use nestforge::NestForgeGrpcFactory;
+use nestforge::prelude::*;
 
 NestForgeGrpcFactory::<AppModule>::create()?
     .with_addr("127.0.0.1:50051")
@@ -361,10 +471,7 @@ See `examples/hello-nestforge-grpc` for a full tonic-based setup with `proto/gre
 Enable the `websockets` feature and mount a gateway directly into the HTTP app:
 
 ```rust
-use nestforge::{
-    Message, NestForgeFactory, NestForgeFactoryWebSocketExt, WebSocket, WebSocketContext,
-    WebSocketGateway,
-};
+use nestforge::{prelude::*, Message, WebSocket, WebSocketContext, WebSocketGateway};
 
 struct EventsGateway;
 
@@ -390,7 +497,6 @@ NestForgeFactory::<AppModule>::create()?
 
 - Main Documentation: [https://nestforge.suredoc.net](https://nestforge.suredoc.net)
 - Wiki: [https://github.com/vernonthedev/nestforge/wiki](https://github.com/vernonthedev/nestforge/wiki)
-- Project docs: [https://vernonthedev.github.io/nestforge/docs/Home.md](https://vernonthedev.github.io/nestforge/docs/Home.md)
 
 ## Contributing
 

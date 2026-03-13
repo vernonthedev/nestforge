@@ -13,6 +13,7 @@ pub mod documentation;
 pub mod error;
 pub mod http_ext;
 pub mod inject;
+pub mod injectable;
 pub mod logging;
 pub mod module;
 pub mod pipeline;
@@ -34,6 +35,7 @@ pub use documentation::{
 pub use error::HttpException;
 pub use http_ext::{OptionHttpExt, ResultHttpExt};
 pub use inject::Inject;
+pub use injectable::{register_injectable, Injectable, IntoInjectableResult};
 pub use logging::{framework_log, framework_log_event};
 pub use module::{
     collect_module_graph, collect_module_route_docs, initialize_module_graph,

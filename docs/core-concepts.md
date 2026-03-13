@@ -27,7 +27,26 @@ It handles:
 
 Providers are values in the DI container.
 
-You can register providers with:
+The recommended way to define providers is with the `#[injectable]` macro:
+
+```rust
+use nestforge::prelude::*;
+
+#[injectable]
+#[derive(Default)]
+pub struct UsersService;
+```
+
+This marks the struct as a managed provider and automatically implements `Clone`. By default, it registers the provider using `Self::default()`.
+
+For custom initialization, use the `factory` attribute:
+
+```rust
+#[injectable(factory = build_service)]
+pub struct CustomService;
+```
+
+You can also register providers manually in a module with:
 
 - direct values (`Provider::value(...)`)
 - factories (`Provider::factory(|container| ...)`)

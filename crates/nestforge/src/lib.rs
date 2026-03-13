@@ -6,15 +6,16 @@
 pub use nestforge_core::{
     collect_module_graph, collect_module_route_docs, framework_log, framework_log_event,
     initialize_module_graph, openapi_array_schema_for, openapi_nullable_schema_for,
-    openapi_schema_components_for, openapi_schema_for, register_provider, ApiEnvelopeResult,
-    ApiResult, ApiSerializedResult, AuthIdentity, AuthUser, BearerToken, Body, Container,
-    ContainerError, ControllerBasePath, ControllerDefinition, Cookies, Decorated,
+    openapi_schema_components_for, openapi_schema_for, register_injectable, register_provider,
+    ApiEnvelopeResult, ApiResult, ApiSerializedResult, AuthIdentity, AuthUser, BearerToken, Body,
+    Container, ContainerError, ControllerBasePath, ControllerDefinition, Cookies, Decorated,
     DocumentedController, DynamicModuleBuilder, ExceptionFilter, Guard, Headers, HttpException,
-    Identifiable, InMemoryStore, InitializedModule, Inject, Interceptor, LifecycleHook, List,
-    ModuleDefinition, ModuleGraphEntry, ModuleGraphReport, ModuleRef, NextFn, NextFuture,
-    OpenApiSchema, OpenApiSchemaComponent, OptionHttpExt, OptionalAuthUser, Param, Pipe, PipedBody,
-    PipedParam, PipedQuery, Provider, Query, RegisterProvider, RequestContext, RequestDecorator,
-    RequestId, RequireAuthenticationGuard, ResourceError, ResourceService, ResponseEnvelope,
+    Identifiable, InMemoryStore, Injectable, InitializedModule, Inject, Interceptor,
+    IntoInjectableResult, LifecycleHook, List, ModuleDefinition, ModuleGraphEntry,
+    ModuleGraphReport, ModuleRef, NextFn, NextFuture, OpenApiSchema, OpenApiSchemaComponent,
+    OptionHttpExt, OptionalAuthUser, Param, Pipe, PipedBody, PipedParam, PipedQuery, Provider,
+    Query, RegisterProvider, RequestContext, RequestDecorator, RequestId,
+    RequireAuthenticationGuard, ResourceError, ResourceService, ResponseEnvelope,
     ResponseSerializer, ResultHttpExt, RoleRequirementsGuard, RouteBuilder, RouteDocumentation,
     RouteResponseDocumentation, Serialized, Validate, ValidatedBody, ValidationErrors,
     ValidationIssue,
@@ -37,9 +38,9 @@ pub use nestforge_db::{Db, DbConfig, DbError, DbTransaction};
 pub use nestforge_http::NestForgeFactory;
 pub use nestforge_http::{MiddlewareConsumer, MiddlewareRoute, NestMiddleware};
 pub use nestforge_macros::{
-    authenticated, controller, delete, description, dto, entity, entity_dto, get, id, identifiable,
-    module, post, put, response, response_dto, roles, routes, summary, tag, use_exception_filter,
-    use_guard, use_interceptor, version, Identifiable, Validate,
+    authenticated, controller, delete, description, dto, entity, entity_dto, get, id,
+    identifiable, injectable, module, post, put, response, response_dto, roles, routes, summary,
+    tag, use_exception_filter, use_guard, use_interceptor, version, Identifiable, Validate,
 };
 #[cfg(feature = "microservices")]
 pub use nestforge_microservices::{
@@ -265,6 +266,30 @@ pub use nestforge_websockets::{
     websocket_router_with_config, CloseFrame, Message, Utf8Bytes, WebSocket, WebSocketConfig,
     WebSocketContext, WebSocketGateway,
 };
+
+pub mod prelude {
+    pub use crate::{
+        authenticated, controller, delete, dto, entity, entity_dto, get, identifiable,
+        injectable, module, post, put, response, response_dto, routes, summary, tag,
+        use_exception_filter, use_guard, use_interceptor, version, ApiSerializedResult,
+        HttpException, Inject, NestForgeFactory, Param, Query, Serialized, Validate,
+    };
+
+    #[cfg(feature = "config")]
+    pub use crate::{ConfigModule, ConfigOptions, FromEnv};
+    #[cfg(feature = "graphql")]
+    pub use crate::{GraphQlConfig, NestForgeFactoryGraphQlExt};
+    #[cfg(feature = "grpc")]
+    pub use crate::NestForgeGrpcFactory;
+    #[cfg(feature = "microservices")]
+    pub use crate::{MicroserviceClient, TransportMetadata};
+    #[cfg(all(feature = "microservices", feature = "testing"))]
+    pub use crate::TestFactory;
+    #[cfg(feature = "openapi")]
+    pub use crate::NestForgeFactoryOpenApiExt;
+    #[cfg(feature = "websockets")]
+    pub use crate::NestForgeFactoryWebSocketExt;
+}
 
 #[cfg(feature = "openapi")]
 pub fn openapi_doc_for_module<M: ModuleDefinition>(

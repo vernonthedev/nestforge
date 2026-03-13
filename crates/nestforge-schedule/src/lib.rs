@@ -11,13 +11,18 @@ use nestforge_core::Container;
 type TaskFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 type TaskFn = dyn Fn() -> TaskFuture + Send + Sync + 'static;
 
+/**
+ * Internal representation of a scheduled task.
+ */
 #[derive(Clone)]
 enum ScheduledTask {
+    /** A task that runs at regular intervals */
     Interval {
         name: String,
         every: Duration,
         task: Arc<TaskFn>,
     },
+    /** A task that runs once after a delay */
     Timeout {
         name: String,
         after: Duration,
@@ -25,19 +30,48 @@ enum ScheduledTask {
     },
 }
 
+/**
+ * ScheduledJobKind
+ *
+ * The type of scheduled job.
+ */
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScheduledJobKind {
+    /** A recurring job that runs at intervals */
     Interval,
+    /** A one-time job that runs after a delay */
     Timeout,
 }
 
+/**
+ * ScheduledJob
+ *
+ * Represents metadata about a scheduled job.
+ */
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScheduledJob {
+    /** The name of the job */
     pub name: String,
+    /** The kind of job (interval or timeout) */
     pub kind: ScheduledJobKind,
+    /** The delay/interval duration */
     pub delay: Duration,
 }
 
+/**
+ * ScheduleRegistry
+ *
+ * A registry for managing scheduled tasks in NestForge.
+ * Allows registering interval and timeout-based tasks.
+ *
+ * # Usage
+ * ```rust
+ * let registry = ScheduleRegistry::new();
+ * registry.every(Duration::from_secs(60), || async {
+ *     println!("Running every minute");
+ * });
+ * ```
+ */
 #[derive(Clone, Default)]
 pub struct ScheduleRegistry {
     tasks: Arc<Mutex<Vec<ScheduledTask>>>,
@@ -45,14 +79,27 @@ pub struct ScheduleRegistry {
 }
 
 impl ScheduleRegistry {
+    /**
+     * Creates a new empty ScheduleRegistry.
+     */
     pub fn new() -> Self {
         Self::default()
     }
 
+    /**
+     * Creates a new ScheduleRegistryBuilder.
+     */
     pub fn builder() -> ScheduleRegistryBuilder {
         ScheduleRegistryBuilder::new()
     }
 
+    /**
+     * Schedules a task to run at the specified interval.
+     *
+     * # Arguments
+     * - `every`: The interval duration
+     * - `task`: The async task to run
+     */
     pub fn every<F, Fut>(&self, every: Duration, task: F)
     where
         F: Fn() -> Fut + Send + Sync + 'static,
@@ -61,6 +108,9 @@ impl ScheduleRegistry {
         self.every_named(format!("interval:{every:?}"), every, task);
     }
 
+    /**
+     * Schedules a named task to run at the specified interval.
+     */
     pub fn every_named<F, Fut>(&self, name: impl Into<String>, every: Duration, task: F)
     where
         F: Fn() -> Fut + Send + Sync + 'static,
@@ -76,6 +126,9 @@ impl ScheduleRegistry {
             });
     }
 
+    /**
+     * Schedules a task to run once after the specified duration.
+     */
     pub fn after<F, Fut>(&self, after: Duration, task: F)
     where
         F: Fn() -> Fut + Send + Sync + 'static,

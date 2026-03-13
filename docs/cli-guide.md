@@ -43,6 +43,7 @@ nestforge new demo-api
 
 Creates a runnable app with:
 
+- `lib.rs` root barrel with app re-exports
 - `main.rs`
 - `app_module.rs`
 - root app/health controllers
@@ -112,6 +113,8 @@ Creates Nest-style feature structure:
 - `src/users/dto/*`
 
 Also patches `main.rs` and `app_module.rs` imports.
+For newer scaffolds, the CLI also patches the root `src/lib.rs` barrel so app-level imports can
+stay flat.
 
 ### Resource In Module
 
@@ -229,8 +232,33 @@ Shows `applied`, `pending`, and `drift` migration status.
 
 ## Utilities
 
-- `nestforge docs`: generates `docs/openapi.json` skeleton
+- `nestforge docs`: opens the interactive CLI docs browser in your terminal.
+  - Navigation:
+    - `j` / `Down`: Next topic
+    - `k` / `Up`: Previous topic
+    - `PageDown`: Scroll content down
+    - `PageUp`: Scroll content up
+    - `/`: Search topics
+    - `q` / `Esc`: Quit
+  - Use `--no-tui` if you prefer plain text output for pipes or basic terminals.
+  - Pass a topic like `nestforge docs modules` to jump directly to a page.
+- `nestforge export-docs`: writes OpenAPI output for the current app
 - `nestforge fmt`: runs `cargo fmt`
+
+## Prelude and App Barrels
+
+New scaffolds now generate:
+
+- a root `src/lib.rs` barrel with `pub use` re-exports for top-level app symbols
+- a slimmer `src/main.rs` that imports from the package crate
+- `use nestforge::prelude::*;` for common framework imports
+
+That gives generated apps a flatter import style, for example:
+
+```rust
+use demo_api::AppModule;
+use nestforge::prelude::*;
+```
 
 ## Notes
 

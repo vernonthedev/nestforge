@@ -27,17 +27,26 @@ use crate::middleware::{
     run_middleware_chain, MiddlewareBinding, MiddlewareConsumer, NestMiddleware,
 };
 
-/*
-NestForgeFactory = app bootstrapper.
-
-This is the NestFactory.create(AppModule) vibe.
-
-Now it:
-- builds DI container
-- asks the module to register providers
-- asks the module for controllers
-- merges controller routers into one app router
-*/
+/// The main entry point for creating a NestForge application.
+///
+/// It handles the bootstrap process:
+/// 1. Creating the DI Container.
+/// 2. Initializing the Module Graph (resolving imports and providers).
+/// 3. Merging all Controller routers into a single Axum app.
+/// 4. Attaching global middleware, guards, interceptors, and exception filters.
+///
+/// # Example
+/// ```rust,no_run
+/// use nestforge_http::NestForgeFactory;
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let app = NestForgeFactory::<AppModule>::create()
+///         .expect("failed to start")
+///         .listen(3000)
+///         .await;
+/// }
+/// ```
 pub struct NestForgeFactory<M: ModuleDefinition> {
     _marker: std::marker::PhantomData<M>,
     container: Container,
@@ -57,6 +66,9 @@ type AuthFuture = Pin<Box<dyn Future<Output = Result<Option<AuthIdentity>, HttpE
 type AuthResolver = dyn Fn(Option<String>, Container) -> AuthFuture + Send + Sync;
 
 impl<M: ModuleDefinition> NestForgeFactory<M> {
+    /// Creates a new application instance from the root module.
+    ///
+    /// This triggers the DI container initialization and module lifecycle hooks (e.g., `on_module_init`).
     pub fn create() -> Result<Self> {
         let container = Container::new();
         let runtime = Arc::new(initialize_module_runtime::<M>(&container)?);
@@ -80,6 +92,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         })
     }
 
+    /// Sets a global prefix for all routes (e.g., "api").
     pub fn with_global_prefix(mut self, prefix: impl Into<String>) -> Self {
         let prefix = prefix.into().trim().trim_matches('/').to_string();
         if !prefix.is_empty() {
@@ -89,6 +102,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    /// Sets a global API version for all routes (e.g., "v1").
     pub fn with_version(mut self, version: impl Into<String>) -> Self {
         let version = version.into().trim().trim_matches('/').to_string();
         if !version.is_empty() {
@@ -98,6 +112,9 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    /// Registers a global guard.
+    ///
+    /// Global guards run for *every* route in the application.
     pub fn use_guard<G>(mut self) -> Self
     where
         G: Guard + Default,
@@ -110,6 +127,9 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    /// Registers a global interceptor.
+    ///
+    /// Global interceptors wrap *every* route handler.
     pub fn use_interceptor<I>(mut self) -> Self
     where
         I: Interceptor + Default,
@@ -122,6 +142,9 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    /// Registers a global exception filter.
+    ///
+    /// Catches unhandled exceptions from *any* route.
     pub fn use_exception_filter<F>(mut self) -> Self
     where
         F: ExceptionFilter + Default,
@@ -134,6 +157,9 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    /// Applies middleware to the application.
+    ///
+    /// Use the builder to select which routes the middleware applies to.
     pub fn use_middleware<T>(mut self) -> Self
     where
         T: NestMiddleware + Default,
@@ -144,6 +170,7 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    /// Advanced middleware configuration using a consumer builder.
     pub fn configure_middleware<F>(mut self, configure: F) -> Self
     where
         F: FnOnce(&mut MiddlewareConsumer),
@@ -154,6 +181,10 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    /// Sets the authentication resolver.
+    ///
+    /// This function is called for every request to resolve the `AuthIdentity`
+    /// from the bearer token.
     pub fn with_auth_resolver<F, Fut>(mut self, resolver: F) -> Self
     where
         F: Fn(Option<String>, Container) -> Fut + Send + Sync + 'static,
@@ -165,15 +196,22 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
         self
     }
 
+    /// Merges an external Axum router into the application.
+    ///
+    /// Useful for integrating other libraries or raw Axum handlers.
     pub fn merge_router(mut self, router: Router<Container>) -> Self {
         self.extra_routers.push(router);
         self
     }
 
+    /// Returns a reference to the underlying DI Container.
     pub fn container(&self) -> &Container {
         &self.container
     }
 
+    /// Consumes the factory and returns the fully configured Axum Router.
+    ///
+    /// Use this if you want to run the app with your own server (e.g. Lambda, Shuttle).
     pub fn into_router(self) -> Router {
         /*
         Build a router that EXPECTS Container state.
@@ -248,6 +286,10 @@ impl<M: ModuleDefinition> NestForgeFactory<M> {
             .with_state(self.container)
     }
 
+    /// Starts the HTTP server on the specified port.
+    ///
+    /// This will block the current thread (it should be awaited).
+    /// Upon shutdown (Ctrl+C), it runs the `on_module_destroy` and `on_application_shutdown` hooks.
     pub async fn listen(self, port: u16) -> Result<()> {
         let runtime = Arc::clone(&self.runtime);
         let container = self.container.clone();

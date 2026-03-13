@@ -5,17 +5,34 @@ use std::{
 
 use nestforge_data::{CacheStore, DataError};
 
+/**
+ * RedisConfig
+ *
+ * Configuration for Redis connection.
+ */
 #[derive(Clone)]
 pub struct RedisConfig {
+    /** The Redis connection URL */
     pub url: String,
 }
 
 impl RedisConfig {
+    /**
+     * Creates a new RedisConfig with the given URL.
+     */
     pub fn new(url: impl Into<String>) -> Self {
         Self { url: url.into() }
     }
 }
 
+/**
+ * InMemoryRedisStore
+ *
+ * An in-memory implementation of CacheStore for development/testing.
+ * Provides the same interface as Redis but stores data in memory.
+ *
+ * Note: Does not support TTL (time-to-live) expiration.
+ */
 #[derive(Clone, Default)]
 pub struct InMemoryRedisStore {
     values: Arc<RwLock<HashMap<String, String>>>,

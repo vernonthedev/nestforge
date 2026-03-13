@@ -28,6 +28,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 
 - Module system with `imports` and `exports`
 - Dependency Injection with simple provider registration
+- Managed singleton services with `#[injectable]`
 - Controller macros (`#[controller]`, `#[routes]`, `#[get]`, `#[post]`, `#[put]`, `#[delete]`)
 - Request extractors (`Inject<T>`, `Param<T>`, `Body<T>`, `ValidatedBody<T>`)
 - Extended request extractors (`Query<T>`, `Headers`, `Cookies`, `RequestId`)
@@ -283,6 +284,49 @@ NestForgeFactory::<AppModule>::create()?
     .use_interceptor::<LoggingInterceptor>()
     .listen(3000)
     .await?;
+```
+
+## Injectable Services
+
+Use `#[injectable]` when you want NestForge to treat a struct as a managed provider without a
+manual `#[derive(Clone)]`.
+
+```rust
+use nestforge::{injectable, module, Inject};
+
+#[injectable]
+#[derive(Default)]
+pub struct UsersService;
+
+#[module(
+    providers = [UsersService],
+    exports = [UsersService]
+)]
+pub struct UsersModule;
+
+#[nestforge::controller("/users")]
+pub struct UsersController;
+
+#[nestforge::routes]
+impl UsersController {
+    #[nestforge::get("/count")]
+    async fn count(_users: Inject<UsersService>) -> Result<&'static str, nestforge::HttpException> {
+        Ok("ok")
+    }
+}
+```
+
+If a service needs custom setup, point the macro at a zero-arg factory:
+
+```rust
+#[injectable(factory = build_users_service)]
+pub struct UsersService {
+    pub label: &'static str,
+}
+
+fn build_users_service() -> anyhow::Result<UsersService> {
+    Ok(UsersService { label: "users" })
+}
 ```
 
 ## Example App Features

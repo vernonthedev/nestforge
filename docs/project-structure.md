@@ -30,7 +30,7 @@
 
 `examples/hello-nestforge` shows current best-practice structure:
 
-- root app files (`main.rs`, `app_module.rs`, `app_controller.rs`, `health_controller.rs`)
+- root app files plus barrel exports (`lib.rs`, `main.rs`, `app_module.rs`, `app_controller.rs`, `health_controller.rs`)
 - feature modules (`users/`, `settings/`, `versioning/`)
 - global guards/interceptors
 - versioned routes and global `/api` prefix
@@ -45,6 +45,7 @@
 `examples/hello-nestforge-grpc` shows a gRPC-first structure:
 
 - minimal module bootstrap with config
+- root barrel re-exports for app-level imports
 - tonic code generation from `proto/`
 - a transport-focused `build.rs`
 - provider resolution inside a tonic service via `GrpcContext`
@@ -52,6 +53,16 @@
 `examples/hello-nestforge-websockets` shows a WebSocket-first structure:
 
 - minimal module bootstrap with config
+- root barrel re-exports for app-level imports
 - gateway mounting through `NestForgeFactoryWebSocketExt`
 - WebSocket route at `/ws`
 - provider resolution inside a gateway via `WebSocketContext`
+
+## Prelude and Root Barrels
+
+New NestForge apps now use two layers of import cleanup:
+
+- `nestforge::prelude::*` for common framework factories, macros, and helper types
+- a root app `src/lib.rs` barrel for re-exporting your own app symbols like `AppModule` and `AppConfig`
+
+This keeps bootstrap code flatter and avoids repetitive `mod ...;` declarations in `main.rs`.

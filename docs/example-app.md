@@ -9,6 +9,7 @@ Related examples:
 
 ## What This Example Shows
 
+- Root `src/lib.rs` barrel with app-level re-exports
 - Nest-style module imports (`UsersModule`, `SettingsModule`, `VersioningModule`)
 - Root app controllers at `src/` level
 - Feature folders for each domain
@@ -19,7 +20,7 @@ Related examples:
 
 ## Boot Flow
 
-1. `main.rs` creates the app with `NestForgeFactory::<AppModule>::create()`
+1. `main.rs` imports `AppModule` from the example crate root and creates the app with `NestForgeFactory::<AppModule>::create()`
 2. Factory applies global prefix (`api`)
 3. Factory registers global guard/interceptor
 4. Module graph is resolved and providers/controllers are registered
@@ -63,6 +64,11 @@ The controller demonstrates:
 - `GET /api/v1/settings/runtime`
 
 This endpoint shows DI config injection (`Inject<AppConfig>`).
+
+## Prelude Setup
+
+The example also uses `nestforge::prelude::*` in entrypoints and root app files to keep framework
+imports short, while its `src/lib.rs` barrel keeps app imports flat.
 
 ## Versioning Feature
 

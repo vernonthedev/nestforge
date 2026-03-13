@@ -16,6 +16,10 @@ use axum::{
 use crate::AuthIdentity;
 use crate::HttpException;
 
+/// Context available to all guards, interceptors, and pipes in the request lifecycle.
+///
+/// It provides access to basic request metadata (method, URI) and authentication state.
+/// This is lightweight and cloned cheaply (mostly `Arc`s or small types).
 #[derive(Clone, Debug)]
 pub struct RequestContext {
     pub method: Method,
@@ -55,14 +59,37 @@ impl RequestContext {
     }
 }
 
+/// A filter that catches exceptions thrown during request processing.
+///
+/// Use this to transform `HttpException`s into different responses or to log errors.
+///
+/// # Example
+/// ```rust
+/// struct LoggingFilter;
+/// impl ExceptionFilter for LoggingFilter {
+///     fn catch(&self, exception: HttpException, ctx: &RequestContext) -> HttpException {
+///         println!("Error: {:?}", exception);
+///         exception
+///     }
+/// }
+/// ```
 pub trait ExceptionFilter: Send + Sync + 'static {
     fn catch(&self, exception: HttpException, ctx: &RequestContext) -> HttpException;
 }
 
+/// A guard determines whether a request should be allowed to proceed.
+///
+/// Guards run before any interceptors or the route handler. If a guard returns `Err`,
+/// the request is rejected immediately.
+///
+/// Common uses: Authentication, Authorization, Rate Limiting.
 pub trait Guard: Send + Sync + 'static {
     fn can_activate(&self, ctx: &RequestContext) -> Result<(), HttpException>;
 }
 
+/// A built-in guard that ensures the user is authenticated.
+///
+/// It checks `ctx.is_authenticated()`. If false, it throws `401 Unauthorized`.
 #[derive(Default)]
 pub struct RequireAuthenticationGuard;
 
@@ -76,6 +103,9 @@ impl Guard for RequireAuthenticationGuard {
     }
 }
 
+/// A built-in guard that checks if the authenticated user has specific roles.
+///
+/// It requires authentication first, then checks `ctx.has_role(role)`.
 pub struct RoleRequirementsGuard {
     roles: Vec<String>,
 }
@@ -112,6 +142,25 @@ impl Guard for RoleRequirementsGuard {
 pub type NextFuture = Pin<Box<dyn Future<Output = Response> + Send>>;
 pub type NextFn = Arc<dyn Fn(Request<Body>) -> NextFuture + Send + Sync + 'static>;
 
+/// An interceptor wraps the request/response cycle.
+///
+/// It can execute logic *before* the handler runs (by inspecting the request)
+/// and *after* the handler returns (by transforming the response).
+///
+/// # Example
+/// ```rust
+/// struct LoggingInterceptor;
+/// impl Interceptor for LoggingInterceptor {
+///     fn around(&self, ctx: RequestContext, req: Request<Body>, next: NextFn) -> NextFuture {
+///         Box::pin(async move {
+///             println!("Before...");
+///             let res = next(req).await;
+///             println!("After...");
+///             res
+///         })
+///     }
+/// }
+/// ```
 pub trait Interceptor: Send + Sync + 'static {
     fn around(&self, ctx: RequestContext, req: Request<Body>, next: NextFn) -> NextFuture;
 }
@@ -124,6 +173,11 @@ pub fn run_guards(guards: &[Arc<dyn Guard>], ctx: &RequestContext) -> Result<(),
 }
 
 fn next_to_fn(next: Next) -> NextFn {
+    /*
+    We wrap `Next` in an Arc<Mutex> because axum's `Next` is one-shot, but
+    our interceptor chain needs to be clonable/re-entrant in terms of API structure
+    (though it's still fundamentally linear).
+    */
     let next = Arc::new(Mutex::new(Some(next)));
 
     Arc::new(move |req: Request<Body>| {
@@ -180,6 +234,11 @@ fn run_interceptor_chain(
     current.around(ctx, req, next_fn)
 }
 
+/// Executes the full NestForge request pipeline.
+///
+/// 1. Runs all **Guards**.
+/// 2. If successful, runs the **Interceptor Chain**.
+/// 3. If any step fails (guards or handler), runs **Exception Filters**.
 pub async fn execute_pipeline(
     req: Request<Body>,
     next: Next,

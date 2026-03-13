@@ -12,18 +12,27 @@ use syn::{
     Type,
 };
 
-/*
-#[controller("/users")]
-Adds ControllerBasePath metadata to the struct.
-*/
+/// The `#[controller]` macro is your starting point for defining a route group.
+///
+/// It takes a base path (like `"/users"`) and attaches it to your struct.
+/// Behind the scenes, this implements the `ControllerBasePath` trait, which
+/// NestForge uses later to mount your routes at the right URL.
 #[proc_macro_attribute]
 pub fn controller(attr: TokenStream, item: TokenStream) -> TokenStream {
+    /*
+    We expect the attribute to be a simple string literal: #[controller("/path")]
+    This path will be used as a prefix for all routes in the controller.
+    */
     let base_path = parse_macro_input!(attr as LitStr);
     let input = parse_macro_input!(item as ItemStruct);
 
     let name = &input.ident;
     let path = base_path.value();
 
+    /*
+    We keep your original struct but add the metadata trait implementation.
+    This allows the framework to discover the base path at runtime.
+    */
     let expanded = quote! {
         #input
 
@@ -37,21 +46,31 @@ pub fn controller(attr: TokenStream, item: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/*
-#[injectable]
-Marks a struct as a managed provider.
-
-Default behavior registers `Self::default()`.
-Use `#[injectable(factory = some_fn)]` when setup needs a custom zero-arg factory.
-*/
+/// `#[injectable]` marks a struct as something NestForge can manage for you.
+///
+/// By default, it assumes your struct implements `Default`. If you need more
+/// control, you can provide a factory function: `#[injectable(factory = my_factory)]`.
+///
+/// It also automatically adds `#[derive(Clone)]` to your struct, because providers
+/// need to be shared across the application.
 #[proc_macro_attribute]
 pub fn injectable(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as InjectableArgs);
     let mut input = parse_macro_input!(item as ItemStruct);
 
+    /*
+    Providers must be Clone so they can be passed around the DI container.
+    We check if Clone is already derived; if not, we add it.
+    */
     ensure_derive_trait(&mut input.attrs, "Clone");
 
     let name = &input.ident;
+    
+    /*
+    We decide how to register the provider based on whether a factory was provided.
+    If a factory is present, we wrap it in a closure that converts the result into an `IntoInjectableResult`.
+    Otherwise, we just use the Default trait.
+    */
     let register_body = if let Some(factory) = args.factory {
         quote! {
             let value: Self =
@@ -79,28 +98,52 @@ pub fn injectable(attr: TokenStream, item: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/*
-#[routes]
-Reads #[get], #[post], #[put] on methods inside the impl block,
-removes those attributes, and generates ControllerDefinition::router().
-*/
+/// `#[routes]` is where the magic happens for your controllers.
+///
+/// It looks at all the methods in your `impl` block and finds ones marked with
+/// `#[get]`, `#[post]`, etc. It then generates a `ControllerDefinition` that
+/// knows how to build an Axum router with all those routes wired up.
+///
+/// It also handles:
+/// - Extracting guards, interceptors, and filters.
+/// - Merging controller-level metadata with method-level metadata.
+/// - Generating documentation for your API.
 #[proc_macro_attribute]
 pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemImpl);
 
     let self_ty = input.self_ty.clone();
+    
+    /*
+    First, we pull out any metadata from the top of the impl block.
+    This includes things like `#[tag(...)]`, `#[authenticated]`, or `#[roles(...)]` that apply to all routes.
+    */
     let controller_meta = extract_controller_route_meta(&mut input);
 
     let mut route_calls = Vec::new();
     let mut route_docs = Vec::new();
 
+    /*
+    Now we loop through every method to see if it's a route.
+    We look for methods decorated with `#[get]`, `#[post]`, etc.
+    */
     for impl_item in &mut input.items {
         let ImplItem::Fn(ref mut method) = impl_item else {
             continue;
         };
+        
+        /*
+        Extract all the "middleware-like" metadata for this specific method.
+        This includes guards, interceptors, and exception filters.
+        */
         let (guards, interceptors, exception_filters) = extract_pipeline_meta(method);
         let version = extract_version_meta(method);
         let mut doc_meta = extract_route_doc_meta(method);
+        
+        /*
+        Merge the controller-level settings (like tags or auth) into the route.
+        Route-level settings generally add to or override controller-level ones.
+        */
         doc_meta.tags = merge_string_lists(controller_meta.tags.clone(), doc_meta.tags);
         doc_meta.required_roles = merge_string_lists(
             controller_meta.required_roles.clone(),
@@ -109,17 +152,33 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         doc_meta.requires_auth = controller_meta.requires_auth
             || doc_meta.requires_auth
             || !doc_meta.required_roles.is_empty();
+            
         let guards = merge_type_lists(controller_meta.guards.clone(), guards);
         let interceptors = merge_type_lists(controller_meta.interceptors.clone(), interceptors);
         let exception_filters =
             merge_type_lists(controller_meta.exception_filters.clone(), exception_filters);
 
+        /*
+        If the method has an HTTP attribute (like #[get("/")]), we process it.
+        This is where we generate the router configuration code.
+        */
         if let Some((http_method, path)) = extract_route_meta(method) {
             let method_name = &method.sig.ident;
             let path_lit = LitStr::new(&path, method.sig.ident.span());
+            
+            /*
+            We generate the code to initialize all the guards and interceptors.
+            These are instantiated as Arcs and passed to the route builder.
+            */
             let guard_inits = guards.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Guard> }
             });
+            
+            /*
+            Special handling for auth and role guards.
+            If authentication is required, we add the standard RequireAuthenticationGuard.
+            If roles are required, we add the RoleRequirementsGuard.
+            */
             let auth_guard_init = if doc_meta.requires_auth && doc_meta.required_roles.is_empty() {
                 quote! {
                     std::sync::Arc::new(nestforge::RequireAuthenticationGuard::default())
@@ -140,17 +199,20 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         as std::sync::Arc<dyn nestforge::Guard>
                 }
             };
+            
             let interceptor_inits = interceptors.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Interceptor> }
             });
             let exception_filter_inits = exception_filters.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::ExceptionFilter> }
             });
+            
             let guard_tokens = if doc_meta.requires_auth || !doc_meta.required_roles.is_empty() {
                 quote! { vec![#(#guard_inits,)* #auth_guard_init #role_guard_init] }
             } else {
                 quote! { vec![#(#guard_inits),*] }
             };
+            
             let version_tokens = if let Some(version) = &version {
                 let lit = LitStr::new(version, method.sig.ident.span());
                 quote! { Some(#lit) }
@@ -158,6 +220,10 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 quote! { None }
             };
 
+            /*
+            We build the actual call to the framework's RouteBuilder.
+            This corresponds to `builder.get(...)`, `builder.post(...)`, etc.
+            */
             let call = match http_method.as_str() {
                 "get" => quote! {
                     builder = builder.get_with_pipeline(

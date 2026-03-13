@@ -3,6 +3,23 @@ use std::sync::Arc;
 use axum::{body::Body, extract::Request, http::Method};
 use nestforge_core::{framework_log_event, NextFn, NextFuture};
 
+/// Trait for defining custom middleware.
+///
+/// Middleware sits between the incoming request and the NestForge pipeline (guards/interceptors/handlers).
+/// It can modify the request, response, or short-circuit the execution.
+///
+/// # Example
+/// ```rust
+/// struct LoggerMiddleware;
+/// impl NestMiddleware for LoggerMiddleware {
+///     fn handle(&self, req: Request<Body>, next: NextFn) -> NextFuture {
+///         Box::pin(async move {
+///             println!("Request: {:?}", req.uri());
+///             next(req).await
+///         })
+///     }
+/// }
+/// ```
 pub trait NestMiddleware: Send + Sync + 'static {
     fn handle(&self, req: Request<Body>, next: NextFn) -> NextFuture;
 }
@@ -39,6 +56,9 @@ impl RouteMatcher {
     }
 }
 
+/// A definition of a route (path + method) for middleware targeting.
+///
+/// Supports exact path matching and prefix matching (if path ends with `/`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MiddlewareRoute {
     path: String,
@@ -46,6 +66,7 @@ pub struct MiddlewareRoute {
 }
 
 impl MiddlewareRoute {
+    /// Matches any HTTP method on the given path.
     pub fn path(path: impl Into<String>) -> Self {
         Self {
             path: normalize_path(path.into()),
@@ -53,6 +74,7 @@ impl MiddlewareRoute {
         }
     }
 
+    /// Matches specific HTTP methods on the given path.
     pub fn methods<I>(path: impl Into<String>, methods: I) -> Self
     where
         I: IntoIterator<Item = Method>,
@@ -63,18 +85,22 @@ impl MiddlewareRoute {
         }
     }
 
+    /// Matches GET requests.
     pub fn get(path: impl Into<String>) -> Self {
         Self::methods(path, [Method::GET])
     }
 
+    /// Matches POST requests.
     pub fn post(path: impl Into<String>) -> Self {
         Self::methods(path, [Method::POST])
     }
 
+    /// Matches PUT requests.
     pub fn put(path: impl Into<String>) -> Self {
         Self::methods(path, [Method::PUT])
     }
 
+    /// Matches DELETE requests.
     pub fn delete(path: impl Into<String>) -> Self {
         Self::methods(path, [Method::DELETE])
     }
@@ -103,6 +129,9 @@ impl From<String> for MiddlewareRoute {
     }
 }
 
+/// A builder for configuring middleware application.
+///
+/// Allows you to apply middleware to specific routes or exclude routes.
 #[derive(Default)]
 pub struct MiddlewareConsumer {
     bindings: Vec<MiddlewareBinding>,
@@ -113,6 +142,7 @@ impl MiddlewareConsumer {
         Self::default()
     }
 
+    /// Apply a middleware type (default constructed).
     pub fn apply<T>(&mut self) -> MiddlewareBindingBuilder<'_>
     where
         T: NestMiddleware + Default,
@@ -120,6 +150,7 @@ impl MiddlewareConsumer {
         MiddlewareBindingBuilder::new(self, Arc::new(T::default()))
     }
 
+    /// Apply a specific middleware instance.
     pub fn apply_instance<T>(&mut self, middleware: T) -> MiddlewareBindingBuilder<'_>
     where
         T: NestMiddleware,
@@ -132,6 +163,7 @@ impl MiddlewareConsumer {
     }
 }
 
+/// Helper struct for chaining middleware configuration methods.
 pub struct MiddlewareBindingBuilder<'a> {
     consumer: &'a mut MiddlewareConsumer,
     middleware: Arc<dyn NestMiddleware>,
@@ -147,6 +179,7 @@ impl<'a> MiddlewareBindingBuilder<'a> {
         }
     }
 
+    /// Exclude specific routes from this middleware.
     pub fn exclude<I, S>(mut self, routes: I) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -156,10 +189,12 @@ impl<'a> MiddlewareBindingBuilder<'a> {
         self
     }
 
+    /// Apply the middleware to all routes.
     pub fn for_all_routes(self) -> &'a mut MiddlewareConsumer {
         self.register(Vec::new())
     }
 
+    /// Apply the middleware to specific routes.
     pub fn for_routes<I, S>(self, routes: I) -> &'a mut MiddlewareConsumer
     where
         I: IntoIterator<Item = S>,

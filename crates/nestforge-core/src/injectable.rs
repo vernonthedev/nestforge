@@ -18,12 +18,35 @@ impl<T> IntoInjectableResult<T> for Result<T> {
     }
 }
 
+/**
+ * `Injectable` is the core trait of NestForge's dependency injection system.
+ *
+ * The `#[injectable]` macro automatically implements this trait for the decorated struct.
+ * It tells NestForge how to create an instance of a service and register it within
+ * the global `Container`.
+ *
+ * Manual implementation is possible for complex registration logic that the macro
+ * does not yet support.
+ *
+ * ### Manual Implementation Example
+ * ```rust
+ * use nestforge::{Injectable, Container};
+ *
+ * struct MyService;
+ *
+ * impl Injectable for MyService {
+ *     fn register(container: &Container) -> anyhow::Result<()> {
+ *         // Registration logic goes here
+ *         container.register(MyService)?;
+ *         Ok(())
+ *     }
+ * }
+ * ```
+ */
 pub trait Injectable: Send + Sync + 'static {
-    fn register(container: &Container) -> Result<()>;
-
-    fn export_name() -> &'static str {
-        std::any::type_name::<Self>()
-    }
+    /// Registers the provider into the provided `Container`.
+    /// This is usually called during the module initialization phase.
+    fn register(container: &Container) -> anyhow::Result<()>;
 }
 
 pub fn register_injectable<T>(container: &Container) -> Result<()>
@@ -55,8 +78,8 @@ mod tests {
 
     impl Injectable for FactoryService {
         fn register(container: &Container) -> Result<()> {
-            let value: FactoryService = Result::<FactoryService>::Ok(FactoryService("ready"))
-                .into_injectable_result()?;
+            let value: FactoryService =
+                Result::<FactoryService>::Ok(FactoryService("ready")).into_injectable_result()?;
             container.register(value)?;
             Ok(())
         }

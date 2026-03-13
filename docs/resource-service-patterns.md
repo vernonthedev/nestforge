@@ -13,13 +13,20 @@ Use it to keep feature services small and readable in early app stages.
 ## Basic Setup
 
 ```rust
-pub type UsersService = nestforge::ResourceService<UserDto>;
+use nestforge::prelude::*;
+
+#[injectable(factory = users_service_seed)]
+pub struct UsersService {
+    store: nestforge::ResourceService<UserDto>,
+}
 
 pub fn users_service_seed() -> UsersService {
-    UsersService::with_seed(vec![
-        UserDto { id: 1, name: "Vernon".into(), email: "vernon@example.com".into() },
-        UserDto { id: 2, name: "Sam".into(), email: "sam@example.com".into() },
-    ])
+    UsersService {
+        store: nestforge::ResourceService::with_seed(vec![
+            UserDto { id: 1, name: "Vernon".into(), email: "vernon@example.com".into() },
+            UserDto { id: 2, name: "Sam".into(), email: "sam@example.com".into() },
+        ]),
+    }
 }
 ```
 

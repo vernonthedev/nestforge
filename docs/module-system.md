@@ -17,6 +17,9 @@ Use `#[module(...)]` on a struct.
 Example:
 
 ```rust
+use nestforge::prelude::*;
+use crate::{UsersModule, SettingsModule, AppController, HealthController, Db};
+
 #[module(
     imports = [UsersModule, SettingsModule],
     controllers = [AppController, HealthController],
@@ -25,6 +28,53 @@ Example:
 )]
 pub struct AppModule;
 ```
+
+## Providers and Dependency Injection
+
+Providers are the core building blocks of a NestForge application. They can be injected into controllers, other providers, and guards.
+
+### The `#[injectable]` Macro
+
+Most services and providers should use the `#[injectable]` macro. This marks the struct as a managed provider and automatically implements `Clone`.
+
+```rust
+use nestforge::prelude::*;
+
+#[injectable]
+#[derive(Default)]
+pub struct UsersService {
+    // ...
+}
+```
+
+By default, `#[injectable]` registers the provider using `Self::default()`.
+
+#### Custom Factory
+
+If your provider needs custom initialization, you can use the `factory` attribute:
+
+```rust
+use nestforge::prelude::*;
+
+#[injectable(factory = build_auth_service)]
+pub struct AuthService {
+    secret: String,
+}
+
+fn build_auth_service() -> AuthService {
+    AuthService {
+        secret: "secure-secret".to_string(),
+    }
+}
+```
+
+#### Manual Registration
+
+You can also register providers manually in the `#[module]` macro:
+
+- `Provider::value(val)`: Use an existing value.
+- `Provider::factory(|container| { ... })`: Use a closure to build the provider.
+- `Provider::request_factory(|container| { ... })`: Create a new instance for every request.
 
 ## imports
 
@@ -65,6 +115,8 @@ This makes provider order deterministic.
 Modules can also define Nest-style lifecycle hooks in `#[module(...)]`:
 
 ```rust
+use nestforge::prelude::*;
+
 #[module(
     providers = [load_config()?],
     on_module_init = [warm_cache],
@@ -95,6 +147,8 @@ NestForge supports runtime-configured imports through `ModuleRef::builder(...)`.
 That gives you a cleaner NestJS-style `register(...)` pattern:
 
 ```rust
+use nestforge::prelude::*;
+
 fn auth_module(secret: String) -> nestforge::ModuleRef {
     nestforge::ModuleRef::builder("AuthModule")
         .provider_value(AuthConfig { secret })
@@ -106,6 +160,8 @@ fn auth_module(secret: String) -> nestforge::ModuleRef {
 You can also use factory-based registration when the module depends on other providers:
 
 ```rust
+use nestforge::prelude::*;
+
 fn auth_module() -> nestforge::ModuleRef {
     nestforge::ModuleRef::builder("AuthModule")
         .provider_factory(|container| {
@@ -122,6 +178,8 @@ fn auth_module() -> nestforge::ModuleRef {
 And async setup is available through `provider_async(...)`:
 
 ```rust
+use nestforge::prelude::*;
+
 fn remote_config_module() -> nestforge::ModuleRef {
     nestforge::ModuleRef::builder("RemoteConfigModule")
         .provider_async(|_container| async {
@@ -137,6 +195,8 @@ fn remote_config_module() -> nestforge::ModuleRef {
 Then import it from a module:
 
 ```rust
+use nestforge::prelude::*;
+
 fn imports() -> Vec<nestforge::ModuleRef> {
     vec![auth_module("dev-secret".to_string())]
 }

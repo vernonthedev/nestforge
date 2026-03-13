@@ -119,7 +119,6 @@ A minimal NestForge app consists of an **AppModule** and a **Controller**.
 Define your routes in a struct marked with `#[controller]`.
 
 ```rust
-use axum::Json;
 use nestforge::prelude::*;
 
 #[controller("/")]
@@ -129,7 +128,7 @@ pub struct AppController;
 impl AppController {
     #[nestforge::get("/")]
     async fn get_hello() -> ApiResult<String> {
-        Ok(Json("Hello from NestForge!".to_string()))
+        Ok(axum::Json("Hello from NestForge!".to_string()))
     }
 }
 ```
@@ -139,8 +138,8 @@ impl AppController {
 Wire everything together in a module.
 
 ```rust
-use crate::AppController;
 use nestforge::prelude::*;
+use crate::AppController;
 
 #[module(
     controllers = [AppController],

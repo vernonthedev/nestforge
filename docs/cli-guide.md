@@ -232,7 +232,16 @@ Shows `applied`, `pending`, and `drift` migration status.
 
 ## Utilities
 
-- `nestforge docs`: opens the CLI docs browser in the terminal, with `--no-tui` for plain text
+- `nestforge docs`: opens the interactive CLI docs browser in your terminal.
+  - Navigation:
+    - `j` / `Down`: Next topic
+    - `k` / `Up`: Previous topic
+    - `PageDown`: Scroll content down
+    - `PageUp`: Scroll content up
+    - `/`: Search topics
+    - `q` / `Esc`: Quit
+  - Use `--no-tui` if you prefer plain text output for pipes or basic terminals.
+  - Pass a topic like `nestforge docs modules` to jump directly to a page.
 - `nestforge export-docs`: writes OpenAPI output for the current app
 - `nestforge fmt`: runs `cargo fmt`
 

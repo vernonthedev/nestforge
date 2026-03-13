@@ -48,6 +48,24 @@ Adds a route-level interceptor.
 
 Adds a route-level exception filter.
 
+## Provider Macros
+
+### `#[injectable]`
+
+Marks a struct as a managed provider.
+
+- Automatically implements `Clone`.
+- Registers the provider using `Self::default()` by default.
+- Supports custom factory: `#[injectable(factory = build_fn)]`.
+
+```rust
+use nestforge::prelude::*;
+
+#[injectable]
+#[derive(Default)]
+pub struct MyService;
+```
+
 ## Module Macro
 
 ### `#[module(...)]`

@@ -2724,49 +2724,17 @@ impl HealthController {
     .to_string()
 }
 
-fn template_app_config_rs(transport: AppTransport) -> String {
-    let default_app_name = match transport {
-        AppTransport::Http => "NestForge HTTP",
-        AppTransport::Graphql => "NestForge GraphQL",
-        AppTransport::Grpc => "NestForge gRPC",
-        AppTransport::Websockets => "NestForge WebSockets",
-        AppTransport::Microservices => "NestForge Microservices",
-    };
+fn template_app_config_rs(_transport: AppTransport) -> String {
+    r#"use nestforge_config::{ConfigService, ConfigModule};
 
-    format!(
-        r#"use nestforge_config::{{FromEnv, ConfigModule, ConfigOptions, EnvStore, ConfigError}};
+pub type AppConfig = ConfigService;
 
-#[derive(Debug, Clone)]
-pub struct AppConfig {{
-    pub app_name: String,
-    pub port: u16,
-}}
-
-impl FromEnv for AppConfig {{
-    fn from_env(env: &EnvStore) -> Result<Self, ConfigError> {{
-        Ok(Self {{
-            app_name: env.get("APP_NAME").unwrap_or("{default_app_name}").to_string(),
-            port: env.get("APP_PORT")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(3000),
-        }})
-    }}
-
-    fn config_key() -> &'static str {{
-        "AppConfig"
-    }}
-}}
-
-impl std::default::Default for AppConfig {{
-    fn default() -> Self {{
-        Self {{
-            app_name: "{default_app_name}".to_string(),
-            port: 3000,
-        }}
-    }}
-}}
+pub fn load_config() -> AppConfig {
+    ConfigService::load_with_options(&ConfigModule::for_root().env_file(".env"))
+        .expect("Failed to load configuration from .env file")
+}
 "#
-    )
+        .to_string()
 }
 
 fn template_graphql_schema_rs() -> String {

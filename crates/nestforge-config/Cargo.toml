@@ -12,7 +12,4 @@ categories = ["config"]
 
 [dependencies]
 thiserror = { workspace = true }
-serde = { workspace = true }
 dotenvy = "0.15"
-validator = { version = "0.16", features = ["derive"] }
-inventory = "0.1"

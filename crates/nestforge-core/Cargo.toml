@@ -12,10 +12,12 @@ keywords = ["rust", "framework", "di", "backend", "nestforge"]
 categories = ["web-programming", "web-programming::http-server"]
 
 [dependencies]
-anyhow = { workspace = true } # anyhow = easy error handling for now.
-thiserror = { workspace = true } # thiserror = cleaner custom errors later.
+anyhow = { workspace = true }
+thiserror = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 http = { workspace = true }
 tokio = { workspace = true }
+nestforge-config = { path = "../nestforge-config" }
+validator = { workspace = true }

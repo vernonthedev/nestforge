@@ -8,6 +8,7 @@
 * - In memory store
 */
 pub mod auth;
+pub mod config;
 pub mod container;
 pub mod documentation;
 pub mod error;
@@ -26,6 +27,7 @@ pub mod store;
 pub mod validation;
 
 pub use auth::{AuthIdentity, AuthUser, BearerToken, OptionalAuthUser};
+pub use config::{register_config, Configurable};
 pub use container::{Container, ContainerError};
 pub use documentation::{
     openapi_array_schema_for, openapi_nullable_schema_for, openapi_schema_components_for,
@@ -60,6 +62,10 @@ pub use response::{
 pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};
 pub use validation::{Validate, ValidationErrors, ValidationIssue};
+pub use nestforge_config::{
+    ConfigError, ConfigModule, ConfigOptions, EnvStore, FromEnv, EnvValidationIssue,
+    ConfigField,
+};
 
 pub type ApiResult<T> = Result<axum::Json<T>, HttpException>;
 pub type List<T> = Vec<T>;

@@ -65,7 +65,7 @@ pub fn injectable(attr: TokenStream, item: TokenStream) -> TokenStream {
     ensure_derive_trait(&mut input.attrs, "Clone");
 
     let name = &input.ident;
-    
+
     /*
     We decide how to register the provider based on whether a factory was provided.
     If a factory is present, we wrap it in a closure that converts the result into an `IntoInjectableResult`.
@@ -113,7 +113,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemImpl);
 
     let self_ty = input.self_ty.clone();
-    
+
     /*
     First, we pull out any metadata from the top of the impl block.
     This includes things like `#[tag(...)]`, `#[authenticated]`, or `#[roles(...)]` that apply to all routes.
@@ -131,7 +131,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         let ImplItem::Fn(ref mut method) = impl_item else {
             continue;
         };
-        
+
         /*
         Extract all the "middleware-like" metadata for this specific method.
         This includes guards, interceptors, and exception filters.
@@ -139,7 +139,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         let (guards, interceptors, exception_filters) = extract_pipeline_meta(method);
         let version = extract_version_meta(method);
         let mut doc_meta = extract_route_doc_meta(method);
-        
+
         /*
         Merge the controller-level settings (like tags or auth) into the route.
         Route-level settings generally add to or override controller-level ones.
@@ -152,7 +152,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         doc_meta.requires_auth = controller_meta.requires_auth
             || doc_meta.requires_auth
             || !doc_meta.required_roles.is_empty();
-            
+
         let guards = merge_type_lists(controller_meta.guards.clone(), guards);
         let interceptors = merge_type_lists(controller_meta.interceptors.clone(), interceptors);
         let exception_filters =
@@ -165,7 +165,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         if let Some((http_method, path)) = extract_route_meta(method) {
             let method_name = &method.sig.ident;
             let path_lit = LitStr::new(&path, method.sig.ident.span());
-            
+
             /*
             We generate the code to initialize all the guards and interceptors.
             These are instantiated as Arcs and passed to the route builder.
@@ -173,7 +173,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let guard_inits = guards.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Guard> }
             });
-            
+
             /*
             Special handling for auth and role guards.
             If authentication is required, we add the standard RequireAuthenticationGuard.
@@ -199,20 +199,20 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         as std::sync::Arc<dyn nestforge::Guard>
                 }
             };
-            
+
             let interceptor_inits = interceptors.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Interceptor> }
             });
             let exception_filter_inits = exception_filters.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::ExceptionFilter> }
             });
-            
+
             let guard_tokens = if doc_meta.requires_auth || !doc_meta.required_roles.is_empty() {
                 quote! { vec![#(#guard_inits,)* #auth_guard_init #role_guard_init] }
             } else {
                 quote! { vec![#(#guard_inits),*] }
             };
-            
+
             let version_tokens = if let Some(version) = &version {
                 let lit = LitStr::new(version, method.sig.ident.span());
                 quote! { Some(#lit) }
@@ -1797,7 +1797,9 @@ fn ensure_derive_trait(attrs: &mut Vec<Attribute>, trait_name: &str) {
             continue;
         }
 
-        let Ok(mut derives) = attr.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated) else {
+        let Ok(mut derives) =
+            attr.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated)
+        else {
             continue;
         };
 
@@ -2020,4 +2022,106 @@ fn is_option_numeric_type(ty: &Type) -> bool {
         return false;
     };
     is_numeric_type(inner_ty)
+}
+
+#[proc_macro_derive(Config, attributes(config, serde))]
+pub fn derive_config(item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = &input.generics.split_for_impl();
+
+    let Data::Struct(data) = &input.data else {
+        return syn::Error::new(input.ident.span(), "Config can only be derived on structs")
+            .to_compile_error()
+            .into();
+    };
+
+    let Fields::Named(fields) = &data.fields else {
+        return syn::Error::new(input.ident.span(), "Config derive requires named fields")
+            .to_compile_error()
+            .into();
+    };
+
+    let mut env_lookups: Vec<TokenStream2> = Vec::new();
+    let mut field_idents: Vec<Ident> = Vec::new();
+
+    for field in &fields.named {
+        let Some(field_ident) = &field.ident.clone() else {
+            continue;
+        };
+
+        let env_key = field_ident.to_string().to_uppercase();
+        let field_ty = &field.ty;
+        let is_option = is_option_type(field_ty);
+
+        let lookup_expr = if is_option {
+            quote! {
+                let #field_ident: #field_ty = <#field_ty as nestforge_config::ConfigField>::from_env(&env).ok();
+            }
+        } else {
+            let default_tokens = match field_ty {
+                Type::Path(tp) if tp.path.is_ident("String") => quote!(String::new()),
+                Type::Path(tp) if tp.path.is_ident("u8") => quote!(0u8),
+                Type::Path(tp) if tp.path.is_ident("u16") => quote!(0u16),
+                Type::Path(tp) if tp.path.is_ident("u32") => quote!(0u32),
+                Type::Path(tp) if tp.path.is_ident("u64") => quote!(0u64),
+                Type::Path(tp) if tp.path.is_ident("usize") => quote!(0usize),
+                Type::Path(tp) if tp.path.is_ident("i8") => quote!(0i8),
+                Type::Path(tp) if tp.path.is_ident("i16") => quote!(0i16),
+                Type::Path(tp) if tp.path.is_ident("i32") => quote!(0i32),
+                Type::Path(tp) if tp.path.is_ident("i64") => quote!(0i64),
+                Type::Path(tp) if tp.path.is_ident("isize") => quote!(0isize),
+                Type::Path(tp) if tp.path.is_ident("f32") => quote!(0.0f32),
+                Type::Path(tp) if tp.path.is_ident("f64") => quote!(0.0f64),
+                Type::Path(tp) if tp.path.is_ident("bool") => quote!(false),
+                _ => quote!(std::default::Default::default()),
+            };
+            quote! {
+                let #field_ident: #field_ty = <#field_ty as nestforge_config::ConfigField>::from_env_or(&env, #env_key, #default_tokens)?;
+            }
+        };
+
+        env_lookups.push(lookup_expr);
+        field_idents.push(field_ident.clone());
+    }
+
+    let field_idents2 = field_idents.clone();
+
+    let expanded = quote! {
+        impl #impl_generics nestforge_config::FromEnv for #name #ty_generics #where_clause {
+            fn from_env(env: &nestforge_config::EnvStore) -> Result<Self, nestforge_config::ConfigError> {
+                #(#env_lookups)*
+
+                Ok(Self {
+                    #(#field_idents),*
+                })
+            }
+
+            fn config_key() -> &'static str {
+                stringify!(#name)
+            }
+        }
+
+        impl #impl_generics std::default::Default for #name #ty_generics #where_clause {
+            fn default() -> Self {
+                Self {
+                    #(#field_idents2: std::default::Default::default()),*
+                }
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+fn is_option_type(ty: &Type) -> bool {
+    match ty {
+        Type::Path(tp) => tp
+            .path
+            .segments
+            .last()
+            .map(|seg| seg.ident == "Option")
+            .unwrap_or(false),
+        _ => false,
+    }
 }

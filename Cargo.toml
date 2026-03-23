@@ -45,6 +45,7 @@ serde_json = "1"
 http = "1"
 anyhow = "1"
 thiserror = "2"
+validator = { version = "0.16", features = ["derive"] }
 sha2 = "0.10"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors"] }

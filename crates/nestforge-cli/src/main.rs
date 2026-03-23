@@ -2735,20 +2735,22 @@ fn template_app_config_rs(transport: AppTransport) -> String {
 
     format!(
         r#"use nestforge::{{prelude::*, ConfigModule, ConfigOptions}};
+use nestforge::nestforge_config::{{FromEnv, ConfigOptions}};
 
-#[injectable(factory = load_app_config)]
+#[derive(Debug, Clone, Config)]
+#[config(required)]
 pub struct AppConfig {{
     pub app_name: String,
 }}
 
-fn load_app_config() -> anyhow::Result<AppConfig> {{
-    Ok(ConfigModule::for_root::<AppConfig>(ConfigOptions::new().env_file(".env"))?)
-}}
-
-impl nestforge::FromEnv for AppConfig {{
+impl FromEnv for AppConfig {{
     fn from_env(env: &nestforge::EnvStore) -> Result<Self, nestforge::ConfigError> {{
         let app_name = env.get("APP_NAME").unwrap_or("{default_app_name}").to_string();
         Ok(Self {{ app_name }})
+    }}
+
+    fn config_key() -> &'static str {{
+        "AppConfig"
     }}
 }}
 "#

@@ -58,13 +58,12 @@ impl ConfigService {
     }
 
     pub fn get_string(&self, key: &str) -> String {
-        self.values.get(key).cloned().unwrap_or_default()
+        self.get(key).map(|v| v.to_string()).unwrap_or_default()
     }
 
     pub fn get_string_or(&self, key: &str, default: &str) -> String {
-        self.values
-            .get(key)
-            .cloned()
+        self.get(key)
+            .map(|v| v.to_string())
             .unwrap_or_else(|| default.to_string())
     }
 
@@ -88,6 +87,16 @@ impl ConfigService {
             .unwrap_or(default)
     }
 
+    pub fn get_u32(&self, key: &str) -> u32 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_u32_or(&self, key: &str, default: u32) -> u32 {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
     pub fn get_bool(&self, key: &str) -> bool {
         self.get(key)
             .map(|v| v == "true" || v == "1" || v == "yes")
@@ -98,6 +107,60 @@ impl ConfigService {
         self.get(key)
             .map(|v| v == "true" || v == "1" || v == "yes")
             .unwrap_or(default)
+    }
+
+    pub fn get_usize(&self, key: &str) -> usize {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_usize_or(&self, key: &str, default: usize) -> usize {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn get_f64(&self, key: &str) -> f64 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0.0)
+    }
+
+    pub fn get_f64_or(&self, key: &str, default: f64) -> f64 {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn get_isize(&self, key: &str) -> isize {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_isize_or(&self, key: &str, default: isize) -> isize {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn get_i64(&self, key: &str) -> i64 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_i64_or(&self, key: &str, default: i64) -> i64 {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn get_u64(&self, key: &str) -> u64 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_u64_or(&self, key: &str, default: u64) -> u64 {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn has(&self, key: &str) -> bool {
+        self.values.contains_key(key)
     }
 }
 
@@ -139,8 +202,54 @@ impl ConfigModule {
         ConfigOptions::new()
     }
 
+    pub fn for_root_with_options(options: ConfigOptions) -> ConfigService {
+        ConfigService::load_with_options(&options).expect("Failed to load configuration")
+    }
+
     pub fn for_feature() -> ConfigOptions {
         ConfigOptions::new()
+    }
+}
+
+pub struct Config<T> {
+    _phantom: std::marker::PhantomData<T>,
+}
+
+impl<T> Config<T> {
+    pub fn new() -> Self {
+        Self {
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> Default for Config<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn register_config<T: Send + Sync + 'static>(
+    name: &'static str,
+    factory: fn() -> T,
+) -> ConfigRegistration<T> {
+    ConfigRegistration {
+        name,
+        _phantom: std::marker::PhantomData,
+        factory,
+    }
+}
+
+pub struct ConfigRegistration<T: Send + Sync + 'static> {
+    #[allow(dead_code)]
+    name: &'static str,
+    _phantom: std::marker::PhantomData<T>,
+    factory: fn() -> T,
+}
+
+impl<T: Send + Sync + 'static> ConfigRegistration<T> {
+    pub fn load(&self) -> T {
+        (self.factory)()
     }
 }
 
@@ -155,10 +264,12 @@ mod tests {
 
         let config = ConfigService::load().unwrap();
 
-        assert_eq!(config.get(&"APP_NAME".to_string()), Some("TestApp"));
-        assert_eq!(config.get_string(&"APP_NAME"), "TestApp");
-        assert_eq!(config.get_u16(&"APP_PORT"), 8080);
-        assert_eq!(config.get_u16_or(&"MISSING", 3000), 3000);
+        assert_eq!(config.get("APP_NAME"), Some("TestApp"));
+        assert_eq!(config.get_string("APP_NAME"), "TestApp");
+        assert_eq!(config.get_u16("APP_PORT"), 8080);
+        assert_eq!(config.get_u16_or("MISSING", 3000), 3000);
+        assert!(config.has("APP_NAME"));
+        assert!(!config.has("MISSING"));
 
         std::env::remove_var("APP_NAME");
         std::env::remove_var("APP_PORT");
@@ -168,9 +279,33 @@ mod tests {
     fn test_config_service_defaults() {
         let config = ConfigService::new();
 
-        assert_eq!(config.get_string(&"MISSING"), "");
-        assert_eq!(config.get_string_or(&"MISSING", "default"), "default");
-        assert_eq!(config.get_u16_or(&"MISSING", 3000), 3000);
-        assert_eq!(config.get_bool_or(&"MISSING", true), true);
+        assert_eq!(config.get_string("MISSING"), "");
+        assert_eq!(config.get_string_or("MISSING", "default"), "default");
+        assert_eq!(config.get_u16_or("MISSING", 3000), 3000);
+        assert_eq!(config.get_bool_or("MISSING", true), true);
+    }
+
+    #[test]
+    fn test_config_options_builder() {
+        let options = ConfigOptions::new().env_file(".env.test");
+        assert_eq!(options.env_file_path, ".env.test");
+    }
+
+    #[test]
+    fn test_register_config() {
+        let db_config = register_config("database", || DbConfig {
+            host: "localhost".to_string(),
+            port: 5432,
+        });
+
+        let config = db_config.load();
+        assert_eq!(config.host, "localhost");
+        assert_eq!(config.port, 5432);
+    }
+
+    #[derive(Debug, Clone)]
+    struct DbConfig {
+        host: String,
+        port: u16,
     }
 }

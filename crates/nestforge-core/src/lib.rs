@@ -63,7 +63,7 @@ pub use route_builder::RouteBuilder;
 pub use store::{Identifiable, InMemoryStore};
 pub use validation::{Validate, ValidationErrors, ValidationIssue};
 pub use nestforge_config::{
-    ConfigError, ConfigModule, ConfigOptions, ConfigService,
+    Config, ConfigError, ConfigModule, ConfigOptions, ConfigService,
 };
 
 pub type ApiResult<T> = Result<axum::Json<T>, HttpException>;

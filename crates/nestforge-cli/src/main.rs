@@ -2730,8 +2730,7 @@ fn template_app_config_rs(_transport: AppTransport) -> String {
 pub type AppConfig = ConfigService;
 
 pub fn load_config() -> AppConfig {
-    ConfigService::load_with_options(&ConfigModule::for_root().env_file(".env"))
-        .expect("Failed to load configuration from .env file")
+    ConfigModule::for_root_with_options(ConfigModule::for_root().env_file(".env"))
 }
 "#
         .to_string()

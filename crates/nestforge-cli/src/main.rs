@@ -2734,23 +2734,35 @@ fn template_app_config_rs(transport: AppTransport) -> String {
     };
 
     format!(
-        r#"use nestforge::{{prelude::*, ConfigModule, ConfigOptions}};
-use nestforge::nestforge_config::{{FromEnv, ConfigOptions}};
+        r#"use nestforge_config::{{FromEnv, ConfigModule, ConfigOptions, EnvStore, ConfigError}};
 
-#[derive(Debug, Clone, Config)]
-#[config(required)]
+#[derive(Debug, Clone)]
 pub struct AppConfig {{
     pub app_name: String,
+    pub port: u16,
 }}
 
 impl FromEnv for AppConfig {{
-    fn from_env(env: &nestforge::EnvStore) -> Result<Self, nestforge::ConfigError> {{
-        let app_name = env.get("APP_NAME").unwrap_or("{default_app_name}").to_string();
-        Ok(Self {{ app_name }})
+    fn from_env(env: &EnvStore) -> Result<Self, ConfigError> {{
+        Ok(Self {{
+            app_name: env.get("APP_NAME").unwrap_or("{default_app_name}").to_string(),
+            port: env.get("APP_PORT")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(3000),
+        }})
     }}
 
     fn config_key() -> &'static str {{
         "AppConfig"
+    }}
+}}
+
+impl std::default::Default for AppConfig {{
+    fn default() -> Self {{
+        Self {{
+            app_name: "{default_app_name}".to_string(),
+            port: 3000,
+        }}
     }}
 }}
 "#

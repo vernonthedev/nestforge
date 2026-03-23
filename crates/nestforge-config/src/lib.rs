@@ -1,9 +1,7 @@
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 use thiserror::Error;
-use validator::Validate;
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -33,7 +31,6 @@ pub struct EnvValidationIssue {
 pub struct ConfigOptions {
     pub env_file_path: String,
     pub include_process_env: bool,
-    pub prefix: Option<String>,
 }
 
 impl Default for ConfigOptions {
@@ -41,7 +38,6 @@ impl Default for ConfigOptions {
         Self {
             env_file_path: ".env".to_string(),
             include_process_env: true,
-            prefix: None,
         }
     }
 }
@@ -58,11 +54,6 @@ impl ConfigOptions {
 
     pub fn without_process_env(mut self) -> Self {
         self.include_process_env = false;
-        self
-    }
-
-    pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
-        self.prefix = Some(prefix.into());
         self
     }
 }
@@ -120,146 +111,14 @@ impl EnvStore {
             key: key.to_string(),
         })
     }
-
-    pub fn get_with_prefix(&self, prefix: &str, key: &str) -> Option<&str> {
-        let full_key = format!("{}_{}", prefix, key);
-        self.get(&full_key)
-    }
-
-    pub fn keys(&self) -> impl Iterator<Item = &str> {
-        self.values.keys().map(String::as_str)
-    }
-
-    pub fn entries(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.values.iter().map(|(k, v)| (k.as_str(), v.as_str()))
-    }
 }
 
-pub trait FromEnv: Sized + Validate {
+pub trait FromEnv: Sized {
     fn from_env(env: &EnvStore) -> Result<Self, ConfigError>;
     fn config_key() -> &'static str;
 }
 
-pub trait ConfigField: Sized {
-    fn from_env(env: &EnvStore) -> Result<Self, ConfigError>;
-    fn from_env_required(env: &EnvStore, key: &str) -> Result<Self, ConfigError>;
-    fn from_env_or(env: &EnvStore, key: &str, default: Self) -> Result<Self, ConfigError>;
-    fn validate_value(_value: &Self) -> Result<(), ConfigError> {
-        Ok(())
-    }
-}
-
-macro_rules! impl_config_field_for_primitives {
-    ($($ty:ty),*) => {
-        $(
-            impl ConfigField for $ty {
-                fn from_env(env: &EnvStore) -> Result<Self, ConfigError> {
-                    let key = std::any::type_name::<Self>().split("::").last().unwrap_or("UNKNOWN");
-                    Self::from_env_required(env, key)
-                }
-
-                fn from_env_required(env: &EnvStore, key: &str) -> Result<Self, ConfigError> {
-                    let value = env.require(key)?;
-                    value.parse().map_err(|_| ConfigError::Deserialization(
-                        format!("Failed to parse '{}' as {}", value, std::any::type_name::<Self>())
-                    ))
-                }
-
-                fn from_env_or(env: &EnvStore, key: &str, default: Self) -> Result<Self, ConfigError> {
-                    match env.get(key) {
-                        Some(value) => value.parse().map_err(|_| ConfigError::Deserialization(
-                            format!("Failed to parse '{}' as {}", value, std::any::type_name::<Self>())
-                        )),
-                        None => Ok(default),
-                    }
-                }
-            }
-        )*
-    };
-}
-
-impl_config_field_for_primitives!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64);
-
-impl ConfigField for String {
-    fn from_env(env: &EnvStore) -> Result<Self, ConfigError> {
-        let key = std::any::type_name::<Self>()
-            .split("::")
-            .last()
-            .unwrap_or("UNKNOWN");
-        Self::from_env_required(env, key)
-    }
-
-    fn from_env_required(env: &EnvStore, key: &str) -> Result<Self, ConfigError> {
-        let value = env.require(key)?;
-        Ok(value.to_string())
-    }
-
-    fn from_env_or(env: &EnvStore, key: &str, default: Self) -> Result<Self, ConfigError> {
-        match env.get(key) {
-            Some(value) => Ok(value.to_string()),
-            None => Ok(default),
-        }
-    }
-}
-
-impl ConfigField for bool {
-    fn from_env(env: &EnvStore) -> Result<Self, ConfigError> {
-        let key = std::any::type_name::<Self>()
-            .split("::")
-            .last()
-            .unwrap_or("UNKNOWN");
-        Self::from_env_required(env, key)
-    }
-
-    fn from_env_required(env: &EnvStore, key: &str) -> Result<Self, ConfigError> {
-        let value = env.require(key)?;
-        match value.to_lowercase().as_str() {
-            "true" | "1" | "yes" | "on" => Ok(true),
-            "false" | "0" | "no" | "off" => Ok(false),
-            _ => Err(ConfigError::Deserialization(format!(
-                "Failed to parse '{}' as bool: expected true/false/1/0/yes/no/on/off",
-                value
-            ))),
-        }
-    }
-
-    fn from_env_or(env: &EnvStore, key: &str, default: Self) -> Result<Self, ConfigError> {
-        match env.get(key) {
-            Some(value) => match value.to_lowercase().as_str() {
-                "true" | "1" | "yes" | "on" => Ok(true),
-                "false" | "0" | "no" | "off" => Ok(false),
-                _ => Err(ConfigError::Deserialization(format!(
-                    "Failed to parse '{}' as bool: expected true/false/1/0/yes/no/on/off",
-                    value
-                ))),
-            },
-            None => Ok(default),
-        }
-    }
-}
-
-impl<T: ConfigField> ConfigField for Option<T> {
-    fn from_env(env: &EnvStore) -> Result<Self, ConfigError> {
-        let key = std::any::type_name::<T>()
-            .split("::")
-            .last()
-            .unwrap_or("UNKNOWN");
-        Self::from_env_required(env, key)
-    }
-
-    fn from_env_required(env: &EnvStore, key: &str) -> Result<Self, ConfigError> {
-        match env.get(key) {
-            Some(_value) => Ok(Some(T::from_env_required(env, key)?)),
-            None => Ok(None),
-        }
-    }
-
-    fn from_env_or(_env: &EnvStore, _key: &str, default: Self) -> Result<Self, ConfigError> {
-        Ok(default)
-    }
-}
-
-pub fn load_config<T: FromEnv>() -> Result<T, ConfigError> {
+pub fn load<T: FromEnv>() -> Result<T, ConfigError> {
     let env_store = EnvStore::load()?;
     T::from_env(&env_store)
 }
@@ -267,29 +126,12 @@ pub fn load_config<T: FromEnv>() -> Result<T, ConfigError> {
 pub struct ConfigModule;
 
 impl ConfigModule {
-    pub fn for_root<T: FromEnv>(options: ConfigOptions) -> Result<T, ConfigError> {
-        let env = EnvStore::load_with_options(&options)?;
-        let config = T::from_env(&env)?;
-        config.validate().map_err(|e| {
-            let issues = e
-                .field_errors()
-                .iter()
-                .map(|(key, errors)| EnvValidationIssue {
-                    key: key.to_string(),
-                    message: errors
-                        .first()
-                        .and_then(|e| e.message.as_ref())
-                        .map(|m| m.to_string())
-                        .unwrap_or_else(|| format!("Validation failed for {}", key)),
-                })
-                .collect();
-            ConfigError::Validation { issues }
-        })?;
-        Ok(config)
+    pub fn for_root() -> ConfigOptions {
+        ConfigOptions::new()
     }
 
-    pub fn for_feature<T: FromEnv>(options: ConfigOptions) -> Result<T, ConfigError> {
-        Self::for_root(options)
+    pub fn for_feature() -> ConfigOptions {
+        ConfigOptions::new()
     }
 
     pub fn env(options: ConfigOptions) -> Result<EnvStore, ConfigError> {
@@ -297,65 +139,14 @@ impl ConfigModule {
     }
 }
 
-pub struct ConfigEntry {
-    pub type_name: &'static str,
-    pub loader: fn(&EnvStore) -> Result<Box<dyn ConfigValue>, ConfigError>,
-}
-
-pub trait ConfigDescriptor: Send + Sync + 'static {
-    fn load_config(env: &EnvStore) -> Result<Box<dyn ConfigValue>, ConfigError>;
-    fn type_name() -> &'static str;
-}
-
-pub trait ConfigValue: Send + Sync {
-    fn as_any(&self) -> &dyn std::any::Any;
-}
-
-impl<T: Send + Sync + 'static> ConfigValue for T {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-pub struct ConfigRegistry;
-
-impl ConfigRegistry {
-    pub fn load<T: FromEnv + 'static>(env: &EnvStore) -> Result<T, ConfigError> {
-        let config = T::from_env(env)?;
-        config.validate().map_err(|e| {
-            let issues = e
-                .field_errors()
-                .iter()
-                .map(|(key, errors)| EnvValidationIssue {
-                    key: key.to_string(),
-                    message: errors
-                        .first()
-                        .and_then(|err| err.message.as_ref())
-                        .map(|m| m.to_string())
-                        .unwrap_or_else(|| format!("Validation failed for {}", key)),
-                })
-                .collect();
-            ConfigError::Validation { issues }
-        })?;
-        Ok(config)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde::Deserialize;
 
-    #[derive(Debug, Clone, Deserialize, Validate)]
+    #[derive(Debug, Clone)]
     pub struct TestConfig {
-        #[validate(length(min = 1, message = "DATABASE_URL cannot be empty"))]
         pub database_url: String,
-        #[serde(default = "default_port")]
         pub port: u16,
-    }
-
-    fn default_port() -> u16 {
-        5432
     }
 
     impl FromEnv for TestConfig {
@@ -391,12 +182,9 @@ mod tests {
 
     #[test]
     fn test_config_options_builder() {
-        let options = ConfigOptions::new()
-            .env_file(".env.test")
-            .with_prefix("APP");
+        let options = ConfigOptions::new().env_file(".env.test");
 
         assert_eq!(options.env_file_path, ".env.test");
-        assert_eq!(options.prefix, Some("APP".to_string()));
     }
 
     #[test]
@@ -412,18 +200,6 @@ mod tests {
 
         assert_eq!(config.database_url, "postgres://localhost/mydb");
         assert_eq!(config.port, 5433);
-    }
-
-    #[test]
-    fn test_env_store_with_prefix() {
-        let store = EnvStore::from_pairs(vec![
-            ("APP_HOST".to_string(), "0.0.0.0".to_string()),
-            ("APP_PORT".to_string(), "8080".to_string()),
-        ]);
-
-        assert_eq!(store.get_with_prefix("APP", "HOST"), Some("0.0.0.0"));
-        assert_eq!(store.get_with_prefix("APP", "PORT"), Some("8080"));
-        assert_eq!(store.get_with_prefix("DB", "HOST"), None);
     }
 
     #[test]

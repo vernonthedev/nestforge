@@ -2024,77 +2024,25 @@ fn is_option_numeric_type(ty: &Type) -> bool {
     is_numeric_type(inner_ty)
 }
 
-#[proc_macro_derive(Config, attributes(config, serde))]
+#[proc_macro_derive(Config)]
 pub fn derive_config(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
     let name = &input.ident;
     let (impl_generics, ty_generics, where_clause) = &input.generics.split_for_impl();
 
-    let Data::Struct(data) = &input.data else {
+    let Data::Struct(_data) = &input.data else {
         return syn::Error::new(input.ident.span(), "Config can only be derived on structs")
             .to_compile_error()
             .into();
     };
 
-    let Fields::Named(fields) = &data.fields else {
-        return syn::Error::new(input.ident.span(), "Config derive requires named fields")
-            .to_compile_error()
-            .into();
-    };
-
-    let mut env_lookups: Vec<TokenStream2> = Vec::new();
-    let mut field_idents: Vec<Ident> = Vec::new();
-
-    for field in &fields.named {
-        let Some(field_ident) = &field.ident.clone() else {
-            continue;
-        };
-
-        let env_key = field_ident.to_string().to_uppercase();
-        let field_ty = &field.ty;
-        let is_option = is_option_type(field_ty);
-
-        let lookup_expr = if is_option {
-            quote! {
-                let #field_ident: #field_ty = <#field_ty as nestforge_config::ConfigField>::from_env(&env).ok();
-            }
-        } else {
-            let default_tokens = match field_ty {
-                Type::Path(tp) if tp.path.is_ident("String") => quote!(String::new()),
-                Type::Path(tp) if tp.path.is_ident("u8") => quote!(0u8),
-                Type::Path(tp) if tp.path.is_ident("u16") => quote!(0u16),
-                Type::Path(tp) if tp.path.is_ident("u32") => quote!(0u32),
-                Type::Path(tp) if tp.path.is_ident("u64") => quote!(0u64),
-                Type::Path(tp) if tp.path.is_ident("usize") => quote!(0usize),
-                Type::Path(tp) if tp.path.is_ident("i8") => quote!(0i8),
-                Type::Path(tp) if tp.path.is_ident("i16") => quote!(0i16),
-                Type::Path(tp) if tp.path.is_ident("i32") => quote!(0i32),
-                Type::Path(tp) if tp.path.is_ident("i64") => quote!(0i64),
-                Type::Path(tp) if tp.path.is_ident("isize") => quote!(0isize),
-                Type::Path(tp) if tp.path.is_ident("f32") => quote!(0.0f32),
-                Type::Path(tp) if tp.path.is_ident("f64") => quote!(0.0f64),
-                Type::Path(tp) if tp.path.is_ident("bool") => quote!(false),
-                _ => quote!(std::default::Default::default()),
-            };
-            quote! {
-                let #field_ident: #field_ty = <#field_ty as nestforge_config::ConfigField>::from_env_or(&env, #env_key, #default_tokens)?;
-            }
-        };
-
-        env_lookups.push(lookup_expr);
-        field_idents.push(field_ident.clone());
-    }
-
-    let field_idents2 = field_idents.clone();
-
     let expanded = quote! {
         impl #impl_generics nestforge_config::FromEnv for #name #ty_generics #where_clause {
             fn from_env(env: &nestforge_config::EnvStore) -> Result<Self, nestforge_config::ConfigError> {
-                #(#env_lookups)*
-
-                Ok(Self {
-                    #(#field_idents),*
-                })
+                std::compile_error!(
+                    "Config derive requires manual FromEnv implementation. \
+                     Use `impl FromEnv for YourConfig` with `env.get(\"KEY\")` to read values."
+                );
             }
 
             fn config_key() -> &'static str {
@@ -2104,24 +2052,12 @@ pub fn derive_config(item: TokenStream) -> TokenStream {
 
         impl #impl_generics std::default::Default for #name #ty_generics #where_clause {
             fn default() -> Self {
-                Self {
-                    #(#field_idents2: std::default::Default::default()),*
-                }
+                std::compile_error!(
+                    "Config derive requires manual Default implementation or provide default values."
+                );
             }
         }
     };
 
     TokenStream::from(expanded)
-}
-
-fn is_option_type(ty: &Type) -> bool {
-    match ty {
-        Type::Path(tp) => tp
-            .path
-            .segments
-            .last()
-            .map(|seg| seg.ident == "Option")
-            .unwrap_or(false),
-        _ => false,
-    }
 }

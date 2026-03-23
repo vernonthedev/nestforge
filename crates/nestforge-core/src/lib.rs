@@ -64,7 +64,6 @@ pub use store::{Identifiable, InMemoryStore};
 pub use validation::{Validate, ValidationErrors, ValidationIssue};
 pub use nestforge_config::{
     ConfigError, ConfigModule, ConfigOptions, EnvStore, FromEnv, EnvValidationIssue,
-    ConfigField,
 };
 
 pub type ApiResult<T> = Result<axum::Json<T>, HttpException>;

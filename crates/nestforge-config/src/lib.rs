@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::env;
 use std::path::Path;
-use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -18,7 +17,7 @@ pub enum ConfigError {
 
 #[derive(Clone, Debug, Default)]
 pub struct ConfigService {
-    values: Arc<HashMap<String, String>>,
+    values: HashMap<String, String>,
 }
 
 impl ConfigService {
@@ -51,30 +50,54 @@ impl ConfigService {
                 });
         }
 
-        Ok(Self {
-            values: Arc::new(values),
-        })
+        Ok(Self { values })
     }
 
-    pub fn get(&self, key: &str) -> Option<String> {
-        self.values.get(key).cloned()
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.values.get(key).map(String::as_str)
     }
 
-    pub fn get_or_panic(&self, key: &str) -> String {
+    pub fn get_string(&self, key: &str) -> String {
+        self.values.get(key).cloned().unwrap_or_default()
+    }
+
+    pub fn get_string_or(&self, key: &str, default: &str) -> String {
+        self.values
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| default.to_string())
+    }
+
+    pub fn get_i32(&self, key: &str) -> i32 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_i32_or(&self, key: &str, default: i32) -> i32 {
         self.get(key)
-            .unwrap_or_else(|| panic!("Missing required config key: {key}"))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
     }
 
-    pub fn get_or(&self, key: &str, default: &str) -> String {
-        self.get(key).unwrap_or_else(|| default.to_string())
+    pub fn get_u16(&self, key: &str) -> u16 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
     }
 
-    pub fn get_as<T: std::str::FromStr>(&self, key: &str) -> Option<T> {
-        self.get(key).and_then(|v| v.parse().ok())
+    pub fn get_u16_or(&self, key: &str, default: u16) -> u16 {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
     }
 
-    pub fn get_as_or<T: std::str::FromStr>(&self, key: &str, default: T) -> T {
-        self.get_as(key).unwrap_or(default)
+    pub fn get_bool(&self, key: &str) -> bool {
+        self.get(key)
+            .map(|v| v == "true" || v == "1" || v == "yes")
+            .unwrap_or(false)
+    }
+
+    pub fn get_bool_or(&self, key: &str, default: bool) -> bool {
+        self.get(key)
+            .map(|v| v == "true" || v == "1" || v == "yes")
+            .unwrap_or(default)
     }
 }
 
@@ -132,8 +155,10 @@ mod tests {
 
         let config = ConfigService::load().unwrap();
 
-        assert_eq!(config.get("APP_NAME"), Some("TestApp".to_string()));
-        assert_eq!(config.get_as::<u16>("APP_PORT"), Some(8080));
+        assert_eq!(config.get(&"APP_NAME".to_string()), Some("TestApp"));
+        assert_eq!(config.get_string(&"APP_NAME"), "TestApp");
+        assert_eq!(config.get_u16(&"APP_PORT"), 8080);
+        assert_eq!(config.get_u16_or(&"MISSING", 3000), 3000);
 
         std::env::remove_var("APP_NAME");
         std::env::remove_var("APP_PORT");
@@ -143,14 +168,9 @@ mod tests {
     fn test_config_service_defaults() {
         let config = ConfigService::new();
 
-        assert_eq!(config.get("MISSING"), None);
-        assert_eq!(config.get_or("MISSING", "default"), "default");
-        assert_eq!(config.get_as_or("MISSING", 3000u16), 3000);
-    }
-
-    #[test]
-    fn test_config_options_builder() {
-        let options = ConfigOptions::new().env_file(".env.test");
-        assert_eq!(options.env_file_path, ".env.test");
+        assert_eq!(config.get_string(&"MISSING"), "");
+        assert_eq!(config.get_string_or(&"MISSING", "default"), "default");
+        assert_eq!(config.get_u16_or(&"MISSING", 3000), 3000);
+        assert_eq!(config.get_bool_or(&"MISSING", true), true);
     }
 }

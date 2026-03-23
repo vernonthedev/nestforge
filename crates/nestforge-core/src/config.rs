@@ -24,10 +24,7 @@ mod tests {
 
         let resolved = container.resolve::<ConfigService>();
         assert!(resolved.is_ok());
-        assert_eq!(
-            resolved.unwrap().get("APP_NAME"),
-            Some("TestApp".to_string())
-        );
+        assert_eq!(resolved.unwrap().get("APP_NAME"), Some("TestApp"));
 
         std::env::remove_var("APP_NAME");
     }

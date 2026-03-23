@@ -16,6 +16,63 @@ pub enum ConfigError {
 }
 
 #[derive(Clone, Debug, Default)]
+pub struct EnvSchema {
+    requirements: Vec<String>,
+}
+
+impl EnvSchema {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn required(&mut self, key: &str) -> &mut Self {
+        self.requirements.push(key.to_string());
+        self
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct EnvStore {
+    values: HashMap<String, String>,
+}
+
+impl EnvStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.values.get(key).map(String::as_str)
+    }
+}
+
+impl Default for EnvStore {
+    fn default() -> Self {
+        Self {
+            values: env::vars().collect(),
+        }
+    }
+}
+
+impl From<ConfigService> for EnvStore {
+    fn from(config: ConfigService) -> Self {
+        Self {
+            values: config.values,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct EnvValidationIssue {
+    pub key: String,
+    pub message: String,
+}
+
+pub trait FromEnv: Sized {
+    fn from_env(env: &EnvStore) -> Result<Self, ConfigError>;
+}
+
+#[derive(Clone, Debug, Default)]
 pub struct ConfigService {
     values: HashMap<String, String>,
 }
@@ -209,6 +266,10 @@ impl ConfigModule {
     pub fn for_feature() -> ConfigOptions {
         ConfigOptions::new()
     }
+}
+
+pub fn load_config() -> ConfigService {
+    ConfigModule::for_root_with_options(ConfigModule::for_root())
 }
 
 pub struct Config<T> {

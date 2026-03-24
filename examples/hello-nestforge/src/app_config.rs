@@ -1,6 +1,4 @@
-use nestforge::{
-    injectable, ConfigError, ConfigModule, ConfigOptions, ConfigService, EnvStore, FromEnv,
-};
+use nestforge::{injectable, ConfigModule, ConfigOptions, ConfigService};
 
 #[injectable(factory = load_app_config)]
 pub struct AppConfig {
@@ -10,18 +8,13 @@ pub struct AppConfig {
 
 fn load_app_config() -> anyhow::Result<AppConfig> {
     let options = ConfigOptions::new().env_file(".env");
-    let config = ConfigModule::for_root_with_options(options);
+    let config = ConfigModule::try_for_root_with_options(options)?;
     Ok(AppConfig {
         app_name: config.get_string_or("APP_NAME", "NestForge"),
         log_level: config.get_string_or("LOG_LEVEL", "info"),
     })
 }
 
-impl FromEnv for AppConfig {
-    fn from_env(env: &EnvStore) -> Result<Self, ConfigError> {
-        Ok(Self {
-            app_name: env.get("APP_NAME").unwrap_or("NestForge").to_string(),
-            log_level: env.get("LOG_LEVEL").unwrap_or("info").to_string(),
-        })
-    }
+pub fn load_config() -> ConfigService {
+    ConfigModule::for_root_with_options(ConfigOptions::new().env_file(".env"))
 }

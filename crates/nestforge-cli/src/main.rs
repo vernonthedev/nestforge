@@ -2299,19 +2299,19 @@ fn template_app_cargo_toml(
 
     let dependency_lines = match transport {
         AppTransport::Http => {
-            "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nserde = { version = \"1\", features = [\"derive\"] }\nanyhow = \"1\"\n"
+            "nestforge-config = \"1\"\naxum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nserde = { version = \"1\", features = [\"derive\"] }\nanyhow = \"1\"\n"
         }
         AppTransport::Graphql => {
-            "axum = \"0.8\"\nasync-graphql = \"7\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
+            "nestforge-config = \"1\"\naxum = \"0.8\"\nasync-graphql = \"7\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
         }
         AppTransport::Grpc => {
-            "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\ntonic = { version = \"0.12\", features = [\"transport\"] }\nprost = \"0.13\"\n"
+            "nestforge-config = \"1\"\naxum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\ntonic = { version = \"0.12\", features = [\"transport\"] }\nprost = \"0.13\"\n"
         }
         AppTransport::Microservices => {
-            "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n"
+            "nestforge-config = \"1\"\naxum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n"
         }
         AppTransport::Websockets => {
-            "axum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
+            "nestforge-config = \"1\"\naxum = \"0.8\"\ntokio = { version = \"1\", features = [\"full\"] }\nanyhow = \"1\"\n"
         }
     };
 
@@ -2562,7 +2562,7 @@ fn template_app_module_rs(transport: AppTransport) -> String {
         AppTransport::Http => r#"use nestforge::prelude::*;
 
 use crate::{
-    app_config::AppConfig,
+    app_config::{load_config, AppConfig},
     app_controller::AppController,
     app_service::AppService,
     health_controller::HealthController,
@@ -2579,10 +2579,11 @@ use crate::{
     ],
     providers = [
         AppConfig,
+        load_config(),
         AppService,
         /* nestforge:providers */
     ],
-    exports = [AppConfig, AppService]
+    exports = [nestforge::ConfigService, AppService]
 )]
 pub struct AppModule;
 "#
@@ -2590,13 +2591,12 @@ pub struct AppModule;
         AppTransport::Graphql | AppTransport::Grpc | AppTransport::Websockets => {
             r#"use nestforge::prelude::*;
 
-use crate::app_config::AppConfig;
+use crate::app_config::{load_config, AppConfig};
 
 #[module(
     imports = [],
-    controllers = [],
-    providers = [AppConfig],
-    exports = [AppConfig]
+    providers = [AppConfig, load_config()],
+    exports = [nestforge::ConfigService]
 )]
 pub struct AppModule;
 "#
@@ -2605,15 +2605,15 @@ pub struct AppModule;
         AppTransport::Microservices => r#"use nestforge::prelude::*;
 
 use crate::{
-    app_config::AppConfig,
+    app_config::{load_config, AppConfig},
     microservices::AppPatterns,
 };
 
 #[module(
     imports = [],
     controllers = [],
-    providers = [AppConfig, AppPatterns],
-    exports = [AppConfig, AppPatterns]
+    providers = [AppConfig, load_config(), AppPatterns],
+    exports = [nestforge::ConfigService, AppPatterns]
 )]
 pub struct AppModule;
 "#
@@ -2678,8 +2678,9 @@ impl AppController {
 
 fn template_app_service_rs() -> String {
     r#"use nestforge::prelude::*;
+use nestforge::ConfigService;
 
-use crate::AppConfig;
+use crate::app_config::load_config;
 
 #[injectable(factory = build_app_service)]
 pub struct AppService {
@@ -2687,14 +2688,10 @@ pub struct AppService {
 }
 
 fn build_app_service() -> anyhow::Result<AppService> {
-    let config = <AppConfig as nestforge::FromEnv>::from_env(
-        &nestforge::EnvStore::load_with_options(
-            &nestforge::ConfigOptions::new().env_file(".env"),
-        )?,
-    )?;
+    let config = load_config();
 
     Ok(AppService {
-        app_name: config.app_name,
+        app_name: config.get_string_or("APP_NAME", "NestForge App"),
     })
 }
 
@@ -2704,7 +2701,7 @@ impl AppService {
     }
 }
 "#
-    .to_string()
+        .to_string()
 }
 
 fn template_health_controller_rs() -> String {
@@ -2725,12 +2722,10 @@ impl HealthController {
 }
 
 fn template_app_config_rs(_transport: AppTransport) -> String {
-    r#"use nestforge_config::{ConfigService, ConfigModule};
+    r#"use nestforge::{ConfigModule, ConfigOptions, ConfigService};
 
-pub type AppConfig = ConfigService;
-
-pub fn load_config() -> AppConfig {
-    ConfigModule::for_root_with_options(ConfigModule::for_root().env_file(".env"))
+pub fn load_config() -> ConfigService {
+    ConfigModule::for_root_with_options(ConfigOptions::new().env_file(".env"))
 }
 "#
         .to_string()
@@ -2945,8 +2940,9 @@ fn template_microservices_mod_rs() -> String {
 }
 
 fn template_ws_gateway_rs() -> String {
-    r#"use crate::AppConfig;
-use nestforge::{Message, WebSocket, WebSocketContext, WebSocketGateway};
+    r#"use nestforge::{Message, WebSocket, WebSocketContext, WebSocketGateway, ConfigService};
+
+use crate::app_config::load_config;
 
 pub struct EventsGateway;
 
@@ -2957,10 +2953,8 @@ impl WebSocketGateway for EventsGateway {
         mut socket: WebSocket,
     ) -> core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send>> {
         Box::pin(async move {
-            let app_name = ctx
-                .resolve::<AppConfig>()
-                .map(|config| config.app_name.clone())
-                .unwrap_or_else(|_| "NestForge WebSockets".to_string());
+            let config = load_config();
+            let app_name = config.get_string_or("APP_NAME", "NestForge WebSockets");
 
             let _ = socket
                 .send(Message::Text(format!("connected:{app_name}").into()))

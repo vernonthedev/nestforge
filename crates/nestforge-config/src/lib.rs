@@ -11,8 +11,17 @@ pub enum ConfigError {
         #[source]
         source: dotenvy::Error,
     },
+    #[error("Failed to parse env file `{path}` at line {line}: {source}")]
+    ParseEnvFile {
+        path: String,
+        line: usize,
+        #[source]
+        source: dotenvy::Error,
+    },
     #[error("Missing config key: {key}")]
     MissingKey { key: String },
+    #[error("Failed to parse config key `{key}`: {value}")]
+    ParseError { key: String, value: String },
 }
 
 #[derive(Clone, Debug, Default)]
@@ -88,23 +97,27 @@ impl ConfigService {
 
     pub fn load_with_options(options: &ConfigOptions) -> Result<Self, ConfigError> {
         let path_ref = Path::new(&options.env_file_path);
-        let mut values = if options.include_process_env {
+        let mut values: HashMap<String, String> = if options.include_process_env {
             env::vars().collect::<HashMap<_, _>>()
         } else {
             HashMap::new()
         };
 
         if path_ref.exists() {
-            dotenvy::from_path_iter(path_ref)
-                .map_err(|source| ConfigError::ReadEnvFile {
+            let iter =
+                dotenvy::from_path_iter(path_ref).map_err(|source| ConfigError::ReadEnvFile {
                     path: path_ref.display().to_string(),
                     source,
-                })?
-                .for_each(|result| {
-                    if let Ok((key, value)) = result {
-                        values.insert(key, value);
-                    }
-                });
+                })?;
+
+            for result in iter {
+                let (key, value) = result.map_err(|source| ConfigError::ParseEnvFile {
+                    path: path_ref.display().to_string(),
+                    line: 0,
+                    source,
+                })?;
+                values.entry(key).or_insert(value);
+            }
         }
 
         Ok(Self { values })
@@ -263,6 +276,10 @@ impl ConfigModule {
         ConfigService::load_with_options(&options).expect("Failed to load configuration")
     }
 
+    pub fn try_for_root_with_options(options: ConfigOptions) -> Result<ConfigService, ConfigError> {
+        ConfigService::load_with_options(&options)
+    }
+
     pub fn for_feature() -> ConfigOptions {
         ConfigOptions::new()
     }
@@ -272,21 +289,83 @@ pub fn load_config() -> ConfigService {
     ConfigModule::for_root_with_options(ConfigModule::for_root())
 }
 
+use std::sync::Arc;
+
 pub struct Config<T> {
     _phantom: std::marker::PhantomData<T>,
+    service: Arc<ConfigService>,
 }
 
 impl<T> Config<T> {
-    pub fn new() -> Self {
+    pub fn new(service: ConfigService) -> Self {
         Self {
             _phantom: std::marker::PhantomData,
+            service: Arc::new(service),
         }
+    }
+
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.service.get(key)
+    }
+
+    pub fn get_string(&self, key: &str) -> String {
+        self.service.get_string(key)
+    }
+
+    pub fn get_string_or(&self, key: &str, default: &str) -> String {
+        self.service.get_string_or(key, default)
+    }
+
+    pub fn get_i32(&self, key: &str) -> i32 {
+        self.service.get_i32(key)
+    }
+
+    pub fn get_i32_or(&self, key: &str, default: i32) -> i32 {
+        self.service.get_i32_or(key, default)
+    }
+
+    pub fn get_u16(&self, key: &str) -> u16 {
+        self.service.get_u16(key)
+    }
+
+    pub fn get_u16_or(&self, key: &str, default: u16) -> u16 {
+        self.service.get_u16_or(key, default)
+    }
+
+    pub fn get_u32(&self, key: &str) -> u32 {
+        self.service.get_u32(key)
+    }
+
+    pub fn get_u32_or(&self, key: &str, default: u32) -> u32 {
+        self.service.get_u32_or(key, default)
+    }
+
+    pub fn get_bool(&self, key: &str) -> bool {
+        self.service.get_bool(key)
+    }
+
+    pub fn get_bool_or(&self, key: &str, default: bool) -> bool {
+        self.service.get_bool_or(key, default)
+    }
+
+    pub fn get_usize(&self, key: &str) -> usize {
+        self.service.get_usize(key)
+    }
+
+    pub fn get_usize_or(&self, key: &str, default: usize) -> usize {
+        self.service.get_usize_or(key, default)
+    }
+
+    pub fn has(&self, key: &str) -> bool {
+        self.service.has(key)
     }
 }
 
-impl<T> Default for Config<T> {
-    fn default() -> Self {
-        Self::new()
+impl<T> std::ops::Deref for Config<T> {
+    type Target = ConfigService;
+
+    fn deref(&self) -> &Self::Target {
+        &self.service
     }
 }
 

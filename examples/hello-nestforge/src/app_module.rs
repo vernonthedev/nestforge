@@ -1,4 +1,4 @@
-use nestforge::{module, ConfigService, Db, DbConfig};
+use nestforge::{module, Db, DbConfig};
 
 use crate::{
     app_config::load_config, settings::SettingsModule, users::UsersModule,
@@ -17,6 +17,6 @@ fn connect_db() -> anyhow::Result<Db> {
         load_config(),
         connect_db()?
     ],
-    exports = [Db, AppConfig, ConfigService]
+    exports = [Db, AppConfig]
 )]
 pub struct AppModule;

@@ -18,7 +18,7 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true }
-nestforge-db = { version = "1.6.0", path = "../nestforge-db" }
+nestforge-db = { version = "1.8.0", path = "../nestforge-db" }
 clap = { version = "4.5", features = ["derive", "wrap_help", "color"] }
 indicatif = "0.17"
 miette = { version = "7", features = ["fancy"] }
@@ -26,6 +26,7 @@ owo-colors = "4"
 ratatui = "0.29"
 crossterm = "0.28"
 thiserror = { workspace = true }
+
 
 
 

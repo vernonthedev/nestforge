@@ -493,3 +493,41 @@ Documentation wiki: https://github.com/vernonthedev/nestforge/wiki
 * chore: initialize `nestforge-core`, `nestforge-http`, and `nestforge` crates with their respective dependencies. ([893e52a](https://github.com/vernonthedev/nestforge/commit/893e52aa70390944ccf6959d92c412b0a8188f1e))
 * chore: initial commit ([510e4fd](https://github.com/vernonthedev/nestforge/commit/510e4fd91d3df0ccf281df883c2132babbce3622))
 
+
+
+## [1.7.0](https://github.com/vernonthedev/nestforge/compare/v1.6.0...v1.7.0) (2026-03-24)
+
+### Features
+
+* feat(config): add centralized configuration system with type-safe, validated environment loading ([4ab1cf9](https://github.com/vernonthedev/nestforge/commit/4ab1cf91519c4960b4dc02c78c250dc1f3403b37))
+
+### Other
+
+* chore: merged pull request #26 from vernonthedev/feat/nestforge-config-module ([cbc0726](https://github.com/vernonthedev/nestforge/commit/cbc07267951b7f9686f4599d17bd751862008d7d))
+* refactor(config): simplify config API with typed getters and EnvStore ([56d0f39](https://github.com/vernonthedev/nestforge/commit/56d0f39ddd1539401f1407881b333ffd27b07c46))
+* refactor(config): add typed getters and ConfigRegistration, simplify config loading ([6acd372](https://github.com/vernonthedev/nestforge/commit/6acd372994e1cdd76baef283fa3532f1655a8f5c))
+* refactor(config): simplify config API by removing Arc and adding typed getters ([9d70ef5](https://github.com/vernonthedev/nestforge/commit/9d70ef5d78b18b4a1a9d8a5d8e5900e1d9838170))
+* refactor(config): simplify configuration system by removing trait-based approach ([e7b3aaf](https://github.com/vernonthedev/nestforge/commit/e7b3aafc3493987f2db175c3282b7a77877a87fc))
+* refactor(config): simplify configuration system by removing validation and auto-deriving, fixes #23 ([9c0f614](https://github.com/vernonthedev/nestforge/commit/9c0f61405819f2772852fe01610e7278bd43e96e))
+* docs: added stable 1.6.0 version update ([cffafa5](https://github.com/vernonthedev/nestforge/commit/cffafa5e52b9b1799357865d7edfc02257797aed))
+* docs: updated FUNDING.yml links ([dbf8812](https://github.com/vernonthedev/nestforge/commit/dbf8812909e2ead6b1aa0209c15d9f44709608a7))
+
+
+
+## [1.8.0](https://github.com/vernonthedev/nestforge/compare/v1.6.0...v1.8.0) (2026-03-24)
+
+### Features
+
+* feat(config): add centralized configuration system with type-safe, validated environment loading ([4ab1cf9](https://github.com/vernonthedev/nestforge/commit/4ab1cf91519c4960b4dc02c78c250dc1f3403b37))
+
+### Other
+
+* chore: merged pull request #26 from vernonthedev/feat/nestforge-config-module ([cbc0726](https://github.com/vernonthedev/nestforge/commit/cbc07267951b7f9686f4599d17bd751862008d7d))
+* refactor(config): simplify config API with typed getters and EnvStore ([56d0f39](https://github.com/vernonthedev/nestforge/commit/56d0f39ddd1539401f1407881b333ffd27b07c46))
+* refactor(config): add typed getters and ConfigRegistration, simplify config loading ([6acd372](https://github.com/vernonthedev/nestforge/commit/6acd372994e1cdd76baef283fa3532f1655a8f5c))
+* refactor(config): simplify config API by removing Arc and adding typed getters ([9d70ef5](https://github.com/vernonthedev/nestforge/commit/9d70ef5d78b18b4a1a9d8a5d8e5900e1d9838170))
+* refactor(config): simplify configuration system by removing trait-based approach ([e7b3aaf](https://github.com/vernonthedev/nestforge/commit/e7b3aafc3493987f2db175c3282b7a77877a87fc))
+* refactor(config): simplify configuration system by removing validation and auto-deriving, fixes #23 ([9c0f614](https://github.com/vernonthedev/nestforge/commit/9c0f61405819f2772852fe01610e7278bd43e96e))
+* docs: added stable 1.6.0 version update ([cffafa5](https://github.com/vernonthedev/nestforge/commit/cffafa5e52b9b1799357865d7edfc02257797aed))
+* docs: updated FUNDING.yml links ([dbf8812](https://github.com/vernonthedev/nestforge/commit/dbf8812909e2ead6b1aa0209c15d9f44709608a7))
+

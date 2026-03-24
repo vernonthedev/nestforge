@@ -19,5 +19,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 http = { workspace = true }
 tokio = { workspace = true }
-nestforge-config = { path = "../nestforge-config" }
+nestforge-config = { version = "1.8.0", path = "../nestforge-config" }
 validator = { workspace = true }
+

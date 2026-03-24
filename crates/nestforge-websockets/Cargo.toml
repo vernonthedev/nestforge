@@ -14,13 +14,14 @@ categories = ["web-programming", "web-programming::http-server"]
 axum = { workspace = true, features = ["ws"] }
 anyhow = { workspace = true }
 http = { workspace = true }
-nestforge-core = { version = "1.6.0", path = "../nestforge-core" }
-nestforge-microservices = { version = "1.6.0", path = "../nestforge-microservices" }
+nestforge-core = { version = "1.8.0", path = "../nestforge-core" }
+nestforge-microservices = { version = "1.8.0", path = "../nestforge-microservices" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
+
 
 
 

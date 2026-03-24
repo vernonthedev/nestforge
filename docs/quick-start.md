@@ -53,11 +53,19 @@ Feature modules can still use nested `controllers/`, `services/`, and `dto/` fol
 
 ## 4. Run the Server
 
-NestForge projects use standard Cargo commands:
+NestForge supports TypeScript-style imports. Use the CLI to run with automatic transpilation:
 
 ```bash
-cargo run
+nestforge start
 ```
+
+Or for development mode:
+
+```bash
+nestforge dev
+```
+
+This transpiles any `import { ... } from "..."` statements in your `src/` directory to valid Rust `use` statements before running.
 
 By default, the server will be available at [http://127.0.0.1:3000](http://127.0.0.1:3000).
 

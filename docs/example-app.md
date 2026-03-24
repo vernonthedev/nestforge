@@ -17,6 +17,33 @@ Related examples:
 - Route-level guards/interceptors
 - Route versioning (`v1`, `v2`)
 - Config loading with schema checks
+- TypeScript-style import support via transpiler
+
+## Running the Example
+
+Use the NestForge CLI to run with automatic transpilation:
+
+```bash
+# From the examples/hello-nestforge directory
+nestforge start
+
+# Or for development mode
+nestforge dev
+```
+
+This enables TypeScript-style imports like:
+
+```typescript
+import { Module, Controller, Get } from "nestforge/common";
+import { UsersService } from "./users.service";
+```
+
+Which get transpiled to Rust:
+
+```rust
+use nestforge::common::{Controller, Get};
+use self::users_service::UsersService;
+```
 
 ## Boot Flow
 

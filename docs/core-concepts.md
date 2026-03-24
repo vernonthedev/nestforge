@@ -203,3 +203,38 @@ It gives simple methods like:
 - `update(id, dto)`
 - `replace(id, dto)`
 - `delete(id)`
+
+## TypeScript-Style Imports
+
+NestForge supports TypeScript-style import syntax for a familiar developer experience. Use `nestforge start` or `nestforge dev` to run your app with automatic transpilation.
+
+### Supported Patterns
+
+```typescript
+// Named imports from nestforge
+import { Module, Controller, Get, Post } from "nestforge/common";
+
+// Relative imports
+import { UsersService } from "./users.service";
+import { Config } from "../config";
+
+// Default imports
+import MyService from "./my.service";
+```
+
+### Path Transformations
+
+| Pattern | Transpiles To |
+|---------|---------------|
+| `nestforge/common` | `nestforge::common` |
+| `./users.service` | `self::users_service` |
+| `../config` | `super::config` |
+
+### Case Conversion
+
+Filenames are automatically converted to snake_case:
+
+- `users.service` → `users_service`
+- `authController` → `auth_controller`
+
+See the [CLI Guide](./cli-guide.md) for full documentation.

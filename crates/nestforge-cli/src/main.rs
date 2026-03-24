@@ -4210,7 +4210,7 @@ mod tests {
         assert!(module_rs.contains("providers = ["));
         assert!(module_rs.contains("AppConfig,"));
         assert!(module_rs.contains("AppService,"));
-        assert!(module_rs.contains("exports = [AppConfig, AppService]"));
+        assert!(module_rs.contains("exports = [nestforge::ConfigService"));
     }
 
     #[test]

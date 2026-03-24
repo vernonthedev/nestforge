@@ -178,7 +178,7 @@ impl Transpiler {
         Ok(result)
     }
 
-    fn transform_path(&self, source: &str, prefix: &str) -> String {
+    fn transform_path(&self, source: &str, _prefix: &str) -> String {
         if source.starts_with("nestforge/") {
             let module = source.strip_prefix("nestforge/").unwrap_or(source);
             format!("nestforge::{}", module.replace('/', "::"))
@@ -195,11 +195,7 @@ impl Transpiler {
                 .join("::");
 
             if source.starts_with("./") {
-                if prefix.is_empty() {
-                    format!("self::{}", rust_path)
-                } else {
-                    format!("self::{}", rust_path)
-                }
+                format!("self::{}", rust_path)
             } else {
                 let parent_count = source.matches("..").count();
                 let super_prefix = (0..parent_count)
@@ -220,37 +216,24 @@ impl Transpiler {
         }
     }
 
-    fn to_snake_case(&self, s: &str) -> String {
+    pub fn to_snake_case(&self, s: &str) -> String {
         let mut result = String::new();
-        let mut prev_was_upper = false;
-        let mut prev_was_alpha = false;
 
-        for c in s.chars() {
-            if c.is_uppercase() {
-                if prev_was_alpha && !prev_was_upper {
-                    result.push('_');
-                }
-                result.push(c.to_ascii_lowercase());
-                prev_was_upper = true;
-            } else if c.is_alphabetic() {
-                if prev_was_upper {
-                    result.push('_');
-                }
-                result.push(c);
-                prev_was_upper = false;
-            } else if c.is_numeric() {
-                if prev_was_alpha {
-                    result.push('_');
-                }
-                result.push(c);
-                prev_was_upper = false;
-            } else {
+        for word in s.split(|c: char| !c.is_alphanumeric()) {
+            if word.is_empty() {
+                continue;
+            }
+            if !result.is_empty() {
                 result.push('_');
             }
-            prev_was_alpha = c.is_alphabetic() || c.is_numeric();
+            result.push_str(&word.to_lowercase());
         }
 
-        result.trim_matches('_').to_string()
+        if result.is_empty() {
+            s.to_lowercase()
+        } else {
+            result
+        }
     }
 
     fn generate_mod_file(&self, modules: &[String]) -> String {
@@ -268,4 +251,66 @@ pub fn transpile_project(source_dir: &Path, cache_dir: &Path) -> Result<PathBuf>
     let transpiler = Transpiler::new(source_dir, cache_dir)?;
     transpiler.run()?;
     Ok(cache_dir.to_path_buf())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_transform_path_nestforge_module() {
+        let temp_dir = TempDir::new().unwrap();
+        let transpiler = Transpiler::new(temp_dir.path(), temp_dir.path()).unwrap();
+
+        let result = transpiler.transform_path("nestforge/common", "");
+        assert_eq!(result, "nestforge::common");
+
+        let result = transpiler.transform_path("nestforge/http", "");
+        assert_eq!(result, "nestforge::http");
+    }
+
+    #[test]
+    fn test_transform_path_relative_import() {
+        let temp_dir = TempDir::new().unwrap();
+        let transpiler = Transpiler::new(temp_dir.path(), temp_dir.path()).unwrap();
+
+        let result = transpiler.transform_path("./users.service", "users");
+        assert!(result.contains("users_service"));
+    }
+
+    #[test]
+    fn test_transform_path_parent_import() {
+        let temp_dir = TempDir::new().unwrap();
+        let transpiler = Transpiler::new(temp_dir.path(), temp_dir.path()).unwrap();
+
+        let result = transpiler.transform_path("../config", "users");
+        assert!(result.contains("super"));
+    }
+
+    #[test]
+    fn test_to_snake_case() {
+        let temp_dir = TempDir::new().unwrap();
+        let transpiler = Transpiler::new(temp_dir.path(), temp_dir.path()).unwrap();
+
+        assert_eq!(transpiler.to_snake_case("users_service"), "users_service");
+        assert_eq!(
+            transpiler.to_snake_case("auth_controller"),
+            "auth_controller"
+        );
+        assert_eq!(transpiler.to_snake_case("my_controller"), "my_controller");
+        assert_eq!(transpiler.to_snake_case("users"), "users");
+    }
+
+    #[test]
+    fn test_generate_mod_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let transpiler = Transpiler::new(temp_dir.path(), temp_dir.path()).unwrap();
+
+        let modules = vec!["users".to_string(), "controllers".to_string()];
+        let result = transpiler.generate_mod_file(&modules);
+
+        assert!(result.contains("pub mod users;"));
+        assert!(result.contains("pub mod controllers;"));
+    }
 }

@@ -11,6 +11,8 @@ cargo install --path crates/nestforge-cli
 ```text
 nestforge new <app-name>
 nestforge new <app-name> --transport <http|graphql|grpc|microservices|websockets>
+nestforge start [app-name]
+nestforge dev [app-name]
 nestforge g module <name>
 nestforge g resource <name>
 nestforge g controller <name>
@@ -32,6 +34,98 @@ nestforge db status
 nestforge docs
 nestforge fmt
 ```
+
+## Running Your App
+
+### nestforge start
+
+Runs your application with automatic TypeScript-style import transpilation:
+
+```bash
+nestforge start
+```
+
+This command:
+1. Scans your `src/` directory for files containing `import` statements
+2. Transpiles TypeScript-style imports to valid Rust `use` statements
+3. Writes transpiled code to `.nestforge/cache/`
+4. Runs `cargo run` to execute your application
+
+### nestforge dev
+
+Runs your application in development mode:
+
+```bash
+nestforge dev
+```
+
+Same as `start` but optimized for development workflow.
+
+### TypeScript-Style Imports
+
+NestForge supports TypeScript-style import syntax that gets transpiled to Rust:
+
+```typescript
+// Your code (src/users/users.controller.ts)
+import { Controller, Get } from "nestforge/common";
+import { UsersService } from "./users.service";
+
+@Controller("users")
+export class UsersController {
+    @Get()
+    findAll() {
+        return [];
+    }
+}
+```
+
+Transpiles to:
+
+```rust
+// Transpiled (.nestforge/cache/users/users_controller.rs)
+use nestforge::common::{Controller, Get};
+use self::users_service::UsersService;
+
+#[Controller("users")]
+pub struct UsersController {
+    #[Get()]
+    pub fn find_all(&self) -> Vec<()> {
+        Vec::new()
+    }
+}
+```
+
+#### Supported Import Patterns
+
+| Pattern | Example | Transpiles To |
+|---------|---------|---------------|
+| Named import | `import { Module, Controller } from "nestforge/common"` | `use nestforge::common::{Module, Controller}` |
+| NestForge import | `import { Get, Post } from "nestforge/common"` | `use nestforge::common::{Get, Post}` |
+| Relative import | `import { UsersService } from "./users.service"` | `use self::users_service::UsersService` |
+| Parent import | `import { Config } from "../config"` | `use super::config::Config` |
+| Default import | `import MyService from "./my.service"` | `use self::my_service::MyService` |
+
+#### Path Transformations
+
+- `nestforge/common` → `nestforge::common`
+- `nestforge/http` → `nestforge::http`
+- `./users.service` → `self::users_service`
+- `../config` → `super::config`
+- `../../shared/utils` → `super::super::shared::utils`
+
+#### Case Conversion
+
+The transpiler automatically converts filenames to snake_case:
+
+- `users.service` → `users_service`
+- `authController` → `auth_controller`
+- `my-controller.ts` → `my_controller`
+
+#### Caveats
+
+- Standard `cargo run` will fail on files using `import` syntax
+- Always use `nestforge start` or `nestforge dev` to run your app
+- The transpiler writes to `.nestforge/cache/` - do not edit these files directly
 
 ## Generators
 

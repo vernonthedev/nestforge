@@ -1783,6 +1783,7 @@ dependencies = [
  "ratatui",
  "regex",
  "sha2",
+ "tempfile",
  "thiserror",
  "tokio",
 ]

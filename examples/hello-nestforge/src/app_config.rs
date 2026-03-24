@@ -1,4 +1,6 @@
-use nestforge::{injectable, ConfigModule, ConfigOptions};
+use nestforge::{
+    injectable, ConfigError, ConfigModule, ConfigOptions, ConfigService, EnvStore, FromEnv,
+};
 
 #[injectable(factory = load_app_config)]
 pub struct AppConfig {
@@ -7,23 +9,19 @@ pub struct AppConfig {
 }
 
 fn load_app_config() -> anyhow::Result<AppConfig> {
-    let allowed_levels = vec!["trace", "debug", "info", "warn", "error"];
-    let schema = nestforge::EnvSchema::new()
-        .min_len("APP_NAME", 2)
-        .one_of("LOG_LEVEL", &allowed_levels);
-
-    Ok(ConfigModule::for_root::<AppConfig>(
-        ConfigOptions::new().env_file(".env").validate_with(schema),
-    )?)
+    let options = ConfigOptions::new().env_file(".env");
+    let config = ConfigModule::for_root_with_options(options);
+    Ok(AppConfig {
+        app_name: config.get_string_or("APP_NAME", "NestForge"),
+        log_level: config.get_string_or("LOG_LEVEL", "info"),
+    })
 }
 
-impl nestforge::FromEnv for AppConfig {
-    fn from_env(env: &nestforge::EnvStore) -> Result<Self, nestforge::ConfigError> {
-        let app_name = env.get("APP_NAME").unwrap_or("NestForge").to_string();
-        let log_level = env.get("LOG_LEVEL").unwrap_or("info").to_string();
+impl FromEnv for AppConfig {
+    fn from_env(env: &EnvStore) -> Result<Self, ConfigError> {
         Ok(Self {
-            app_name,
-            log_level,
+            app_name: env.get("APP_NAME").unwrap_or("NestForge").to_string(),
+            log_level: env.get("LOG_LEVEL").unwrap_or("info").to_string(),
         })
     }
 }

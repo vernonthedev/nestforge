@@ -65,7 +65,7 @@ pub fn injectable(attr: TokenStream, item: TokenStream) -> TokenStream {
     ensure_derive_trait(&mut input.attrs, "Clone");
 
     let name = &input.ident;
-    
+
     /*
     We decide how to register the provider based on whether a factory was provided.
     If a factory is present, we wrap it in a closure that converts the result into an `IntoInjectableResult`.
@@ -113,7 +113,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemImpl);
 
     let self_ty = input.self_ty.clone();
-    
+
     /*
     First, we pull out any metadata from the top of the impl block.
     This includes things like `#[tag(...)]`, `#[authenticated]`, or `#[roles(...)]` that apply to all routes.
@@ -131,7 +131,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         let ImplItem::Fn(ref mut method) = impl_item else {
             continue;
         };
-        
+
         /*
         Extract all the "middleware-like" metadata for this specific method.
         This includes guards, interceptors, and exception filters.
@@ -139,7 +139,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         let (guards, interceptors, exception_filters) = extract_pipeline_meta(method);
         let version = extract_version_meta(method);
         let mut doc_meta = extract_route_doc_meta(method);
-        
+
         /*
         Merge the controller-level settings (like tags or auth) into the route.
         Route-level settings generally add to or override controller-level ones.
@@ -152,7 +152,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         doc_meta.requires_auth = controller_meta.requires_auth
             || doc_meta.requires_auth
             || !doc_meta.required_roles.is_empty();
-            
+
         let guards = merge_type_lists(controller_meta.guards.clone(), guards);
         let interceptors = merge_type_lists(controller_meta.interceptors.clone(), interceptors);
         let exception_filters =
@@ -165,7 +165,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
         if let Some((http_method, path)) = extract_route_meta(method) {
             let method_name = &method.sig.ident;
             let path_lit = LitStr::new(&path, method.sig.ident.span());
-            
+
             /*
             We generate the code to initialize all the guards and interceptors.
             These are instantiated as Arcs and passed to the route builder.
@@ -173,7 +173,7 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let guard_inits = guards.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Guard> }
             });
-            
+
             /*
             Special handling for auth and role guards.
             If authentication is required, we add the standard RequireAuthenticationGuard.
@@ -199,20 +199,20 @@ pub fn routes(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         as std::sync::Arc<dyn nestforge::Guard>
                 }
             };
-            
+
             let interceptor_inits = interceptors.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::Interceptor> }
             });
             let exception_filter_inits = exception_filters.iter().map(|ty| {
                 quote! { std::sync::Arc::new(<#ty as std::default::Default>::default()) as std::sync::Arc<dyn nestforge::ExceptionFilter> }
             });
-            
+
             let guard_tokens = if doc_meta.requires_auth || !doc_meta.required_roles.is_empty() {
                 quote! { vec![#(#guard_inits,)* #auth_guard_init #role_guard_init] }
             } else {
                 quote! { vec![#(#guard_inits),*] }
             };
-            
+
             let version_tokens = if let Some(version) = &version {
                 let lit = LitStr::new(version, method.sig.ident.span());
                 quote! { Some(#lit) }
@@ -1797,7 +1797,9 @@ fn ensure_derive_trait(attrs: &mut Vec<Attribute>, trait_name: &str) {
             continue;
         }
 
-        let Ok(mut derives) = attr.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated) else {
+        let Ok(mut derives) =
+            attr.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated)
+        else {
             continue;
         };
 
@@ -2020,4 +2022,42 @@ fn is_option_numeric_type(ty: &Type) -> bool {
         return false;
     };
     is_numeric_type(inner_ty)
+}
+
+#[proc_macro_derive(Config)]
+pub fn derive_config(item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = &input.generics.split_for_impl();
+
+    let Data::Struct(_data) = &input.data else {
+        return syn::Error::new(input.ident.span(), "Config can only be derived on structs")
+            .to_compile_error()
+            .into();
+    };
+
+    let expanded = quote! {
+        impl #impl_generics nestforge_config::FromEnv for #name #ty_generics #where_clause {
+            fn from_env(env: &nestforge_config::EnvStore) -> Result<Self, nestforge_config::ConfigError> {
+                std::compile_error!(
+                    "Config derive requires manual FromEnv implementation. \
+                     Use `impl FromEnv for YourConfig` with `env.get(\"KEY\")` to read values."
+                );
+            }
+
+            fn config_key() -> &'static str {
+                stringify!(#name)
+            }
+        }
+
+        impl #impl_generics std::default::Default for #name #ty_generics #where_clause {
+            fn default() -> Self {
+                std::compile_error!(
+                    "Config derive requires manual Default implementation or provide default values."
+                );
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
 }

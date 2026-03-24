@@ -2724,35 +2724,16 @@ impl HealthController {
     .to_string()
 }
 
-fn template_app_config_rs(transport: AppTransport) -> String {
-    let default_app_name = match transport {
-        AppTransport::Http => "NestForge HTTP",
-        AppTransport::Graphql => "NestForge GraphQL",
-        AppTransport::Grpc => "NestForge gRPC",
-        AppTransport::Websockets => "NestForge WebSockets",
-        AppTransport::Microservices => "NestForge Microservices",
-    };
+fn template_app_config_rs(_transport: AppTransport) -> String {
+    r#"use nestforge_config::{ConfigService, ConfigModule};
 
-    format!(
-        r#"use nestforge::{{prelude::*, ConfigModule, ConfigOptions}};
+pub type AppConfig = ConfigService;
 
-#[injectable(factory = load_app_config)]
-pub struct AppConfig {{
-    pub app_name: String,
-}}
-
-fn load_app_config() -> anyhow::Result<AppConfig> {{
-    Ok(ConfigModule::for_root::<AppConfig>(ConfigOptions::new().env_file(".env"))?)
-}}
-
-impl nestforge::FromEnv for AppConfig {{
-    fn from_env(env: &nestforge::EnvStore) -> Result<Self, nestforge::ConfigError> {{
-        let app_name = env.get("APP_NAME").unwrap_or("{default_app_name}").to_string();
-        Ok(Self {{ app_name }})
-    }}
-}}
+pub fn load_config() -> AppConfig {
+    ConfigModule::for_root_with_options(ConfigModule::for_root().env_file(".env"))
+}
 "#
-    )
+        .to_string()
 }
 
 fn template_graphql_schema_rs() -> String {

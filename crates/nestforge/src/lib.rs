@@ -10,7 +10,7 @@ pub use nestforge_core::{
     ApiEnvelopeResult, ApiResult, ApiSerializedResult, AuthIdentity, AuthUser, BearerToken, Body,
     Container, ContainerError, ControllerBasePath, ControllerDefinition, Cookies, Decorated,
     DocumentedController, DynamicModuleBuilder, ExceptionFilter, Guard, Headers, HttpException,
-    Identifiable, InMemoryStore, Injectable, InitializedModule, Inject, Interceptor,
+    Identifiable, InMemoryStore, InitializedModule, Inject, Injectable, Interceptor,
     IntoInjectableResult, LifecycleHook, List, ModuleDefinition, ModuleGraphEntry,
     ModuleGraphReport, ModuleRef, NextFn, NextFuture, OpenApiSchema, OpenApiSchemaComponent,
     OptionHttpExt, OptionalAuthUser, Param, Pipe, PipedBody, PipedParam, PipedQuery, Provider,
@@ -28,8 +28,8 @@ pub use nestforge_cache::{
 };
 #[cfg(feature = "config")]
 pub use nestforge_config::{
-    load_config, ConfigError, ConfigModule, ConfigOptions, EnvSchema, EnvStore, EnvValidationIssue,
-    FromEnv,
+    load_config, Config, ConfigError, ConfigModule, ConfigOptions, ConfigService, EnvSchema,
+    EnvStore, EnvValidationIssue, FromEnv,
 };
 #[cfg(feature = "data")]
 pub use nestforge_data::{CacheStore, DataError, DataFuture, DocumentRepo};
@@ -38,9 +38,9 @@ pub use nestforge_db::{Db, DbConfig, DbError, DbTransaction};
 pub use nestforge_http::NestForgeFactory;
 pub use nestforge_http::{MiddlewareConsumer, MiddlewareRoute, NestMiddleware};
 pub use nestforge_macros::{
-    authenticated, controller, delete, description, dto, entity, entity_dto, get, id,
-    identifiable, injectable, module, post, put, response, response_dto, roles, routes, summary,
-    tag, use_exception_filter, use_guard, use_interceptor, version, Identifiable, Validate,
+    authenticated, controller, delete, description, dto, entity, entity_dto, get, id, identifiable,
+    injectable, module, post, put, response, response_dto, roles, routes, summary, tag,
+    use_exception_filter, use_guard, use_interceptor, version, Identifiable, Validate,
 };
 #[cfg(feature = "microservices")]
 pub use nestforge_microservices::{
@@ -269,26 +269,26 @@ pub use nestforge_websockets::{
 
 pub mod prelude {
     pub use crate::{
-        authenticated, controller, delete, dto, entity, entity_dto, get, identifiable,
-        injectable, module, post, put, response, response_dto, routes, summary, tag,
-        use_exception_filter, use_guard, use_interceptor, version, ApiSerializedResult,
-        HttpException, Inject, NestForgeFactory, Param, Query, Serialized, Validate,
+        authenticated, controller, delete, dto, entity, entity_dto, get, identifiable, injectable,
+        module, post, put, response, response_dto, routes, summary, tag, use_exception_filter,
+        use_guard, use_interceptor, version, ApiSerializedResult, HttpException, Inject,
+        NestForgeFactory, Param, Query, Serialized, Validate,
     };
 
-    #[cfg(feature = "config")]
-    pub use crate::{ConfigModule, ConfigOptions, FromEnv};
-    #[cfg(feature = "graphql")]
-    pub use crate::{GraphQlConfig, NestForgeFactoryGraphQlExt};
-    #[cfg(feature = "grpc")]
-    pub use crate::NestForgeGrpcFactory;
-    #[cfg(feature = "microservices")]
-    pub use crate::{MicroserviceClient, TransportMetadata};
-    #[cfg(all(feature = "microservices", feature = "testing"))]
-    pub use crate::TestFactory;
     #[cfg(feature = "openapi")]
     pub use crate::NestForgeFactoryOpenApiExt;
     #[cfg(feature = "websockets")]
     pub use crate::NestForgeFactoryWebSocketExt;
+    #[cfg(feature = "grpc")]
+    pub use crate::NestForgeGrpcFactory;
+    #[cfg(all(feature = "microservices", feature = "testing"))]
+    pub use crate::TestFactory;
+    #[cfg(feature = "config")]
+    pub use crate::{ConfigModule, ConfigOptions, FromEnv};
+    #[cfg(feature = "graphql")]
+    pub use crate::{GraphQlConfig, NestForgeFactoryGraphQlExt};
+    #[cfg(feature = "microservices")]
+    pub use crate::{MicroserviceClient, TransportMetadata};
 }
 
 #[cfg(feature = "openapi")]

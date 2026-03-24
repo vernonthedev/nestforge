@@ -1,255 +1,91 @@
-use std::{collections::HashMap, env, fs, path::Path};
-
+use std::collections::HashMap;
+use std::env;
+use std::path::Path;
 use thiserror::Error;
 
-/**
- * ConfigError
- *
- * Error types that can occur during configuration loading and validation.
- */
 #[derive(Debug, Error)]
 pub enum ConfigError {
     #[error("Failed to read env file `{path}`: {source}")]
     ReadEnvFile {
         path: String,
         #[source]
-        source: std::io::Error,
+        source: dotenvy::Error,
     },
-    #[error("Missing required config key: {key}")]
+    #[error("Missing config key: {key}")]
     MissingKey { key: String },
-    #[error("Environment validation failed")]
-    Validation { issues: Vec<EnvValidationIssue> },
 }
 
-/**
- * EnvValidationIssue
- *
- * Represents a single validation issue found in the environment configuration.
- */
+#[derive(Clone, Debug, Default)]
+pub struct EnvSchema {
+    requirements: Vec<String>,
+}
+
+impl EnvSchema {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn required(&mut self, key: &str) -> &mut Self {
+        self.requirements.push(key.to_string());
+        self
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct EnvStore {
+    values: HashMap<String, String>,
+}
+
+impl EnvStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.values.get(key).map(String::as_str)
+    }
+}
+
+impl Default for EnvStore {
+    fn default() -> Self {
+        Self {
+            values: env::vars().collect(),
+        }
+    }
+}
+
+impl From<ConfigService> for EnvStore {
+    fn from(config: ConfigService) -> Self {
+        Self {
+            values: config.values,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct EnvValidationIssue {
     pub key: String,
     pub message: String,
 }
 
-/**
- * ConfigOptions
- *
- * Configuration options for loading environment variables.
- *
- * # Fields
- * - `env_file_path`: Path to the .env file (default: ".env")
- * - `include_process_env`: Whether to include process environment variables
- * - `schema`: Optional validation schema
- */
-#[derive(Clone, Debug)]
-pub struct ConfigOptions {
-    pub env_file_path: String,
-    pub include_process_env: bool,
-    pub schema: Option<EnvSchema>,
+pub trait FromEnv: Sized {
+    fn from_env(env: &EnvStore) -> Result<Self, ConfigError>;
 }
 
-impl Default for ConfigOptions {
-    fn default() -> Self {
-        Self {
-            env_file_path: ".env".to_string(),
-            include_process_env: true,
-            schema: None,
-        }
-    }
-}
-
-impl ConfigOptions {
-    /**
-     * Creates a new ConfigOptions with default values.
-     */
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /**
-     * Sets the path to the environment file.
-     */
-    pub fn env_file(mut self, path: impl Into<String>) -> Self {
-        self.env_file_path = path.into();
-        self
-    }
-
-    /**
-     * Excludes process environment variables, using only the .env file.
-     */
-    pub fn without_process_env(mut self) -> Self {
-        self.include_process_env = false;
-        self
-    }
-
-    /**
-     * Adds a validation schema to enforce environment variable rules.
-     */
-    pub fn validate_with(mut self, schema: EnvSchema) -> Self {
-        self.schema = Some(schema);
-        self
-    }
-}
-
-/**
- * EnvSchema
- *
- * A validation schema for environment variables. Defines rules that
- * the loaded environment must satisfy.
- *
- * # Example
- * ```rust
- * let schema = EnvSchema::new()
- *     .required("DATABASE_URL")
- *     .min_len("API_KEY", 32)
- *     .one_of("ENV", &["development", "staging", "production"]);
- * ```
- */
 #[derive(Clone, Debug, Default)]
-pub struct EnvSchema {
-    rules: HashMap<String, Vec<EnvRule>>,
-}
-
-/**
- * EnvRule
- *
- * Internal enum representing validation rules for environment variables.
- */
-#[derive(Clone, Debug)]
-enum EnvRule {
-    Required,
-    MinLen(usize),
-    OneOf(Vec<String>),
-}
-
-impl EnvSchema {
-    /**
-     * Creates a new empty validation schema.
-     */
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /**
-     * Adds a required field rule - the environment variable must be present and non-empty.
-     */
-    pub fn required(mut self, key: impl Into<String>) -> Self {
-        self.rules
-            .entry(key.into())
-            .or_default()
-            .push(EnvRule::Required);
-        self
-    }
-
-    /**
-     * Adds a minimum length rule for a string value.
-     */
-    pub fn min_len(mut self, key: impl Into<String>, min: usize) -> Self {
-        self.rules
-            .entry(key.into())
-            .or_default()
-            .push(EnvRule::MinLen(min));
-        self
-    }
-
-    /**
-     * Adds a value must be one of the allowed values rule.
-     */
-    pub fn one_of(mut self, key: impl Into<String>, values: &[&str]) -> Self {
-        self.rules
-            .entry(key.into())
-            .or_default()
-            .push(EnvRule::OneOf(
-                values.iter().map(|v| (*v).to_string()).collect(),
-            ));
-        self
-    }
-
-    fn validate(&self, env: &EnvStore) -> Result<(), ConfigError> {
-        let mut issues = Vec::new();
-
-        for (key, rules) in &self.rules {
-            let value = env.get(key);
-            for rule in rules {
-                match rule {
-                    EnvRule::Required => {
-                        if value.map(|v| v.trim().is_empty()).unwrap_or(true) {
-                            issues.push(EnvValidationIssue {
-                                key: key.clone(),
-                                message: format!("{} is required", key),
-                            });
-                        }
-                    }
-                    EnvRule::MinLen(min) => {
-                        if let Some(v) = value {
-                            if v.len() < *min {
-                                issues.push(EnvValidationIssue {
-                                    key: key.clone(),
-                                    message: format!("{} must be at least {} chars", key, min),
-                                });
-                            }
-                        }
-                    }
-                    EnvRule::OneOf(allowed) => {
-                        if let Some(v) = value {
-                            if !allowed.iter().any(|entry| entry == v) {
-                                issues.push(EnvValidationIssue {
-                                    key: key.clone(),
-                                    message: format!(
-                                        "{} must be one of [{}]",
-                                        key,
-                                        allowed.join(", ")
-                                    ),
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if issues.is_empty() {
-            Ok(())
-        } else {
-            Err(ConfigError::Validation { issues })
-        }
-    }
-}
-
-/**
- * EnvStore
- *
- * A store for environment variable key-value pairs.
- *
- * # Loading
- * - Loads from .env file if present
- * - Includes process environment variables by default
- * - Supports custom loading options
- */
-#[derive(Clone, Debug, Default)]
-pub struct EnvStore {
+pub struct ConfigService {
     values: HashMap<String, String>,
 }
 
-impl EnvStore {
-    /**
-     * Loads environment variables using default options.
-     */
+impl ConfigService {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn load() -> Result<Self, ConfigError> {
         Self::load_with_options(&ConfigOptions::default())
     }
 
-    /**
-     * Loads environment variables from a specific file.
-     */
-    pub fn load_from_file(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
-        Self::load_with_options(&ConfigOptions::new().env_file(path.as_ref().display().to_string()))
-    }
-
-    /**
-     * Loads environment variables with custom options.
-     */
     pub fn load_with_options(options: &ConfigOptions) -> Result<Self, ConfigError> {
         let path_ref = Path::new(&options.env_file_path);
         let mut values = if options.include_process_env {
@@ -259,123 +95,278 @@ impl EnvStore {
         };
 
         if path_ref.exists() {
-            let content =
-                fs::read_to_string(path_ref).map_err(|source| ConfigError::ReadEnvFile {
+            dotenvy::from_path_iter(path_ref)
+                .map_err(|source| ConfigError::ReadEnvFile {
                     path: path_ref.display().to_string(),
                     source,
-                })?;
-            for line in content.lines() {
-                let trimmed = line.trim();
-                if trimmed.is_empty() || trimmed.starts_with('#') {
-                    continue;
-                }
-                if let Some((key, value)) = trimmed.split_once('=') {
-                    values.entry(key.trim().to_string()).or_insert_with(|| {
-                        value
-                            .trim()
-                            .trim_matches('"')
-                            .trim_matches('\'')
-                            .to_string()
-                    });
-                }
-            }
+                })?
+                .for_each(|result| {
+                    if let Ok((key, value)) = result {
+                        values.insert(key, value);
+                    }
+                });
         }
 
         Ok(Self { values })
     }
 
-    /**
-     * Creates an EnvStore from an iterator of key-value pairs.
-     */
-    pub fn from_pairs(pairs: impl IntoIterator<Item = (String, String)>) -> Self {
-        Self {
-            values: pairs.into_iter().collect(),
-        }
-    }
-
-    /**
-     * Gets a value by key, returning None if not found.
-     */
     pub fn get(&self, key: &str) -> Option<&str> {
         self.values.get(key).map(String::as_str)
     }
 
-    /**
-     * Gets a value by key, erroring if not found.
-     */
-    pub fn require(&self, key: &str) -> Result<&str, ConfigError> {
-        self.get(key).ok_or_else(|| ConfigError::MissingKey {
-            key: key.to_string(),
-        })
+    pub fn get_string(&self, key: &str) -> String {
+        self.get(key).map(|v| v.to_string()).unwrap_or_default()
+    }
+
+    pub fn get_string_or(&self, key: &str, default: &str) -> String {
+        self.get(key)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| default.to_string())
+    }
+
+    pub fn get_i32(&self, key: &str) -> i32 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_i32_or(&self, key: &str, default: i32) -> i32 {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn get_u16(&self, key: &str) -> u16 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_u16_or(&self, key: &str, default: u16) -> u16 {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn get_u32(&self, key: &str) -> u32 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_u32_or(&self, key: &str, default: u32) -> u32 {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn get_bool(&self, key: &str) -> bool {
+        self.get(key)
+            .map(|v| v == "true" || v == "1" || v == "yes")
+            .unwrap_or(false)
+    }
+
+    pub fn get_bool_or(&self, key: &str, default: bool) -> bool {
+        self.get(key)
+            .map(|v| v == "true" || v == "1" || v == "yes")
+            .unwrap_or(default)
+    }
+
+    pub fn get_usize(&self, key: &str) -> usize {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_usize_or(&self, key: &str, default: usize) -> usize {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn get_f64(&self, key: &str) -> f64 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0.0)
+    }
+
+    pub fn get_f64_or(&self, key: &str, default: f64) -> f64 {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn get_isize(&self, key: &str) -> isize {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_isize_or(&self, key: &str, default: isize) -> isize {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn get_i64(&self, key: &str) -> i64 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_i64_or(&self, key: &str, default: i64) -> i64 {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn get_u64(&self, key: &str) -> u64 {
+        self.get(key).and_then(|v| v.parse().ok()).unwrap_or(0)
+    }
+
+    pub fn get_u64_or(&self, key: &str, default: u64) -> u64 {
+        self.get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
+    }
+
+    pub fn has(&self, key: &str) -> bool {
+        self.values.contains_key(key)
     }
 }
 
-/**
- * FromEnv Trait
- *
- * A trait for types that can be constructed from environment variables.
- *
- * # Implementation
- * ```rust
- * struct AppConfig {
- *     database_url: String,
- *     port: u16,
- * }
- *
- * impl FromEnv for AppConfig {
- *     fn from_env(env: &EnvStore) -> Result<Self, ConfigError> {
- *         Ok(Self {
- *             database_url: env.require("DATABASE_URL")?.to_string(),
- *             port: env.get("PORT").unwrap_or("8080").parse().unwrap(),
- *         })
- *     }
- * }
- * ```
- */
-pub trait FromEnv: Sized {
-    fn from_env(env: &EnvStore) -> Result<Self, ConfigError>;
+#[derive(Clone, Debug)]
+pub struct ConfigOptions {
+    pub env_file_path: String,
+    pub include_process_env: bool,
 }
 
-/**
- * Loads configuration using the default options.
- *
- * # Type Parameters
- * - `T`: The configuration type implementing FromEnv
- */
-pub fn load_config<T: FromEnv>() -> Result<T, ConfigError> {
-    let env = EnvStore::load()?;
-    T::from_env(&env)
+impl Default for ConfigOptions {
+    fn default() -> Self {
+        Self {
+            env_file_path: ".env".to_string(),
+            include_process_env: true,
+        }
+    }
 }
 
-/**
- * ConfigModule
- *
- * Provides root-level configuration loading for NestForge applications.
- */
+impl ConfigOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn env_file(mut self, path: impl Into<String>) -> Self {
+        self.env_file_path = path.into();
+        self
+    }
+
+    pub fn without_process_env(mut self) -> Self {
+        self.include_process_env = false;
+        self
+    }
+}
+
 pub struct ConfigModule;
 
 impl ConfigModule {
-    /**
-     * Loads configuration for the application root.
-     *
-     * # Type Parameters
-     * - `T`: The configuration type implementing FromEnv
-     *
-     * # Arguments
-     * - `options`: Configuration loading options
-     */
-    pub fn for_root<T: FromEnv>(options: ConfigOptions) -> Result<T, ConfigError> {
-        let env = EnvStore::load_with_options(&options)?;
-        if let Some(schema) = &options.schema {
-            schema.validate(&env)?;
-        }
-        T::from_env(&env)
+    pub fn for_root() -> ConfigOptions {
+        ConfigOptions::new()
     }
 
-    /**
-     * Loads the raw environment store with custom options.
-     */
-    pub fn env(options: ConfigOptions) -> Result<EnvStore, ConfigError> {
-        EnvStore::load_with_options(&options)
+    pub fn for_root_with_options(options: ConfigOptions) -> ConfigService {
+        ConfigService::load_with_options(&options).expect("Failed to load configuration")
+    }
+
+    pub fn for_feature() -> ConfigOptions {
+        ConfigOptions::new()
+    }
+}
+
+pub fn load_config() -> ConfigService {
+    ConfigModule::for_root_with_options(ConfigModule::for_root())
+}
+
+pub struct Config<T> {
+    _phantom: std::marker::PhantomData<T>,
+}
+
+impl<T> Config<T> {
+    pub fn new() -> Self {
+        Self {
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> Default for Config<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn register_config<T: Send + Sync + 'static>(
+    name: &'static str,
+    factory: fn() -> T,
+) -> ConfigRegistration<T> {
+    ConfigRegistration {
+        name,
+        _phantom: std::marker::PhantomData,
+        factory,
+    }
+}
+
+pub struct ConfigRegistration<T: Send + Sync + 'static> {
+    #[allow(dead_code)]
+    name: &'static str,
+    _phantom: std::marker::PhantomData<T>,
+    factory: fn() -> T,
+}
+
+impl<T: Send + Sync + 'static> ConfigRegistration<T> {
+    pub fn load(&self) -> T {
+        (self.factory)()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_config_service_load() {
+        std::env::set_var("APP_NAME", "TestApp");
+        std::env::set_var("APP_PORT", "8080");
+
+        let config = ConfigService::load().unwrap();
+
+        assert_eq!(config.get("APP_NAME"), Some("TestApp"));
+        assert_eq!(config.get_string("APP_NAME"), "TestApp");
+        assert_eq!(config.get_u16("APP_PORT"), 8080);
+        assert_eq!(config.get_u16_or("MISSING", 3000), 3000);
+        assert!(config.has("APP_NAME"));
+        assert!(!config.has("MISSING"));
+
+        std::env::remove_var("APP_NAME");
+        std::env::remove_var("APP_PORT");
+    }
+
+    #[test]
+    fn test_config_service_defaults() {
+        let config = ConfigService::new();
+
+        assert_eq!(config.get_string("MISSING"), "");
+        assert_eq!(config.get_string_or("MISSING", "default"), "default");
+        assert_eq!(config.get_u16_or("MISSING", 3000), 3000);
+        assert_eq!(config.get_bool_or("MISSING", true), true);
+    }
+
+    #[test]
+    fn test_config_options_builder() {
+        let options = ConfigOptions::new().env_file(".env.test");
+        assert_eq!(options.env_file_path, ".env.test");
+    }
+
+    #[test]
+    fn test_register_config() {
+        let db_config = register_config("database", || DbConfig {
+            host: "localhost".to_string(),
+            port: 5432,
+        });
+
+        let config = db_config.load();
+        assert_eq!(config.host, "localhost");
+        assert_eq!(config.port, 5432);
+    }
+
+    #[derive(Debug, Clone)]
+    struct DbConfig {
+        host: String,
+        port: u16,
     }
 }

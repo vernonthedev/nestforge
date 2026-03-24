@@ -87,10 +87,10 @@ import { UsersService } from "./users.service";
 
 @Controller("users")
 export class UsersController {
-    @Get()
-    findAll() {
-        return [];
-    }
+  @Get()
+  findAll() {
+    return [];
+  }
 }
 ```
 
@@ -110,6 +110,7 @@ pub struct UsersController {
 ```
 
 Run with transpilation:
+
 ```bash
 nestforge start
 # or
@@ -539,10 +540,4 @@ NestForgeFactory::<AppModule>::create()?
 - Main Documentation: [https://nestforge.suredoc.net](https://nestforge.suredoc.net)
 - Wiki: [https://github.com/vernonthedev/nestforge/wiki](https://github.com/vernonthedev/nestforge/wiki)
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## License
-
-Apache-2.0 ([LICENSE](LICENSE)).
+- Wiki: [https://github.com/vernonthedev/nestforge/wiki](https://github.com/vernonthedev/nestforge/wiki)

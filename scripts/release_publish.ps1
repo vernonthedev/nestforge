@@ -354,22 +354,22 @@ if ($NoPublish) {
 }
 
 $publishOrder = @(
-    "nestforge-core",
     "nestforge-macros",
     "nestforge-config",
     "nestforge-data",
     "nestforge-db",
-    "nestforge-orm",
+    "nestforge-core",
     "nestforge-openapi",
-    "nestforge-graphql",
-    "nestforge-schedule",
     "nestforge-http",
-    "nestforge-cache",
+    "nestforge-schedule",
     "nestforge-microservices",
+    "nestforge-graphql",
     "nestforge-grpc",
+    "nestforge-cache",
     "nestforge-websockets",
     "nestforge-mongo",
     "nestforge-redis",
+    "nestforge-orm",
     "nestforge-testing",
     "nestforge-cli",
     "nestforge"

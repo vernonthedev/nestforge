@@ -14,11 +14,12 @@ use std::{
 mod cli;
 mod diagnostics;
 mod tui;
+mod transpiler;
 mod ui;
 
 use crate::cli::{
-    AppTransport, Cli, Commands, DbArgs, DbCommand, DocsArgs, DocsFormatArg, GenerateArgs,
-    GeneratorKindArg, GeneratorLayout, NewArgs,
+    AppTransport, Cli, Commands, DbArgs, DbCommand, DevArgs, DocsArgs, DocsFormatArg,
+    GenerateArgs, GeneratorKindArg, GeneratorLayout, NewArgs, StartArgs,
 };
 use crate::diagnostics::{
     app_root_not_found, missing_app_module_declaration, module_file_not_found,
@@ -28,6 +29,7 @@ use crate::tui::{
     render_docs_plaintext, run_docs_browser, run_generate_wizard, run_new_wizard,
     should_fallback_to_prompt,
 };
+use crate::transpiler::transpile_project;
 use crate::ui::{
     interactive_enabled, print_brand_banner, print_note, print_success, prompt_generator_kind,
     prompt_transport, start_spinner,
@@ -127,6 +129,8 @@ fn run_cli(cli: Cli) -> Result<()> {
             module_type: args.module_type,
         })?,
         Commands::Fmt => run_fmt_command()?,
+        Commands::Start(args) => run_start_command(args)?,
+        Commands::Dev(args) => run_dev_command(args)?,
     }
 
     Ok(())
@@ -474,6 +478,74 @@ fn run_fmt_command() -> Result<()> {
     }
 
     println!("Formatted Rust sources in {}", target_dir.display());
+    Ok(())
+}
+
+fn run_start_command(args: StartArgs) -> Result<()> {
+    let app_root = if let Some(name) = &args.app_name {
+        if name == "." {
+            detect_app_root().or_else(|_| env::current_dir())?
+        } else {
+            PathBuf::from(name)
+        }
+    } else {
+        detect_app_root().or_else(|_| env::current_dir())?
+    };
+
+    let source_dir = app_root.join("src");
+    let cache_dir = app_root.join(".nestforge").join("cache");
+
+    println!("Transpiling TypeScript-style imports...");
+    transpile_project(&source_dir, &cache_dir)?;
+    println!("Transpilation complete. Running application...");
+
+    let mut cmd = Command::new("cargo");
+    cmd.arg("run");
+    if !args.args.is_empty() {
+        cmd.arg("--").args(&args.args);
+    }
+    
+    let status = cmd.current_dir(&app_root).status()
+        .with_context(|| format!("Failed to run application in {}", app_root.display()))?;
+
+    if !status.success() {
+        bail!("Application failed to start");
+    }
+
+    Ok(())
+}
+
+fn run_dev_command(args: DevArgs) -> Result<()> {
+    let app_root = if let Some(name) = &args.app_name {
+        if name == "." {
+            detect_app_root().or_else(|_| env::current_dir())?
+        } else {
+            PathBuf::from(name)
+        }
+    } else {
+        detect_app_root().or_else(|_| env::current_dir())?
+    };
+
+    let source_dir = app_root.join("src");
+    let cache_dir = app_root.join(".nestforge").join("cache");
+
+    println!("Transpiling TypeScript-style imports...");
+    transpile_project(&source_dir, &cache_dir)?;
+    println!("Transpilation complete. Starting development server with watch...");
+
+    let mut cmd = Command::new("cargo");
+    cmd.arg("run");
+    if !args.args.is_empty() {
+        cmd.arg("--").args(&args.args);
+    }
+    
+    let status = cmd.current_dir(&app_root).status()
+        .with_context(|| format!("Failed to run application in {}", app_root.display()))?;
+
+    if !status.success() {
+        bail!("Application failed to start");
+    }
+
     Ok(())
 }
 

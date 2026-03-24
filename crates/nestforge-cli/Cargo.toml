@@ -26,6 +26,7 @@ owo-colors = "4"
 ratatui = "0.29"
 crossterm = "0.28"
 thiserror = { workspace = true }
+regex = "1"
 
 
 

@@ -35,6 +35,11 @@ pub enum Commands {
     ExportDocs(ExportDocsArgs),
     /// Format Rust sources with cargo fmt
     Fmt,
+    /// Start the application with TypeScript-style import transpilation
+    Start(StartArgs),
+    /// Start the application in development mode with watch and transpilation
+    #[command(alias = "run")]
+    Dev(DevArgs),
 }
 
 #[derive(Args, Debug)]
@@ -116,6 +121,26 @@ pub struct ExportDocsArgs {
     /// Root module type
     #[arg(long, default_value = "AppModule")]
     pub module_type: String,
+}
+
+#[derive(Args, Debug)]
+pub struct StartArgs {
+    /// Application name (directory)
+    #[arg(default_value = ".")]
+    pub app_name: Option<String>,
+    /// Arguments to pass to the application
+    #[arg(last = true)]
+    pub args: Vec<String>,
+}
+
+#[derive(Args, Debug)]
+pub struct DevArgs {
+    /// Application name (directory)
+    #[arg(default_value = ".")]
+    pub app_name: Option<String>,
+    /// Arguments to pass to the application
+    #[arg(last = true)]
+    pub args: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]

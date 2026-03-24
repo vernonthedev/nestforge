@@ -3,6 +3,8 @@
 * It re-exports the internal pieces
 * use nestforge::{NestForgeFactory, ModuleDefinition, Container};
 */
+pub mod common;
+
 pub use nestforge_core::{
     collect_module_graph, collect_module_route_docs, framework_log, framework_log_event,
     initialize_module_graph, openapi_array_schema_for, openapi_nullable_schema_for,

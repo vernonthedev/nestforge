@@ -1,0 +1,20 @@
+[transpiler]
+# Custom import mappings for the TypeScript-style import transpiler
+# Format: "from" = "to"
+# Example: "@my-lib" = "my_crate"
+
+# Default mappings are handled in code:
+# - "nestforge/*" -> "nestforge::*"
+# - "@*" -> "nestforge::*"
+# - "./*" -> "self::*"
+# - "../*" -> "super::*"
+
+# Add custom mappings here
+# "my-custom-lib" = "my_custom_crate"
+
+[transpiler.regex]
+# Regex patterns for import detection
+# Default import pattern: import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["']\s*;
+# Default module import pattern: import\s+([A-Za-z0-9_]+)\s+from\s+["']([^"']+)["']\s*;
+
+# Custom patterns can be added, but currently hardcoded

@@ -76,6 +76,49 @@ cargo check --workspace
 cargo run -p hello-nestforge
 ```
 
+## TypeScript-Style Imports
+
+NestForge supports TypeScript-style import syntax for a familiar developer experience:
+
+```typescript
+// Your code
+import { Module, Controller, Get } from "nestforge/common";
+import { UsersService } from "./users.service";
+
+@Controller("users")
+export class UsersController {
+  @Get()
+  findAll() {
+    return [];
+  }
+}
+```
+
+The transpiler automatically converts these to valid Rust:
+
+```rust
+use nestforge::common::{Controller, Get};
+use self::users_service::UsersService;
+
+#[Controller("users")]
+pub struct UsersController {
+    #[Get()]
+    pub fn find_all(&self) -> Vec<()> {
+        Vec::new()
+    }
+}
+```
+
+Run with transpilation:
+
+```bash
+nestforge start
+# or
+nestforge dev
+```
+
+See the [CLI Guide](docs/cli-guide.md) for full documentation.
+
 GraphQL-first example:
 
 ```bash
@@ -497,10 +540,4 @@ NestForgeFactory::<AppModule>::create()?
 - Main Documentation: [https://nestforge.suredoc.net](https://nestforge.suredoc.net)
 - Wiki: [https://github.com/vernonthedev/nestforge/wiki](https://github.com/vernonthedev/nestforge/wiki)
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## License
-
-Apache-2.0 ([LICENSE](LICENSE)).
+- Wiki: [https://github.com/vernonthedev/nestforge/wiki](https://github.com/vernonthedev/nestforge/wiki)

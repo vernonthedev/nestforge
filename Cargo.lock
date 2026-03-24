@@ -1781,6 +1781,7 @@ dependencies = [
  "nestforge-db",
  "owo-colors",
  "ratatui",
+ "regex",
  "sha2",
  "thiserror",
  "tokio",

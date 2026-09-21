@@ -27,8 +27,6 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.payload.issue.number,
             };
-
-            // ponytail: only collaborators with push access can change the trust list.
             const { data: perm } = await github.rest.repos.getCollaboratorPermissionLevel({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -60,8 +58,6 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-
-            // ponytail: refuse duplicates; status changes are a manual file edit.
             const norm = (u) => u.trim().replace(/^@/, "").toLowerCase();
             const want = norm(user);
             const known = contents.split("\n").some((raw) => {

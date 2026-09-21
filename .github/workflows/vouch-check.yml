@@ -20,7 +20,7 @@ jobs:
             const pr = context.payload.pull_request;
             const author = pr.user.login;
             const want = author.trim().replace(/^@/, "").toLowerCase();
-            const bare = (u) => u.split(":").pop();
+            const matches = (u) => u === want || u === `github:${want}`;
             const { data: perm } = await github.rest.repos.getCollaboratorPermissionLevel({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -52,10 +52,10 @@ jobs:
               if (!line || line.startsWith("#")) continue;
               if (line.startsWith("-")) {
                 const u = line.slice(1).split(/\s+/)[0].replace(/^@/, "").toLowerCase();
-                if (u === want || bare(u) === bare(want)) denounced = true;
+                if (matches(u)) denounced = true;
               } else {
                 const u = line.split(/\s+/)[0].replace(/^@/, "").toLowerCase();
-                if (u === want || bare(u) === bare(want)) vouched = true;
+                if (matches(u)) vouched = true;
               }
             }
 

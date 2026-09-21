@@ -3,9 +3,7 @@
 examples/hello-nestforge/.env
 examples/hello-nestforge/.nestforge/
 examples/hello-nestforge/migrations/
-AGENTS.md
 .codex/
-.agents/
 .agent/
 skills-lock.json
 .agents-lock.json
@@ -16,3 +14,4 @@ skills-lock.json
 .env
 *.log
 myapp/
+.cargo/

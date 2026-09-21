@@ -9,6 +9,10 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: vouch-manage
+  cancel-in-progress: false
+
 jobs:
   manage:
     runs-on: ubuntu-latest

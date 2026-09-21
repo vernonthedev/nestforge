@@ -45,7 +45,15 @@ jobs:
             }
 
             const path = ".github/VOUCHED.td";
-            const branch = context.payload.repository.default_branch;
+            let branch = context.payload.repository.default_branch;
+            if (context.payload.issue.pull_request) {
+              const { data: commentedPr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.issue.number,
+              });
+              branch = commentedPr.base.ref;
+            }
             let sha = undefined;
             let contents = "";
             try {

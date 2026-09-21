@@ -65,7 +65,16 @@ jobs:
               });
               if (!Array.isArray(file)) {
                 sha = file.sha;
-                contents = Buffer.from(file.content, "base64").toString("utf8");
+                if (file.encoding === "none") {
+                  const { data: blob } = await github.rest.git.getBlob({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    file_sha: file.sha,
+                  });
+                  contents = Buffer.from(blob.content, blob.encoding).toString("utf8");
+                } else {
+                  contents = Buffer.from(file.content, "base64").toString("utf8");
+                }
               }
             } catch (error) {
               if (error.status !== 404) throw error;

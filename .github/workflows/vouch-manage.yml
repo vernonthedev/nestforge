@@ -106,7 +106,7 @@ jobs:
               message: `${cmd.toLowerCase()} @${user} via comment by @${commenter}`,
               content: Buffer.from(contents).toString("base64"),
             });
-            const { data: openPrs } = await github.rest.pulls.list({
+            const openPrs = await github.paginate(github.rest.pulls.list, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: "open",

@@ -89,6 +89,37 @@ jobs:
               message: `${cmd.toLowerCase()} @${user} via comment by @${commenter}`,
               content: Buffer.from(contents).toString("base64"),
             });
+            const { data: openPrs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100,
+            });
+            for (const openPr of openPrs.filter((openPr) => openPr.user.login.toLowerCase() === want)) {
+              const target = {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: openPr.number,
+              };
+              if (cmd.toLowerCase() === "denounce") {
+                await github.rest.issues.createComment({
+                  ...target,
+                  body: `@${user} this PR was closed automatically because the author is denounced in \`${path}\`. A maintainer can review or appeal.`,
+                });
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: openPr.number,
+                  state: "closed",
+                });
+              } else {
+                try {
+                  await github.rest.issues.removeLabel({ ...target, name: "needs-vouch" });
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                }
+              }
+            }
             await github.rest.issues.createComment({
               ...replyTo,
               body: `Recorded \`/${cmd} @${user}\` in \`${path}\`.`,

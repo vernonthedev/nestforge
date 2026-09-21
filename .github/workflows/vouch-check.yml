@@ -77,7 +77,13 @@ jobs:
               });
               return;
             }
-            if (!vouched) {
+            if (vouched) {
+              try {
+                await github.rest.issues.removeLabel({ ...issue, name: "needs-vouch" });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            } else {
               await github.rest.issues.addLabels({ ...issue, labels: ["needs-vouch"] });
               await github.rest.issues.createComment({
                 ...issue,

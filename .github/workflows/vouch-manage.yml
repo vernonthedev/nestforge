@@ -112,7 +112,7 @@ jobs:
               state: "open",
               per_page: 100,
             });
-            for (const openPr of openPrs.filter((openPr) => openPr.user.login.toLowerCase() === want)) {
+            for (const openPr of openPrs.filter((openPr) => openPr.user?.login?.toLowerCase() === want)) {
               const target = {
                 owner: context.repo.owner,
                 repo: context.repo.repo,

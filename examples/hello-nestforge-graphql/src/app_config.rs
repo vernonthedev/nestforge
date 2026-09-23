@@ -1,6 +1,4 @@
-use nestforge::{
-    injectable, ConfigError, ConfigModule, ConfigOptions, ConfigService, EnvStore, FromEnv,
-};
+use nestforge::{injectable, ConfigError, ConfigModule, ConfigOptions, EnvStore, FromEnv};
 
 #[injectable(factory = load_app_config)]
 pub struct AppConfig {

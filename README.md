@@ -501,16 +501,11 @@ NestForgeFactory::<AppModule>::create()?
 >
 > [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/vernonthedev/nestforge)
 
+## Resources
 
-## Documentation
-
-- Main Documentation: [https://nestforge.suredoc.net](https://nestforge.suredoc.net)
-- Wiki: [https://github.com/vernonthedev/nestforge/wiki](https://github.com/vernonthedev/nestforge/wiki)
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## License
-
-Apache-2.0 ([LICENSE](LICENSE)).
+| Resource | Description |
+| --- | --- |
+| [Documentation](https://nestforge.suredoc.net) | Official NestForge documentation and API reference |
+| [GitHub Wiki](https://github.com/vernonthedev/nestforge/wiki) | Additional guides, examples, and project documentation |
+| [Contributing](CONTRIBUTING.md) | Guidelines for contributing to NestForge |
+| [License](LICENSE) | Apache License 2.0 |

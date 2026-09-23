@@ -23,7 +23,7 @@ NestForge is a high-performance backend framework designed for developers who cr
 
 > [!IMPORTANT]
 > **Stable Release**
-> NestForge **1.6.0** is now published on crates.io.
+> NestForge **1.9.0** is now published on crates.io.
 
 ## What You Get
 

@@ -14,12 +14,13 @@
 NestForge is a high-performance backend framework designed for developers who crave the modularity and **Dependency Injection (DI)** of NestJS but want the memory safety and blazing speed of the Rust ecosystem.
 
 
-[![crates.io](https://img.shields.io/crates/v/nestforge?label=crates.io)](https://crates.io/crates/nestforge)
-[![docs.rs](https://img.shields.io/docsrs/nestforge?label=docs.rs)](https://docs.rs/nestforge)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/actions/workflow/status/vernonthedev/nestforge/release.yml?branch=main&label=release)](https://github.com/vernonthedev/nestforge/actions/workflows/release.yml)
-[![VS Code Extension](https://img.shields.io/visual-studio-marketplace/v/vernonthedev.nestforge?label=VS%20Code%20Extension)](https://marketplace.visualstudio.com/items?itemName=vernonthedev.nestforge)
-[![Extension Downloads](https://img.shields.io/visual-studio-marketplace/d/vernonthedev.nestforge?label=extension%20downloads)](https://marketplace.visualstudio.com/items?itemName=vernonthedev.nestforge)
+[![Crates.io](https://img.shields.io/crates/v/nestforge?logo=rust&logoColor=white)](https://crates.io/crates/nestforge)
+[![docs.rs](https://img.shields.io/docsrs/nestforge?logo=rust&logoColor=white)](https://docs.rs/nestforge)
+[![GitHub Release](https://img.shields.io/github/v/release/vernonthedev/nestforge?display_name=tag&logo=github)](https://github.com/vernonthedev/nestforge/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/vernonthedev/nestforge/release.yml?branch=main&label=build&logo=github)](https://github.com/vernonthedev/nestforge/actions/workflows/release.yml)
+[![License](https://img.shields.io/github/license/vernonthedev/nestforge)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/vernonthedev/nestforge?style=flat&logo=github)](https://github.com/vernonthedev/nestforge/stargazers)
+[![Crates.io Downloads](https://img.shields.io/crates/d/nestforge?logo=rust&logoColor=white)](https://crates.io/crates/nestforge)
 
 > [!IMPORTANT]
 > **Stable Release**

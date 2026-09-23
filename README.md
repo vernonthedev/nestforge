@@ -13,6 +13,7 @@
 
 NestForge is a high-performance backend framework designed for developers who crave the modularity and **Dependency Injection (DI)** of NestJS but want the memory safety and blazing speed of the Rust ecosystem.
 
+
 [![crates.io](https://img.shields.io/crates/v/nestforge?label=crates.io)](https://crates.io/crates/nestforge)
 [![docs.rs](https://img.shields.io/docsrs/nestforge?label=docs.rs)](https://docs.rs/nestforge)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -491,6 +492,15 @@ NestForgeFactory::<AppModule>::create()?
     .listen(3000)
     .await?;
 ```
+
+
+> [!TIP]
+> **Extra Architectural Docs**
+>
+> You can also find a detailed explanation of the entire project at [DeepWiki](https://deepwiki.com/vernonthedev/nestforge).
+>
+> [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/vernonthedev/nestforge)
+
 
 ## Documentation
 
